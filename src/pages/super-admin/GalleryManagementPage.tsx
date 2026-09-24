@@ -22,7 +22,7 @@ export const GalleryManagementPage: React.FC = () => {
   const [items, setItems] = useState<GalleryItemCMS[]>(INITIAL_GALLERY);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('Active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
 
   // Pagination
@@ -35,10 +35,15 @@ export const GalleryManagementPage: React.FC = () => {
   const [deletingItem, setDeletingItem] = useState<GalleryItemCMS | null>(null);
   const [lightboxImg, setLightboxImg] = useState<{ url: string; title: string; caption?: string } | null>(null);
 
-  // Form state (No status field needed in form - default always Active)
+  const [categoriesList, setCategoriesList] = useState<string[]>([
+    'Argentina', 'Training', 'Matches', 'Events', 'Infrastructure'
+  ]);
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [customCategoryText, setCustomCategoryText] = useState('');
+
   const [form, setForm] = useState({
     title: '',
-    category: 'Argentina' as GalleryCategory,
+    category: 'Argentina',
     imageUrl: '',
     caption: ''
   });
@@ -60,12 +65,19 @@ export const GalleryManagementPage: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingItem(null);
-    setForm({ title: '', category: 'Argentina', imageUrl: '', caption: '' });
+    setIsCustomCategory(false);
+    setCustomCategoryText('');
+    setForm({ title: '', category: categoriesList[0] || 'Argentina', imageUrl: '', caption: '' });
     setUploadModal(true);
   };
 
   const handleOpenEdit = (item: GalleryItemCMS) => {
     setEditingItem(item);
+    if (!categoriesList.includes(item.category)) {
+      setCategoriesList(prev => [...prev, item.category]);
+    }
+    setIsCustomCategory(false);
+    setCustomCategoryText('');
     setForm({
       title: item.title,
       category: item.category,
@@ -79,6 +91,16 @@ export const GalleryManagementPage: React.FC = () => {
     e.preventDefault();
     if (!form.title) return;
 
+    const finalCategory = isCustomCategory
+      ? customCategoryText.trim() || 'General'
+      : form.category;
+
+    if (isCustomCategory && customCategoryText.trim()) {
+      if (!categoriesList.includes(customCategoryText.trim())) {
+        setCategoriesList(prev => [...prev, customCategoryText.trim()]);
+      }
+    }
+
     const imgUrlToUse =
       form.imageUrl ||
       'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&q=80&w=800';
@@ -87,7 +109,7 @@ export const GalleryManagementPage: React.FC = () => {
       setItems(prev =>
         prev.map(i =>
           i.id === editingItem.id
-            ? { ...i, title: form.title, category: form.category, imageUrl: imgUrlToUse, caption: form.caption || form.title }
+            ? { ...i, title: form.title, category: finalCategory as any, imageUrl: imgUrlToUse, caption: form.caption || form.title }
             : i
         )
       );
@@ -96,7 +118,7 @@ export const GalleryManagementPage: React.FC = () => {
       const newItem: GalleryItemCMS = {
         id: `gal-${Date.now()}`,
         title: form.title,
-        category: form.category,
+        category: finalCategory as any,
         imageUrl: imgUrlToUse,
         uploadedDate: new Date().toISOString().slice(0, 10),
         caption: form.caption || form.title,
@@ -158,9 +180,9 @@ export const GalleryManagementPage: React.FC = () => {
             value: statusFilter,
             onChange: setStatusFilter,
             options: [
-              { label: 'All Status', value: 'all' },
               { label: 'Active', value: 'Active' },
-              { label: 'Inactive', value: 'Inactive' }
+              { label: 'Inactive', value: 'Inactive' },
+              { label: 'All Status', value: 'all' }
             ]
           }
         ]}
@@ -290,18 +312,45 @@ export const GalleryManagementPage: React.FC = () => {
         <form onSubmit={handleSavePhoto} className="space-y-4">
           <Input label="Photo Title / Caption" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. Argentinos Juniors delegation visit" />
           
-          <Select
-            label="Category Tag"
-            options={[
-              { label: 'Argentina Delegation', value: 'Argentina' },
-              { label: 'Training Sessions', value: 'Training' },
-              { label: 'Matches', value: 'Matches' },
-              { label: 'Events & Convocation', value: 'Events' },
-              { label: 'Infrastructure', value: 'Infrastructure' }
-            ]}
-            value={form.category}
-            onChange={e => setForm({ ...form, category: e.target.value as GalleryCategory })}
-          />
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Category Tag</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomCategory(!isCustomCategory);
+                  setCustomCategoryText('');
+                }}
+                className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+              >
+                {isCustomCategory ? "← Choose from existing" : "+ Add New Category Tag"}
+              </button>
+            </div>
+
+            {isCustomCategory ? (
+              <Input
+                placeholder="Enter new category tag (e.g. Tournaments, Facilities)"
+                value={customCategoryText}
+                onChange={e => setCustomCategoryText(e.target.value)}
+                required
+              />
+            ) : (
+              <Select
+                options={[
+                  ...categoriesList.map(cat => ({ label: cat, value: cat })),
+                  { label: '+ Add New Category Tag', value: '__NEW__' }
+                ]}
+                value={form.category}
+                onChange={e => {
+                  if (e.target.value === '__NEW__') {
+                    setIsCustomCategory(true);
+                  } else {
+                    setForm({ ...form, category: e.target.value });
+                  }
+                }}
+              />
+            )}
+          </div>
 
           <ImageUpload
             label="Gallery Photo Image"

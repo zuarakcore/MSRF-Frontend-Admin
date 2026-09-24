@@ -36,10 +36,13 @@ export interface Student {
   // Admission Info
   admissionNumber: string;
   admissionDate: string;
-  course: SportsCourse;
+  category: string; // e.g. Football Academy, Swimming & Aquatics
+  programType: string; // e.g. Day Scholar Program, Residential Program, Weekend Program
+  trainingCenter: string; // e.g. Kozhikode Main Campus
   batch: 'Morning (6:00 AM - 8:00 AM)' | 'Evening (4:00 PM - 6:00 PM)' | 'Weekend Special';
-  coachId: string;
-  coachName: string;
+  course?: SportsCourse; // Legacy compatibility optional
+  coachId?: string;
+  coachName?: string;
   status: 'Active' | 'Inactive';
   
   // Parent Details
@@ -58,7 +61,7 @@ export interface Student {
   attendancePercentage: number;
   totalPresent: number;
   totalAbsent: number;
-  feeStatus: 'Paid' | 'Pending' | 'Overdue' | 'Partially Paid';
+  feeStatus: 'Paid' | 'Pending' | 'Overdue';
   totalFee: number;
   paidAmount: number;
   pendingAmount: number;
@@ -100,9 +103,11 @@ export interface AttendanceRecord {
   id: string;
   studentId: string;
   studentName: string;
-  coachId: string;
-  coachName: string;
-  course: SportsCourse;
+  coachId?: string;
+  coachName?: string;
+  markedByCoach: string; // The coach who added/marked this attendance log
+  course?: SportsCourse;
+  category?: string;
   date: string; // YYYY-MM-DD
   status: 'Present' | 'Absent' | 'Late' | 'Excused';
   remarks?: string;
@@ -125,7 +130,7 @@ export interface Installment {
   amount: number;
   dueDate: string;
   paidDate?: string;
-  status: 'Paid' | 'Pending' | 'Partially Paid' | 'Overdue';
+  status: 'Paid' | 'Pending' | 'Overdue';
   transactionId?: string;
 }
 
@@ -135,7 +140,8 @@ export interface PaymentSubmission {
   studentId: string;
   studentName: string;
   parentName: string;
-  course: SportsCourse;
+  course?: SportsCourse;
+  category?: string;
   amount: number;
   transactionId: string;
   paymentDate: string;
@@ -155,7 +161,8 @@ export interface Invoice {
   studentName: string;
   parentName: string;
   parentPhone: string;
-  course: SportsCourse;
+  course?: SportsCourse;
+  category?: string;
   issueDate: string;
   dueDate: string;
   subtotal: number;
@@ -164,7 +171,7 @@ export interface Invoice {
   totalAmount: number;
   paidAmount: number;
   balanceDue: number;
-  paymentStatus: 'Paid' | 'Pending' | 'Overdue' | 'Partially Paid';
+  paymentStatus: 'Paid' | 'Pending' | 'Overdue';
   items: InvoiceItem[];
 }
 
@@ -299,8 +306,34 @@ export interface CareerApplicationCMS {
   phone: string;
   position: string;
   resumeUrl: string;
+  resumeFileName?: string;
   appliedDate: string;
   status: 'Under Review' | 'Shortlisted' | 'Rejected';
+}
+
+export interface CategoryCMS {
+  id: string;
+  title: string;
+  description: string;
+  status: 'Active' | 'Inactive';
+  createdAt?: string;
+}
+
+export interface ProgramTypeCMS {
+  id: string;
+  title: string; // e.g. Day Scholar Program, Residential Program, Weekend Program
+  description: string;
+  status: 'Active' | 'Inactive';
+  createdAt?: string;
+}
+
+export interface TrainingCenterCMS {
+  id: string;
+  name: string; // e.g. Kozhikode Main Campus, Malappuram Sports Hub
+  location: string;
+  phone?: string;
+  status: 'Active' | 'Inactive';
+  createdAt?: string;
 }
 
 export interface ContactEnquiryCMS {

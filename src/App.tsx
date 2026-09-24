@@ -20,12 +20,15 @@ import { NotificationsPage } from './pages/super-admin/NotificationsPage';
 import { SettingsPage } from './pages/super-admin/SettingsPage';
 
 // Website CMS Modules (Individual Sidebar Routes)
+import { CategoriesCMSPage } from './pages/super-admin/website/CategoriesCMSPage';
 import { ProgrammesCMSPage } from './pages/super-admin/website/ProgrammesCMSPage';
 import { TeamCMSPage } from './pages/super-admin/website/TeamCMSPage';
 import { GalleryManagementPage } from './pages/super-admin/GalleryManagementPage';
 import { CareersCMSPage } from './pages/super-admin/website/CareersCMSPage';
 import { JobApplicationsCMSPage } from './pages/super-admin/website/JobApplicationsCMSPage';
 import { ContactEnquiriesCMSPage } from './pages/super-admin/website/ContactEnquiriesCMSPage';
+import { ProgramTypesCMSPage } from './pages/super-admin/ProgramTypesCMSPage';
+import { TrainingCentersPage } from './pages/super-admin/TrainingCentersPage';
 
 // Coach Pages
 import { CoachDashboard } from './pages/coach/CoachDashboard';
@@ -111,14 +114,6 @@ export const App: React.FC = () => {
               }
             />
             <Route
-              path="/super-admin/student-assignments"
-              element={
-                <RoleGuard allowedRole="SUPER_ADMIN">
-                  <StudentAssignmentPage />
-                </RoleGuard>
-              }
-            />
-            <Route
               path="/super-admin/attendance"
               element={
                 <RoleGuard allowedRole="SUPER_ADMIN">
@@ -143,14 +138,6 @@ export const App: React.FC = () => {
               }
             />
             <Route
-              path="/super-admin/invoices"
-              element={
-                <RoleGuard allowedRole="SUPER_ADMIN">
-                  <InvoiceListPage />
-                </RoleGuard>
-              }
-            />
-            <Route
               path="/super-admin/reports"
               element={
                 <RoleGuard allowedRole="SUPER_ADMIN">
@@ -160,6 +147,14 @@ export const App: React.FC = () => {
             />
 
             {/* Website CMS Separate Routes */}
+            <Route
+              path="/super-admin/website/categories"
+              element={
+                <RoleGuard allowedRole="SUPER_ADMIN">
+                  <CategoriesCMSPage />
+                </RoleGuard>
+              }
+            />
             <Route
               path="/super-admin/website/programmes"
               element={
@@ -205,6 +200,24 @@ export const App: React.FC = () => {
               element={
                 <RoleGuard allowedRole="SUPER_ADMIN">
                   <ContactEnquiriesCMSPage />
+                </RoleGuard>
+              }
+            />
+
+            {/* Dynamic Modules */}
+            <Route
+              path="/super-admin/program-types"
+              element={
+                <RoleGuard allowedRole="SUPER_ADMIN">
+                  <ProgramTypesCMSPage />
+                </RoleGuard>
+              }
+            />
+            <Route
+              path="/super-admin/training-centers"
+              element={
+                <RoleGuard allowedRole="SUPER_ADMIN">
+                  <TrainingCentersPage />
                 </RoleGuard>
               }
             />

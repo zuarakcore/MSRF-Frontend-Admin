@@ -18,10 +18,13 @@ import {
   Eye, 
   Edit3, 
   Trash2, 
-  Download
+  Download,
+  Tag,
+  Layers,
+  MapPin
 } from 'lucide-react';
-import { INITIAL_STUDENTS, INITIAL_COACHES } from '../../mock-data/msrf-data';
-import { Student, SportsCourse } from '../../types';
+import { INITIAL_STUDENTS, INITIAL_CATEGORIES, INITIAL_PROGRAM_TYPES, INITIAL_TRAINING_CENTERS } from '../../mock-data/msrf-data';
+import { Student } from '../../types';
 import { formatCurrency, exportToCSV } from '../../utils/format';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../context/NotificationContext';
@@ -29,11 +32,21 @@ import { useNotifications } from '../../context/NotificationContext';
 export const StudentListPage: React.FC = () => {
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
   const [search, setSearch] = useState('');
-  const [courseFilter, setCourseFilter] = useState('ALL');
-  const [coachFilter, setCoachFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  
+  // Filters (Category, Program Type, Training Center, DOB Year, Status, Fee Status)
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [programTypeFilter, setProgramTypeFilter] = useState('ALL');
+  const [trainingCenterFilter, setTrainingCenterFilter] = useState('ALL');
+  const [dobYearFilter, setDobYearFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('Active');
   const [feeStatusFilter, setFeeStatusFilter] = useState('ALL');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
+
+  // Dynamic lists from modules
+  const categoriesList = INITIAL_CATEGORIES.map(c => c.title);
+  const programTypesList = INITIAL_PROGRAM_TYPES.map(pt => pt.title);
+  const trainingCentersList = INITIAL_TRAINING_CENTERS.map(tc => tc.name);
+  const dobYearsList = Array.from(new Set(students.map(s => (s.dateOfBirth ? s.dateOfBirth.slice(0, 4) : '2012')))).sort().reverse();
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -54,9 +67,10 @@ export const StudentListPage: React.FC = () => {
     phone: '',
     email: '',
     address: '',
-    course: 'Swimming Academy' as SportsCourse,
+    category: categoriesList[0] || 'Football Academy',
+    programType: programTypesList[0] || 'Day Scholar Program',
+    trainingCenter: trainingCentersList[0] || 'Kozhikode Main Campus',
     batch: 'Morning (6:00 AM - 8:00 AM)',
-    coachId: INITIAL_COACHES[0].id,
     parentName: '',
     relationship: 'Father',
     parentPhone: '',
@@ -68,6 +82,7 @@ export const StudentListPage: React.FC = () => {
 
   const navigate = useNavigate();
   const { addToast } = useNotifications();
+  const todayDateStr = new Date().toISOString().split('T')[0];
 
   // Filter logic
   const filteredStudents = students.filter(s => {
@@ -76,12 +91,14 @@ export const StudentListPage: React.FC = () => {
       s.studentId.toLowerCase().includes(search.toLowerCase()) ||
       s.parentName.toLowerCase().includes(search.toLowerCase()) ||
       s.phone.includes(search);
-    const matchesCourse = courseFilter === 'ALL' || s.course === courseFilter;
-    const matchesCoach = coachFilter === 'ALL' || s.coachId === coachFilter;
+    const matchesCategory = categoryFilter === 'ALL' || s.category === categoryFilter;
+    const matchesProgramType = programTypeFilter === 'ALL' || s.programType === programTypeFilter;
+    const matchesTrainingCenter = trainingCenterFilter === 'ALL' || s.trainingCenter === trainingCenterFilter;
+    const matchesDobYear = dobYearFilter === 'ALL' || (s.dateOfBirth && s.dateOfBirth.startsWith(dobYearFilter));
     const matchesStatus = statusFilter === 'ALL' || s.status === statusFilter;
     const matchesFeeStatus = feeStatusFilter === 'ALL' || s.feeStatus === feeStatusFilter;
 
-    return matchesSearch && matchesCourse && matchesCoach && matchesStatus && matchesFeeStatus;
+    return matchesSearch && matchesCategory && matchesProgramType && matchesTrainingCenter && matchesDobYear && matchesStatus && matchesFeeStatus;
   });
 
   const totalPages = Math.ceil(filteredStudents.length / pageSize) || 1;
@@ -97,9 +114,10 @@ export const StudentListPage: React.FC = () => {
       phone: '',
       email: '',
       address: '',
-      course: 'Swimming Academy',
+      category: categoriesList[0] || 'Football Academy',
+      programType: programTypesList[0] || 'Day Scholar Program',
+      trainingCenter: trainingCentersList[0] || 'Kozhikode Main Campus',
       batch: 'Morning (6:00 AM - 8:00 AM)',
-      coachId: INITIAL_COACHES[0].id,
       parentName: '',
       relationship: 'Father',
       parentPhone: '',
@@ -121,9 +139,10 @@ export const StudentListPage: React.FC = () => {
       phone: s.phone,
       email: s.email,
       address: s.address,
-      course: s.course,
+      category: s.category || categoriesList[0],
+      programType: s.programType || programTypesList[0],
+      trainingCenter: s.trainingCenter || trainingCentersList[0],
       batch: s.batch,
-      coachId: s.coachId,
       parentName: s.parentName,
       relationship: s.relationship,
       parentPhone: s.parentPhone,
@@ -137,12 +156,22 @@ export const StudentListPage: React.FC = () => {
 
   const handleSaveStudent = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // DOB Validation (Required & No Future Dates)
+    if (!formData.dateOfBirth) {
+      addToast({ type: 'warning', title: 'Missing Date of Birth', message: 'Date of Birth is required.' });
+      return;
+    }
+    if (new Date(formData.dateOfBirth) > new Date()) {
+      addToast({ type: 'warning', title: 'Invalid Date of Birth', message: 'Date of Birth cannot be in future dates.' });
+      return;
+    }
+
     if (formData.parentPhone && formData.parentPhone.length < 10) {
       addToast({ type: 'warning', title: 'Invalid Phone Number', message: 'Parent phone number must be 10 digits.' });
       return;
     }
 
-    const coachObj = INITIAL_COACHES.find(c => c.id === formData.coachId) || INITIAL_COACHES[0];
     const defaultPhoto = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
 
     if (editingStudent) {
@@ -154,11 +183,12 @@ export const StudentListPage: React.FC = () => {
                 fullName: formData.fullName,
                 photo: formData.photo || defaultPhoto,
                 gender: formData.gender,
+                dateOfBirth: formData.dateOfBirth,
                 phone: formData.phone,
                 email: formData.email,
-                course: formData.course,
-                coachId: coachObj.id,
-                coachName: coachObj.fullName,
+                category: formData.category,
+                programType: formData.programType,
+                trainingCenter: formData.trainingCenter,
                 parentName: formData.parentName,
                 parentPhone: formData.parentPhone,
                 totalFee: formData.totalFee
@@ -174,17 +204,17 @@ export const StudentListPage: React.FC = () => {
         studentId: `MSRF-2026-${newIdNum}`,
         fullName: formData.fullName,
         photo: formData.photo || defaultPhoto,
-        dateOfBirth: formData.dateOfBirth || '2012-05-15',
+        dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
         phone: formData.phone || '9847000000',
         email: formData.email || 'student@msrf.org',
         address: formData.address || 'Calicut, Kerala',
         admissionNumber: `ADM-2026-${newIdNum}`,
         admissionDate: new Date().toISOString().slice(0, 10),
-        course: formData.course,
+        category: formData.category,
+        programType: formData.programType,
+        trainingCenter: formData.trainingCenter,
         batch: formData.batch as any,
-        coachId: coachObj.id,
-        coachName: coachObj.fullName,
         status: 'Active',
         parentName: formData.parentName || 'Parent Name',
         relationship: formData.relationship as any,
@@ -227,8 +257,9 @@ export const StudentListPage: React.FC = () => {
     const exportData = filteredStudents.map(s => ({
       'Student ID': s.studentId,
       'Full Name': s.fullName,
-      'Course': s.course,
-      'Coach': s.coachName,
+      'Category': s.category,
+      'Program Type': s.programType,
+      'Training Center': s.trainingCenter,
       'Parent Name': s.parentName,
       'Phone': s.phone,
       'Attendance %': `${s.attendancePercentage}%`,
@@ -274,18 +305,43 @@ export const StudentListPage: React.FC = () => {
         onViewModeChange={setViewMode}
         filters={[
           {
-            key: 'course',
-            label: 'Course',
-            value: courseFilter,
-            onChange: setCourseFilter,
+            key: 'category',
+            label: 'Category',
+            value: categoryFilter,
+            onChange: setCategoryFilter,
             options: [
-              { label: 'All Courses', value: 'ALL' },
-              { label: 'Swimming Academy', value: 'Swimming Academy' },
-              { label: 'Football Excellence', value: 'Football Excellence' },
-              { label: 'Badminton Club', value: 'Badminton Club' },
-              { label: 'Tennis Training', value: 'Tennis Training' },
-              { label: 'Cricket Performance', value: 'Cricket Performance' },
-              { label: 'Athletics & Track', value: 'Athletics & Track' }
+              { label: 'All Categories', value: 'ALL' },
+              ...categoriesList.map(c => ({ label: c, value: c }))
+            ]
+          },
+          {
+            key: 'programType',
+            label: 'Program Type',
+            value: programTypeFilter,
+            onChange: setProgramTypeFilter,
+            options: [
+              { label: 'All Program Types', value: 'ALL' },
+              ...programTypesList.map(pt => ({ label: pt, value: pt }))
+            ]
+          },
+          {
+            key: 'trainingCenter',
+            label: 'Training Center',
+            value: trainingCenterFilter,
+            onChange: setTrainingCenterFilter,
+            options: [
+              { label: 'All Training Centers', value: 'ALL' },
+              ...trainingCentersList.map(tc => ({ label: tc, value: tc }))
+            ]
+          },
+          {
+            key: 'dobYear',
+            label: 'DOB Year',
+            value: dobYearFilter,
+            onChange: setDobYearFilter,
+            options: [
+              { label: 'All DOB Years', value: 'ALL' },
+              ...dobYearsList.map(y => ({ label: `Year ${y}`, value: y }))
             ]
           },
           {
@@ -294,9 +350,9 @@ export const StudentListPage: React.FC = () => {
             value: statusFilter,
             onChange: setStatusFilter,
             options: [
-              { label: 'All Statuses', value: 'ALL' },
               { label: 'Active', value: 'Active' },
-              { label: 'Inactive', value: 'Inactive' }
+              { label: 'Inactive', value: 'Inactive' },
+              { label: 'All Statuses', value: 'ALL' }
             ]
           },
           {
@@ -308,8 +364,7 @@ export const StudentListPage: React.FC = () => {
               { label: 'All Fee States', value: 'ALL' },
               { label: 'Paid', value: 'Paid' },
               { label: 'Pending', value: 'Pending' },
-              { label: 'Overdue', value: 'Overdue' },
-              { label: 'Partially Paid', value: 'Partially Paid' }
+              { label: 'Overdue', value: 'Overdue' }
             ]
           }
         ]}
@@ -329,10 +384,10 @@ export const StudentListPage: React.FC = () => {
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider">
                   <th className="py-3.5 px-4">Student</th>
                   <th className="py-3.5 px-4">Student ID</th>
-                  <th className="py-3.5 px-4">Course</th>
-                  <th className="py-3.5 px-4">Coach</th>
+                  <th className="py-3.5 px-4">Category</th>
+                  <th className="py-3.5 px-4">Program Type</th>
+                  <th className="py-3.5 px-4">Training Center</th>
                   <th className="py-3.5 px-4">Parent Details</th>
-                  <th className="py-3.5 px-4">Attendance</th>
                   <th className="py-3.5 px-4">Fee Status</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
@@ -358,22 +413,27 @@ export const StudentListPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="py-3.5 px-4 font-mono font-semibold text-slate-800">{st.studentId}</td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-900">{st.course}</td>
-                    <td className="py-3.5 px-4 text-slate-600">{st.coachName}</td>
+                    <td className="py-3.5 px-4 font-bold text-blue-600">
+                      <div className="flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                        <span>{st.category}</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-indigo-700">
+                      <div className="flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                        <span>{st.programType}</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-700">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span>{st.trainingCenter}</span>
+                      </div>
+                    </td>
                     <td className="py-3.5 px-4">
                       <p className="font-bold text-slate-800">{st.parentName}</p>
                       <p className="text-[11px] text-slate-400">{st.parentPhone}</p>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-12 bg-slate-100 h-2 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${st.attendancePercentage >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                            style={{ width: `${st.attendancePercentage}%` }}
-                          />
-                        </div>
-                        <span className="font-bold text-slate-800 text-[11px]">{st.attendancePercentage}%</span>
-                      </div>
                     </td>
                     <td className="py-3.5 px-4">
                       <Badge
@@ -432,7 +492,7 @@ export const StudentListPage: React.FC = () => {
             <Card
               key={st.id}
               hoverEffect
-              className="cursor-pointer"
+              className="cursor-pointer space-y-3"
               onClick={() => navigate(`/super-admin/students/${st.id}`)}
             >
               <div className="flex items-start justify-between">
@@ -454,14 +514,18 @@ export const StudentListPage: React.FC = () => {
                 />
               </div>
 
-              <div className="mt-4 space-y-2 pt-3 border-t border-slate-100 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Course:</span>
-                  <span className="font-bold text-slate-800">{st.course}</span>
+              <div className="mt-3 space-y-2 pt-3 border-t border-slate-100 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 flex items-center gap-1"><Tag className="w-3 h-3 text-blue-500" /> Category:</span>
+                  <span className="font-bold text-blue-600">{st.category}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Coach:</span>
-                  <span className="font-semibold text-slate-700">{st.coachName}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 flex items-center gap-1"><Layers className="w-3 h-3 text-indigo-500" /> Program Type:</span>
+                  <span className="font-semibold text-indigo-700">{st.programType}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 flex items-center gap-1"><MapPin className="w-3 h-3 text-rose-500" /> Training Center:</span>
+                  <span className="font-semibold text-slate-800">{st.trainingCenter}</span>
                 </div>
                 <div className="flex justify-between items-center pt-1">
                   <span className="text-slate-400">Fee Balance:</span>
@@ -469,7 +533,7 @@ export const StudentListPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); navigate(`/super-admin/students/${st.id}`); }}>
                   View Profile
                 </Button>
@@ -508,7 +572,7 @@ export const StudentListPage: React.FC = () => {
         itemName={deletingStudent?.fullName}
       />
 
-      {/* Add / Edit Student Modal (First always active - No status dropdown) */}
+      {/* Add / Edit Student Modal */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -541,6 +605,8 @@ export const StudentListPage: React.FC = () => {
               <Input
                 label="Date of Birth"
                 type="date"
+                required
+                max={todayDateStr}
                 value={formData.dateOfBirth}
                 onChange={e => setFormData({ ...formData, dateOfBirth: e.target.value })}
               />
@@ -562,30 +628,29 @@ export const StudentListPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 2: Admission Details */}
+          {/* Section 2: Admission & Enrollment Details */}
           <div>
             <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-200 pb-1 mb-3">
-              2. Admission Details
+              2. Admission & Enrollment Details
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Select
-                label="Sports Course"
-                options={[
-                  { label: 'Swimming Academy', value: 'Swimming Academy' },
-                  { label: 'Football Excellence', value: 'Football Excellence' },
-                  { label: 'Badminton Club', value: 'Badminton Club' },
-                  { label: 'Tennis Training', value: 'Tennis Training' },
-                  { label: 'Cricket Performance', value: 'Cricket Performance' },
-                  { label: 'Athletics & Track', value: 'Athletics & Track' }
-                ]}
-                value={formData.course}
-                onChange={e => setFormData({ ...formData, course: e.target.value as any })}
+                label="Category"
+                options={categoriesList.map(c => ({ label: c, value: c }))}
+                value={formData.category}
+                onChange={e => setFormData({ ...formData, category: e.target.value })}
               />
               <Select
-                label="Assigned Coach"
-                options={INITIAL_COACHES.map(c => ({ label: `${c.fullName} (${c.specialization})`, value: c.id }))}
-                value={formData.coachId}
-                onChange={e => setFormData({ ...formData, coachId: e.target.value })}
+                label="Program Type"
+                options={programTypesList.map(pt => ({ label: pt, value: pt }))}
+                value={formData.programType}
+                onChange={e => setFormData({ ...formData, programType: e.target.value })}
+              />
+              <Select
+                label="Training Center"
+                options={trainingCentersList.map(tc => ({ label: tc, value: tc }))}
+                value={formData.trainingCenter}
+                onChange={e => setFormData({ ...formData, trainingCenter: e.target.value })}
               />
               <Input
                 label="Annual Course Fee (₹)"

@@ -25,7 +25,8 @@ export const StudentAssignmentPage: React.FC = () => {
   const filteredStudents = students.filter(s =>
     s.fullName.toLowerCase().includes(search.toLowerCase()) ||
     s.studentId.toLowerCase().includes(search.toLowerCase()) ||
-    s.course.toLowerCase().includes(search.toLowerCase())
+    (s.category && s.category.toLowerCase().includes(search.toLowerCase())) ||
+    (s.course && s.course.toLowerCase().includes(search.toLowerCase()))
   );
 
   const toggleSelectStudent = (id: string) => {

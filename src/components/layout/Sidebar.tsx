@@ -23,7 +23,9 @@ import {
   Briefcase,
   Image as ImageIcon,
   MessageSquare,
-  FileCheck
+  FileCheck,
+  Tag,
+  MapPin
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -47,16 +49,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { label: 'Dashboard', path: '/super-admin/dashboard', icon: LayoutDashboard },
       { label: 'Students', path: '/super-admin/students', icon: Users },
       { label: 'Coaches', path: '/super-admin/coaches', icon: UserCheck },
-      { label: 'Assignments', path: '/super-admin/student-assignments', icon: UserPlus },
+      { label: 'Program Types', path: '/super-admin/program-types', icon: Layers },
+      { label: 'Training Centers', path: '/super-admin/training-centers', icon: MapPin },
     ]},
     { title: 'ACADEMICS & FINANCE', items: [
       { label: 'Attendance', path: '/super-admin/attendance', icon: CalendarCheck },
       { label: 'Fee Management', path: '/super-admin/fees', icon: CreditCard },
       { label: 'Payment Verification', path: '/super-admin/payments', icon: CheckCircle2 },
-      { label: 'Invoices', path: '/super-admin/invoices', icon: FileText },
       { label: 'Reports Center', path: '/super-admin/reports', icon: BarChart3 },
     ]},
     { title: 'WEBSITE DYNAMIC CONTENT', items: [
+      { label: 'Categories', path: '/super-admin/website/categories', icon: Tag },
       { label: 'Programmes', path: '/super-admin/website/programmes', icon: Layers },
       { label: 'Team', path: '/super-admin/website/team', icon: Users },
       { label: 'Gallery', path: '/super-admin/website/gallery', icon: ImageIcon },

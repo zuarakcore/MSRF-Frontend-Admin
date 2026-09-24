@@ -18,7 +18,7 @@ import { useNotifications } from '../../../context/NotificationContext';
 export const ProgrammesCMSPage: React.FC = () => {
   const [programmes, setProgrammes] = useState<ProgrammeCMS[]>(INITIAL_PROGRAMMES);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('Active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
 
   // Pagination state
@@ -222,18 +222,12 @@ export const ProgrammesCMSPage: React.FC = () => {
       {/* Add / Edit Modal */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingProg ? "Edit Sports Programme" : "Add Website Sports Programme"}>
         <form onSubmit={handleSaveProgramme} className="space-y-4">
-          <Select
+          <Input
             label="Target Age Group"
-            options={[
-              { label: '6 - 10 YEARS', value: '6 - 10 YEARS' },
-              { label: '11 - 14 YEARS', value: '11 - 14 YEARS' },
-              { label: '15 - 18 YEARS', value: '15 - 18 YEARS' },
-              { label: '10 - 18 YEARS', value: '10 - 18 YEARS' },
-              { label: '8 - 16 YEARS', value: '8 - 16 YEARS' },
-              { label: '14 YEARS AND ABOVE', value: '14 YEARS AND ABOVE' }
-            ]}
+            required
             value={form.ageGroup}
             onChange={e => setForm({ ...form, ageGroup: e.target.value })}
+            placeholder="e.g. 6 - 10 YEARS or U-14"
           />
           <Input label="Programme Title" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. Grassroots Kids Football" />
           

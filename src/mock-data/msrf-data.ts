@@ -17,7 +17,10 @@ import {
   CareerCMS,
   CareerApplicationCMS,
   ContactEnquiryCMS,
-  GalleryItemCMS
+  GalleryItemCMS,
+  CategoryCMS,
+  ProgramTypeCMS,
+  TrainingCenterCMS
 } from '../types';
 
 export const INITIAL_COACHES: Coach[] = [
@@ -163,7 +166,96 @@ const NAMES = [
   { name: 'Madhavan Unni', gender: 'Male', parent: 'Unnikrishnan P.' }
 ];
 
+export const INITIAL_CATEGORIES: CategoryCMS[] = [
+  {
+    id: 'cat-1',
+    title: 'Football Academy',
+    description: 'Youth grassroots & elite football development programs',
+    status: 'Active',
+    createdAt: '2026-01-10'
+  },
+  {
+    id: 'cat-2',
+    title: 'Swimming & Aquatics',
+    description: 'Competitive swimming and water safety training',
+    status: 'Active',
+    createdAt: '2026-01-12'
+  },
+  {
+    id: 'cat-3',
+    title: 'Badminton & Racket Sports',
+    description: 'Precision badminton tactics & physical conditioning',
+    status: 'Active',
+    createdAt: '2026-02-01'
+  },
+  {
+    id: 'cat-4',
+    title: 'Athletics & Track',
+    description: 'Sprint, endurance & field event coaching',
+    status: 'Active',
+    createdAt: '2026-02-15'
+  }
+];
+
+export const INITIAL_PROGRAM_TYPES: ProgramTypeCMS[] = [
+  {
+    id: 'pt-1',
+    title: 'Day Scholar Program',
+    description: 'Daily morning or evening non-residential coaching sessions',
+    status: 'Active',
+    createdAt: '2026-01-05'
+  },
+  {
+    id: 'pt-2',
+    title: 'Residential Program',
+    description: 'Full boarding & intensive sports performance program',
+    status: 'Active',
+    createdAt: '2026-01-05'
+  },
+  {
+    id: 'pt-3',
+    title: 'Weekend Program',
+    description: 'Saturday & Sunday specialized coaching for school students',
+    status: 'Active',
+    createdAt: '2026-01-10'
+  }
+];
+
+export const INITIAL_TRAINING_CENTERS: TrainingCenterCMS[] = [
+  {
+    id: 'tc-1',
+    name: 'Kozhikode Main Campus',
+    location: 'MSRF Sports Complex, Kozhikode, Kerala',
+    phone: '+91 98470 55443',
+    status: 'Active',
+    createdAt: '2026-01-01'
+  },
+  {
+    id: 'tc-2',
+    name: 'Malappuram Sports Hub',
+    location: 'Stadium Road, Malappuram, Kerala',
+    phone: '+91 94471 22334',
+    status: 'Active',
+    createdAt: '2026-01-15'
+  },
+  {
+    id: 'tc-3',
+    name: 'Calicut Stadium Annex',
+    location: 'Medical College Ground, Kozhikode',
+    phone: '+91 98952 77889',
+    status: 'Active',
+    createdAt: '2026-02-01'
+  }
+];
+
+const CATEGORY_NAMES = ['Football Academy', 'Swimming & Aquatics', 'Badminton & Racket Sports', 'Athletics & Track'];
+const PROGRAM_TYPE_NAMES = ['Day Scholar Program', 'Residential Program', 'Weekend Program'];
+const TRAINING_CENTER_NAMES = ['Kozhikode Main Campus', 'Malappuram Sports Hub', 'Calicut Stadium Annex'];
+
 export const INITIAL_STUDENTS: Student[] = NAMES.map((item, idx) => {
+  const category = CATEGORY_NAMES[idx % CATEGORY_NAMES.length];
+  const programType = PROGRAM_TYPE_NAMES[idx % PROGRAM_TYPE_NAMES.length];
+  const trainingCenter = TRAINING_CENTER_NAMES[idx % TRAINING_CENTER_NAMES.length];
   const course = COURSES[idx % COURSES.length];
   const coachObj = INITIAL_COACHES.find(c => c.specialization === course) || INITIAL_COACHES[0];
   const idNum = String(idx + 1).padStart(3, '0');
@@ -171,7 +263,7 @@ export const INITIAL_STUDENTS: Student[] = NAMES.map((item, idx) => {
   const paidRatio = (idx % 4 === 0) ? 1 : (idx % 4 === 1) ? 0.5 : (idx % 4 === 2) ? 0 : 0.75;
   const paidAmount = totalFee * paidRatio;
   const pendingAmount = totalFee - paidAmount;
-  const feeStatus: Student['feeStatus'] = paidAmount === totalFee ? 'Paid' : paidAmount === 0 ? 'Pending' : pendingAmount > 10000 ? 'Overdue' : 'Partially Paid';
+  const feeStatus: Student['feeStatus'] = paidAmount === totalFee ? 'Paid' : pendingAmount > 12000 ? 'Overdue' : 'Pending';
   const attendancePercentage = 80 + (idx % 20);
 
   return {
@@ -187,6 +279,9 @@ export const INITIAL_STUDENTS: Student[] = NAMES.map((item, idx) => {
     
     admissionNumber: `ADM-2026-${idNum}`,
     admissionDate: `2026-01-${String((idx % 25) + 1).padStart(2, '0')}`,
+    category,
+    programType,
+    trainingCenter,
     course,
     batch: idx % 2 === 0 ? 'Morning (6:00 AM - 8:00 AM)' : 'Evening (4:00 PM - 6:00 PM)',
     coachId: coachObj.id,
@@ -277,7 +372,7 @@ export const INITIAL_INVOICES: Invoice[] = [
     totalAmount: 22000,
     paidAmount: 11000,
     balanceDue: 11000,
-    paymentStatus: 'Partially Paid',
+    paymentStatus: 'Pending',
     items: [
       { id: 'item-1', description: 'Annual Swimming Coaching Fee (2026)', period: 'Jan 2026 - Dec 2026', amount: 20000 },
       { id: 'item-2', description: 'MSRF Official Swim Kit', period: 'One Time', amount: 4000 }
@@ -357,11 +452,9 @@ export const INITIAL_PERMISSIONS: RolePermissions[] = [
     groups: [
       { module: 'students', label: 'Student Management', view: true, create: true, edit: true, delete: true, export: true },
       { module: 'coaches', label: 'Coach Management', view: true, create: true, edit: true, delete: true, export: true },
-      { module: 'assignments', label: 'Student Assignments', view: true, create: true, edit: true, delete: true, export: true },
       { module: 'attendance', label: 'Attendance Management', view: true, create: true, edit: true, delete: true, export: true },
       { module: 'fees', label: 'Fee Management', view: true, create: true, edit: true, delete: true, export: true },
       { module: 'payments', label: 'Payment Verification', view: true, create: true, edit: true, delete: true, export: true },
-      { module: 'invoices', label: 'Invoice Module', view: true, create: true, edit: true, delete: true, export: true },
       { module: 'reports', label: 'Reports Center', view: true, create: true, edit: true, delete: true, export: true },
       { module: 'website', label: 'Website CMS & Programmes', view: true, create: true, edit: true, delete: true, export: true },
       { module: 'users', label: 'Users & Permissions', view: true, create: true, edit: true, delete: true, export: true }
@@ -582,7 +675,8 @@ export const INITIAL_APPLICATIONS: CareerApplicationCMS[] = [
     email: 'vikram.sethi@gmail.com',
     phone: '+91 98450 99887',
     position: 'Academy Head Coach',
-    resumeUrl: '#',
+    resumeUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    resumeFileName: 'vikram_sethi_head_coach_cv.pdf',
     appliedDate: '2026-09-20',
     status: 'Under Review'
   },
@@ -592,9 +686,21 @@ export const INITIAL_APPLICATIONS: CareerApplicationCMS[] = [
     email: 'sneha.roy@physio.org',
     phone: '+91 94471 88776',
     position: 'Sports Physiotherapist',
-    resumeUrl: '#',
+    resumeUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    resumeFileName: 'dr_sneha_roy_physio_resume.pdf',
     appliedDate: '2026-09-21',
     status: 'Shortlisted'
+  },
+  {
+    id: 'app-3',
+    applicantName: 'Rahul Verma',
+    email: 'rahul.verma@sports.in',
+    phone: '+91 98950 44332',
+    position: 'Youth Scout',
+    resumeUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    resumeFileName: 'rahul_verma_scout_cv.pdf',
+    appliedDate: '2026-09-22',
+    status: 'Under Review'
   }
 ];
 

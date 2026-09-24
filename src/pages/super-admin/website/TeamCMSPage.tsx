@@ -33,6 +33,20 @@ export const TeamCMSPage: React.FC = () => {
   const [deletingMember, setDeletingMember] = useState<TeamCMS | null>(null);
   const [lightboxImg, setLightboxImg] = useState<{ url: string; title: string } | null>(null);
 
+  const DEFAULT_DESIGNATIONS = [
+    'CHAIRMAN', 
+    'DIRECTOR', 
+    'MANAGING DIRECTOR & CEO', 
+    'GENERAL SECRETARY',
+    'TREASURER',
+    'HEAD COACH',
+    'ACADEMY MANAGER'
+  ];
+
+  const [designationsList, setDesignationsList] = useState<string[]>(DEFAULT_DESIGNATIONS);
+  const [isCustomDesignation, setIsCustomDesignation] = useState(false);
+  const [customDesignationText, setCustomDesignationText] = useState('');
+
   const [form, setForm] = useState({
     name: '',
     designation: 'DIRECTOR',
@@ -56,12 +70,20 @@ export const TeamCMSPage: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingMember(null);
-    setForm({ name: '', designation: 'DIRECTOR', biography: '', photo: '' });
+    setIsCustomDesignation(false);
+    setCustomDesignationText('');
+    setForm({ name: '', designation: designationsList[0] || 'DIRECTOR', biography: '', photo: '' });
     setModalOpen(true);
   };
 
   const handleOpenEdit = (t: TeamCMS) => {
     setEditingMember(t);
+    const isExisting = designationsList.includes(t.designation);
+    if (!isExisting) {
+      setDesignationsList(prev => [...prev, t.designation]);
+    }
+    setIsCustomDesignation(false);
+    setCustomDesignationText('');
     setForm({
       name: t.name,
       designation: t.designation,
@@ -75,11 +97,22 @@ export const TeamCMSPage: React.FC = () => {
     e.preventDefault();
     if (!form.name) return;
 
+    const finalDesignation = isCustomDesignation
+      ? customDesignationText.trim().toUpperCase() || 'MEMBER'
+      : form.designation;
+
+    if (isCustomDesignation && customDesignationText.trim()) {
+      const formatted = customDesignationText.trim().toUpperCase();
+      if (!designationsList.includes(formatted)) {
+        setDesignationsList(prev => [...prev, formatted]);
+      }
+    }
+
     if (editingMember) {
       setTeam(prev =>
         prev.map(t =>
           t.id === editingMember.id
-            ? { ...t, name: form.name, designation: form.designation, biography: form.biography, photo: form.photo, initials: form.name[0] }
+            ? { ...t, name: form.name, designation: finalDesignation, biography: form.biography, photo: form.photo, initials: form.name[0] }
             : t
         )
       );
@@ -88,7 +121,7 @@ export const TeamCMSPage: React.FC = () => {
       const newTeam: TeamCMS = {
         id: `team-${Date.now()}`,
         name: form.name,
-        designation: form.designation,
+        designation: finalDesignation,
         initials: form.name[0],
         biography: form.biography,
         photo: form.photo || undefined,
@@ -265,17 +298,45 @@ export const TeamCMSPage: React.FC = () => {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingMember ? "Edit Board Member" : "Add Board / Leadership Member"}>
         <form onSubmit={handleSaveTeam} className="space-y-4">
           <Input label="Full Name" required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. John Doe" />
-          <Select
-            label="Designation"
-            options={[
-              { label: 'CHAIRMAN', value: 'CHAIRMAN' },
-              { label: 'DIRECTOR', value: 'DIRECTOR' },
-              { label: 'MANAGING DIRECTOR & CEO', value: 'MANAGING DIRECTOR & CEO' },
-              { label: 'GENERAL SECRETARY', value: 'GENERAL SECRETARY' }
-            ]}
-            value={form.designation}
-            onChange={e => setForm({ ...form, designation: e.target.value })}
-          />
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Designation</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomDesignation(!isCustomDesignation);
+                  setCustomDesignationText('');
+                }}
+                className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+              >
+                {isCustomDesignation ? "← Choose from existing" : "+ Add New Designation"}
+              </button>
+            </div>
+
+            {isCustomDesignation ? (
+              <Input
+                placeholder="Enter new designation (e.g. TREASURER, HEAD COACH)"
+                value={customDesignationText}
+                onChange={e => setCustomDesignationText(e.target.value)}
+                required
+              />
+            ) : (
+              <Select
+                options={[
+                  ...designationsList.map(d => ({ label: d, value: d })),
+                  { label: '+ Add New Designation', value: '__NEW__' }
+                ]}
+                value={form.designation}
+                onChange={e => {
+                  if (e.target.value === '__NEW__') {
+                    setIsCustomDesignation(true);
+                  } else {
+                    setForm({ ...form, designation: e.target.value });
+                  }
+                }}
+              />
+            )}
+          </div>
 
           <ImageUpload
             label="Member Photo Image"

@@ -69,23 +69,14 @@ export const StudentProfilePage: React.FC = () => {
         { label: student.studentId }
       ]}
       actions={
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/super-admin/students')}
-            icon={<ArrowLeft className="w-4 h-4" />}
-          >
-            Back to Roster
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => navigate('/super-admin/student-assignments')}
-            icon={<UserCheck className="w-4 h-4" />}
-          >
-            Reassign Coach
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate('/super-admin/students')}
+          icon={<ArrowLeft className="w-4 h-4" />}
+        >
+          Back to Roster
+        </Button>
       }
     >
       {/* Student Profile Header Banner */}
@@ -107,13 +98,16 @@ export const StudentProfilePage: React.FC = () => {
               <p className="text-xs text-blue-300 font-mono mt-0.5">{student.studentId} • Admission #: {student.admissionNumber}</p>
               
               <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-slate-300">
-                <span className="flex items-center gap-1">
-                  <Award className="w-4 h-4 text-blue-400" /> {student.course}
+                <span className="flex items-center gap-1 font-semibold text-blue-300">
+                  Category: {student.category || 'Football Academy'}
                 </span>
-                <span className="flex items-center gap-1">
-                  <UserCheck className="w-4 h-4 text-emerald-400" /> Coach: {student.coachName}
+                <span className="flex items-center gap-1 font-semibold text-indigo-300">
+                  Program: {student.programType || 'Day Scholar Program'}
                 </span>
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 font-semibold text-emerald-300">
+                  Center: {student.trainingCenter || 'Kozhikode Main Campus'}
+                </span>
+                <span className="flex items-center gap-1 text-slate-300">
                   <Phone className="w-4 h-4 text-slate-400" /> {student.phone}
                 </span>
               </div>
@@ -191,16 +185,20 @@ export const StudentProfilePage: React.FC = () => {
                 <span className="font-medium text-slate-800">{formatDate(student.admissionDate)}</span>
               </div>
               <div className="grid grid-cols-2">
-                <span className="text-slate-400">Enrolled Academy:</span>
-                <span className="font-bold text-blue-600">{student.course}</span>
+                <span className="text-slate-400">Category:</span>
+                <span className="font-bold text-blue-600">{student.category || 'Football Academy'}</span>
+              </div>
+              <div className="grid grid-cols-2">
+                <span className="text-slate-400">Program Type:</span>
+                <span className="font-semibold text-indigo-700">{student.programType || 'Day Scholar Program'}</span>
+              </div>
+              <div className="grid grid-cols-2">
+                <span className="text-slate-400">Training Center:</span>
+                <span className="font-bold text-slate-900">{student.trainingCenter || 'Kozhikode Main Campus'}</span>
               </div>
               <div className="grid grid-cols-2">
                 <span className="text-slate-400">Batch Schedule:</span>
                 <span className="font-medium text-slate-800">{student.batch}</span>
-              </div>
-              <div className="grid grid-cols-2">
-                <span className="text-slate-400">Assigned Coach:</span>
-                <span className="font-bold text-slate-900">{student.coachName}</span>
               </div>
             </div>
           </Card>

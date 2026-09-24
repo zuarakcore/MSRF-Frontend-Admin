@@ -32,7 +32,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
     ? INITIAL_STUDENTS.filter(s =>
         s.fullName.toLowerCase().includes(query.toLowerCase()) ||
         s.studentId.toLowerCase().includes(query.toLowerCase()) ||
-        s.course.toLowerCase().includes(query.toLowerCase())
+        (s.category && s.category.toLowerCase().includes(query.toLowerCase())) ||
+        (s.course && s.course.toLowerCase().includes(query.toLowerCase()))
       ).slice(0, 4)
     : [];
 
