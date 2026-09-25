@@ -64,8 +64,10 @@ export interface Student {
   totalPresent: number;
   totalAbsent: number;
   feeStatus: 'Paid' | 'Pending' | 'Overdue';
+  monthlyFee?: number;
   totalFee: number;
   paidAmount: number;
+  discountAmount?: number;
   pendingAmount: number;
   
   // Documents
@@ -225,7 +227,7 @@ export interface Invoice {
   studentName: string;
   parentName: string;
   parentPhone: string;
-  course?: SportsCourse;
+  course?: SportsCourse | string;
   category?: string;
   issueDate: string;
   dueDate: string;
@@ -376,6 +378,7 @@ export interface CareerCMS {
   position: string; // e.g. "Academy Head Coach", "Sports Physiotherapist", "Academy Manager", "Youth Scout"
   location: string; // e.g. "KOZHIKODE, KERALA"
   postedDate: string; // e.g. "OCT 1, 2023"
+  closingDate?: string; // e.g. "OCT 31, 2026"
   jobDescription: string;
   experienceRequired: string;
   status: 'Open' | 'Closed';

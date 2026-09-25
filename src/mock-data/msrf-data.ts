@@ -318,8 +318,9 @@ export const INITIAL_STUDENTS: Student[] = NAMES.map((item, idx) => {
   const course = COURSES[idx % COURSES.length];
   const coachObj = INITIAL_COACHES.find(c => c.specialization === course) || INITIAL_COACHES[0];
   const idNum = String(idx + 1).padStart(3, '0');
-  const totalFee = (idx % 3 === 0) ? 2000 : (idx % 3 === 1) ? 2500 : 3000;
-  const paidRatio = (idx % 4 === 0) ? 1 : (idx % 4 === 1) ? 0.5 : (idx % 4 === 2) ? 0 : 1;
+  const monthlyFee = (idx % 3 === 0) ? 2000 : (idx % 3 === 1) ? 2500 : 3000;
+  const totalFee = monthlyFee * 12;
+  const paidRatio = (idx % 4 === 0) ? 1 : (idx % 4 === 1) ? 0.5 : (idx % 4 === 2) ? 0.25 : 0.75;
   const paidAmount = Math.round(totalFee * paidRatio);
   const pendingAmount = totalFee - paidAmount;
   const feeStatus: Student['feeStatus'] = pendingAmount === 0 ? 'Paid' : (idx % 5 === 0) ? 'Overdue' : 'Pending';
@@ -362,6 +363,7 @@ export const INITIAL_STUDENTS: Student[] = NAMES.map((item, idx) => {
     totalPresent: Math.round(attendancePercentage * 0.4),
     totalAbsent: 40 - Math.round(attendancePercentage * 0.4),
     feeStatus,
+    monthlyFee,
     totalFee,
     paidAmount,
     pendingAmount,
@@ -419,25 +421,88 @@ export const INITIAL_PAYMENTS: PaymentSubmission[] = [
 
 export const INITIAL_INVOICES: Invoice[] = [
   {
+    id: 'inv-101-paid',
+    invoiceNumber: 'MSRF-INV-2026-001-PAID',
+    studentId: 'student-1',
+    studentName: 'Adarsh Nair',
+    parentName: 'Ramesh Nair',
+    parentPhone: '+91 94470 12345',
+    course: 'Football Excellence',
+    issueDate: '2026-09-20',
+    dueDate: '2026-09-20',
+    subtotal: 12000,
+    discount: 0,
+    taxAmount: 0,
+    totalAmount: 12000,
+    paidAmount: 12000,
+    balanceDue: 0,
+    paymentStatus: 'Paid',
+    items: [
+      { id: 'item-101-p', description: 'Monthly Fee Payment Installment — September 2026', period: 'Sep 2026', amount: 12000 }
+    ]
+  },
+  {
     id: 'inv-101',
     invoiceNumber: 'MSRF-INV-2026-001',
     studentId: 'student-1',
     studentName: 'Adarsh Nair',
     parentName: 'Ramesh Nair',
     parentPhone: '+91 94470 12345',
-    course: 'Swimming Academy',
+    course: 'Football Excellence',
     issueDate: '2026-09-01',
     dueDate: '2026-09-30',
     subtotal: 24000,
     discount: 2000,
     taxAmount: 0,
     totalAmount: 22000,
-    paidAmount: 11000,
-    balanceDue: 11000,
+    paidAmount: 12000,
+    balanceDue: 10000,
     paymentStatus: 'Pending',
     items: [
-      { id: 'item-1', description: 'Annual Swimming Coaching Fee (2026)', period: 'Jan 2026 - Dec 2026', amount: 20000 },
-      { id: 'item-2', description: 'MSRF Official Swim Kit', period: 'One Time', amount: 4000 }
+      { id: 'item-1', description: 'Annual Football Coaching Fee (2026)', period: 'Jan 2026 - Dec 2026', amount: 20000 },
+      { id: 'item-2', description: 'MSRF Official Training Kit', period: 'One Time', amount: 4000 }
+    ]
+  },
+  {
+    id: 'inv-102',
+    invoiceNumber: 'MSRF-INV-2026-002',
+    studentId: 'student-2',
+    studentName: 'Fathima Raniya',
+    parentName: 'Usman Raniya',
+    parentPhone: '+91 98460 54321',
+    course: 'Youth Football Squad (U-13)',
+    issueDate: '2026-09-05',
+    dueDate: '2026-09-25',
+    subtotal: 18000,
+    discount: 0,
+    taxAmount: 0,
+    totalAmount: 18000,
+    paidAmount: 18000,
+    balanceDue: 0,
+    paymentStatus: 'Paid',
+    items: [
+      { id: 'item-3', description: 'Youth Football Squad Fee (2026)', period: 'Jan 2026 - Dec 2026', amount: 18000 }
+    ]
+  },
+  {
+    id: 'inv-103',
+    invoiceNumber: 'MSRF-INV-2026-003',
+    studentId: 'student-3',
+    studentName: 'Rohan Kulkarni',
+    parentName: 'Sanjay Kulkarni',
+    parentPhone: '+91 94420 86420',
+    course: 'Grassroots Football (U-10)',
+    issueDate: '2026-09-10',
+    dueDate: '2026-09-25',
+    subtotal: 12000,
+    discount: 0,
+    taxAmount: 0,
+    totalAmount: 12000,
+    paidAmount: 6000,
+    balanceDue: 6000,
+    paymentStatus: 'Pending',
+    items: [
+      { id: 'item-4', description: 'Grassroots Academy Fee (Term 1)', period: 'Jul 2026 - Dec 2026', amount: 12000 }
     ]
   }
 ];
@@ -501,6 +566,88 @@ export const INITIAL_PERFORMANCE: PerformanceRecord[] = [
     developmentGoals: ['Improve weak foot', 'Improve first touch', 'Improve tactical awareness', 'Improve fitness'],
     customGoal: 'Achieve sub-58s performance in 100m freestyle at State Trials.',
     coachRemarks: 'Adarsh is preparing exceptionally well for the upcoming State Championship. Consistent leadership on and off the pool deck.'
+  },
+  {
+    id: 'perf-1-aug',
+    studentId: 'student-1',
+    studentName: 'Adarsh Nair',
+    coachId: 'coach-1',
+    coachName: 'Rajesh Varma',
+    monthYear: 'August 2026',
+    recordedDate: '2026-08-18',
+    position: 'Central Midfielder',
+    dob: '2012-05-14',
+    age: '14',
+    strongFoot: 'Right',
+    reportPeriod: 'Monthly Evaluation - Aug 2026',
+    overallRating: 5,
+    rating: 5,
+    technicalSkills: 90,
+    staminaDiscipline: 92,
+    teamwork: 86,
+    skillAssessments: [
+      { category: 'TECHNICAL ABILITY', rating: 5, comments: 'Great passing control and vision' },
+      { category: 'TACTICAL UNDERSTANDING', rating: 4, comments: 'Good positioning in 4-3-3 shape' },
+      { category: 'BALL CONTROL / FIRST TOUCH', rating: 5, comments: 'Sharp first touch under pressure' },
+      { category: 'PASSING', rating: 4, comments: 'Consistent long switches' },
+      { category: 'DRIBBLING', rating: 4, comments: 'Good tight turn skill' },
+      { category: 'SHOOTING / FINISHING', rating: 4, comments: 'Decent long range shot accuracy' },
+      { category: 'DEFENDING', rating: 4, comments: 'Good interceptions' },
+      { category: 'DECISION MAKING', rating: 5, comments: 'Composed under high press' },
+      { category: 'INDIVIDUAL SKILLS', rating: 4, comments: 'Strong shielding of the ball' },
+      { category: 'TEAMWORK', rating: 5, comments: 'High team support' },
+      { category: 'COMMUNICATION', rating: 4, comments: 'Vocal in midfield' },
+      { category: 'HARD WORK', rating: 5, comments: 'High running distance' },
+      { category: 'DISCIPLINE', rating: 5, comments: 'Disciplined positioning' },
+      { category: 'CHARACTER & ATTITUDE', rating: 5, comments: 'Positive work ethic' },
+      { category: 'FITNESS', rating: 4, comments: 'Good stamina level' }
+    ],
+    strengths: '1. Excellent vision and midfield distribution.\n2. Strong ball shielding.\n3. High work rate.',
+    areasForImprovement: '1. Weak foot passing.\n2. Defensive transition speed.',
+    developmentGoals: ['Improve weak foot', 'Improve tactical awareness'],
+    customGoal: 'Enhance pass completion rate to above 88% in upcoming matches.',
+    coachRemarks: 'Adarsh had a stellar month of August showing solid tactical discipline in midfield.'
+  },
+  {
+    id: 'perf-1-jul',
+    studentId: 'student-1',
+    studentName: 'Adarsh Nair',
+    coachId: 'coach-1',
+    coachName: 'Rajesh Varma',
+    monthYear: 'July 2026',
+    recordedDate: '2026-07-15',
+    position: 'Central Midfielder',
+    dob: '2012-05-14',
+    age: '14',
+    strongFoot: 'Right',
+    reportPeriod: 'Monthly Evaluation - Jul 2026',
+    overallRating: 4,
+    rating: 4,
+    technicalSkills: 88,
+    staminaDiscipline: 89,
+    teamwork: 85,
+    skillAssessments: [
+      { category: 'TECHNICAL ABILITY', rating: 4, comments: 'Solid fundamentals' },
+      { category: 'TACTICAL UNDERSTANDING', rating: 4, comments: 'Learning midfield press triggers' },
+      { category: 'BALL CONTROL / FIRST TOUCH', rating: 4, comments: 'Clean ball receiving' },
+      { category: 'PASSING', rating: 4, comments: 'Accurate short passes' },
+      { category: 'DRIBBLING', rating: 4, comments: 'Good evasive footwork' },
+      { category: 'SHOOTING / FINISHING', rating: 4, comments: 'Improving shot power' },
+      { category: 'DEFENDING', rating: 4, comments: 'Good tackling' },
+      { category: 'DECISION MAKING', rating: 4, comments: 'Smart distribution' },
+      { category: 'INDIVIDUAL SKILLS', rating: 4, comments: 'Consistent drills execution' },
+      { category: 'TEAMWORK', rating: 4, comments: 'Good squad synergy' },
+      { category: 'COMMUNICATION', rating: 4, comments: 'Active calls on pitch' },
+      { category: 'HARD WORK', rating: 4, comments: 'Punctual and hardworking' },
+      { category: 'DISCIPLINE', rating: 5, comments: 'Great attendance & attitude' },
+      { category: 'CHARACTER & ATTITUDE', rating: 5, comments: 'Coachable and attentive' },
+      { category: 'FITNESS', rating: 4, comments: 'Steady stamina' }
+    ],
+    strengths: '1. Disciplined attitude.\n2. Good technical fundamentals.',
+    areasForImprovement: '1. Increase match intensity.\n2. First-touch orientation.',
+    developmentGoals: ['Improve first touch', 'Improve fitness'],
+    customGoal: 'Build stamina for full 90-minute high pressing.',
+    coachRemarks: 'Great baseline evaluation in July. Adarsh is showing rapid growth across all drills.'
   },
   {
     id: 'perf-2',
@@ -729,6 +876,7 @@ export const INITIAL_CAREERS: CareerCMS[] = [
     position: 'Academy Head Coach',
     location: 'KOZHIKODE, KERALA',
     postedDate: 'OCT 1, 2023',
+    closingDate: 'OCT 31, 2026',
     jobDescription: 'Lead the technical development of our youth teams, implement the Argentinos Juniors methodology, and mentor junior coaching staff.',
     experienceRequired: '5+ Years (AFC / UEFA License)',
     status: 'Open',
@@ -739,6 +887,7 @@ export const INITIAL_CAREERS: CareerCMS[] = [
     position: 'Sports Physiotherapist',
     location: 'KOZHIKODE, KERALA',
     postedDate: 'OCT 15, 2023',
+    closingDate: 'NOV 15, 2026',
     jobDescription: 'Manage player health, injury prevention protocols, and rehabilitation programs for the entire academy.',
     experienceRequired: '3+ Years',
     status: 'Open',
@@ -749,6 +898,7 @@ export const INITIAL_CAREERS: CareerCMS[] = [
     position: 'Academy Manager',
     location: 'KOZHIKODE, KERALA',
     postedDate: 'AUG 20, 2023',
+    closingDate: 'SEP 30, 2026',
     jobDescription: 'Oversee daily operations, logistics, and parent communications for the academy.',
     experienceRequired: '4+ Years',
     status: 'Closed',
@@ -759,6 +909,7 @@ export const INITIAL_CAREERS: CareerCMS[] = [
     position: 'Youth Scout',
     location: 'KOZHIKODE, KERALA',
     postedDate: 'NOV 5, 2023',
+    closingDate: 'DEC 10, 2026',
     jobDescription: 'Identify talent across district and state level school tournaments.',
     experienceRequired: '2+ Years',
     status: 'Open',

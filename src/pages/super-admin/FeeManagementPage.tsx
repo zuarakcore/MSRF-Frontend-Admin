@@ -27,8 +27,10 @@ export const FeeManagementPage: React.FC = () => {
 
   const [payModalStudent, setPayModalStudent] = useState<Student | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState<string>('Cash');
   const [paymentRemarks, setPaymentRemarks] = useState<string>('');
+  const [discountRemarks, setDiscountRemarks] = useState<string>('');
 
   const { addToast } = useNotifications();
 
@@ -68,7 +70,7 @@ export const FeeManagementPage: React.FC = () => {
   const totalExpected = filteredStudents.reduce((sum, s) => sum + s.totalFee, 0);
   const totalCollected = filteredStudents.reduce((sum, s) => sum + s.paidAmount, 0);
   const totalOutstanding = filteredStudents.reduce((sum, s) => sum + s.pendingAmount, 0);
-  const overdueCount = filteredStudents.filter(s => s.feeStatus === 'Overdue' || (s.feeStatus === 'Pending' && s.pendingAmount > 0)).length;
+  const pendingCount = filteredStudents.filter(s => s.pendingAmount > 0).length;
 
   const handleMakeFeePaid = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,14 +79,16 @@ export const FeeManagementPage: React.FC = () => {
     setStudents(prev =>
       prev.map(s => {
         if (s.id === payModalStudent.id) {
+          const newDiscount = (s.discountAmount || 0) + Number(discountAmount);
           const newPaid = s.paidAmount + Number(paymentAmount);
-          const newPending = Math.max(0, s.totalFee - newPaid);
+          const newPending = Math.max(0, s.totalFee - newPaid - newDiscount);
           return {
             ...s,
             paidAmount: newPaid,
+            discountAmount: newDiscount,
             pendingAmount: newPending,
             feeStatus: newPending === 0 ? 'Paid' : 'Pending',
-            remarks: paymentRemarks || `Manual payment of ₹${paymentAmount} via ${paymentMode}`
+            remarks: paymentRemarks || (discountAmount > 0 ? `Paid ₹${paymentAmount} with ₹${discountAmount} discount (${discountRemarks || 'Absent discount'})` : `Manual payment of ₹${paymentAmount} via ${paymentMode}`)
           };
         }
         return s;
@@ -94,8 +98,8 @@ export const FeeManagementPage: React.FC = () => {
     setPayModalStudent(null);
     addToast({
       type: 'success',
-      title: 'Payment Recorded',
-      message: `Payment of ₹${paymentAmount} recorded for ${payModalStudent.fullName}.`
+      title: 'Payment & Discount Recorded',
+      message: `Payment of ₹${paymentAmount}${discountAmount > 0 ? ` with ₹${discountAmount} discount` : ''} recorded for ${payModalStudent.fullName}.`
     });
   };
 
@@ -133,8 +137,8 @@ export const FeeManagementPage: React.FC = () => {
           <p className="text-2xl font-black text-rose-900 mt-1">{formatCurrency(totalOutstanding)}</p>
         </Card>
         <Card className="bg-amber-50 border-amber-200">
-          <p className="text-xs uppercase font-bold text-amber-700">Pending / Overdue Trainees</p>
-          <p className="text-2xl font-black text-amber-900 mt-1">{overdueCount} Trainees</p>
+          <p className="text-xs uppercase font-bold text-amber-700">Pending Fee Trainees</p>
+          <p className="text-2xl font-black text-amber-900 mt-1">{pendingCount} Trainees</p>
         </Card>
       </div>
 
@@ -167,8 +171,7 @@ export const FeeManagementPage: React.FC = () => {
             options: [
               { label: 'All Statuses', value: 'ALL' },
               { label: 'Paid', value: 'Paid' },
-              { label: 'Pending', value: 'Pending' },
-              { label: 'Overdue', value: 'Overdue' }
+              { label: 'Pending', value: 'Pending' }
             ]
           }
         ]}
@@ -184,6 +187,7 @@ export const FeeManagementPage: React.FC = () => {
                 <th className="py-3 px-3">Category</th>
                 <th className="py-3 px-3">Monthly Fee</th>
                 <th className="py-3 px-3">Paid Amount</th>
+                <th className="py-3 px-3">Discount</th>
                 <th className="py-3 px-3">Pending Amount</th>
                 <th className="py-3 px-3">Remarks</th>
                 <th className="py-3 px-3">Fee Status</th>
@@ -193,7 +197,7 @@ export const FeeManagementPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-6 text-center text-slate-400">
+                  <td colSpan={9} className="py-6 text-center text-slate-400">
                     No fee ledger records match your filter criteria.
                   </td>
                 </tr>
@@ -212,12 +216,15 @@ export const FeeManagementPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-3 font-bold text-slate-900">{formatCurrency(st.totalFee)}</td>
                     <td className="py-3.5 px-3 font-bold text-emerald-700">{formatCurrency(st.paidAmount)}</td>
+                    <td className="py-3.5 px-3 font-bold text-amber-700">
+                      {st.discountAmount ? formatCurrency(st.discountAmount) : '—'}
+                    </td>
                     <td className="py-3.5 px-3 font-bold text-rose-600">{formatCurrency(st.pendingAmount)}</td>
                     <td className="py-3.5 px-3 text-slate-500 italic text-[11px] max-w-[160px] truncate">
                       {st.remarks || '—'}
                     </td>
                     <td className="py-3.5 px-3">
-                      <Badge variant={st.feeStatus === 'Paid' ? 'paid' : st.feeStatus === 'Overdue' ? 'overdue' : 'pending'}>
+                      <Badge variant={st.feeStatus === 'Paid' ? 'paid' : 'pending'}>
                         {st.feeStatus}
                       </Badge>
                     </td>
@@ -231,11 +238,13 @@ export const FeeManagementPage: React.FC = () => {
                             onClick={() => {
                               setPayModalStudent(st);
                               setPaymentAmount(st.pendingAmount);
+                              setDiscountAmount(0);
+                              setDiscountRemarks('');
                               setPaymentMode('Cash');
                               setPaymentRemarks('');
                             }}
                             icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                            title="Mark Fee Paid"
+                            title="Mark Fee Paid / Apply Discount"
                           />
                         )}
                         <Button
@@ -256,11 +265,11 @@ export const FeeManagementPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Record Manual Payment Modal */}
+      {/* Record Manual Payment & Discount Modal */}
       <Modal
         isOpen={!!payModalStudent}
         onClose={() => setPayModalStudent(null)}
-        title={`Record Manual Fee Payment: ${payModalStudent?.fullName}`}
+        title={`Record Payment / Discount: ${payModalStudent?.fullName}`}
         size="md"
       >
         <form onSubmit={handleMakeFeePaid} className="space-y-4">
@@ -271,6 +280,23 @@ export const FeeManagementPage: React.FC = () => {
             value={paymentAmount}
             onChange={e => setPaymentAmount(Number(e.target.value))}
           />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Manual Discount Amount (₹)"
+              type="number"
+              placeholder="0 (e.g. Absent discount)"
+              value={discountAmount}
+              onChange={e => setDiscountAmount(Number(e.target.value))}
+            />
+            <Input
+              label="Discount Reason"
+              placeholder="e.g. Absent 4 days"
+              value={discountRemarks}
+              onChange={e => setDiscountRemarks(e.target.value)}
+            />
+          </div>
+
           <Select
             label="Payment Method / Mode"
             options={[
@@ -283,7 +309,7 @@ export const FeeManagementPage: React.FC = () => {
             onChange={e => setPaymentMode(e.target.value)}
           />
           <div>
-            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1">Remarks / Note</label>
+            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1">Payment Remarks / Note</label>
             <textarea
               rows={2}
               value={paymentRemarks}
@@ -292,23 +318,35 @@ export const FeeManagementPage: React.FC = () => {
               className="w-full border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1">
+
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1.5">
             <div className="flex justify-between text-slate-600">
               <span>Total Course Fee:</span>
               <span className="font-bold text-slate-900">{formatCurrency(payModalStudent?.totalFee || 0)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>Current Paid Amount:</span>
+              <span>Already Paid Amount:</span>
               <span className="font-bold text-emerald-700">{formatCurrency(payModalStudent?.paidAmount || 0)}</span>
             </div>
-            <div className="flex justify-between text-rose-700 font-bold pt-1 border-t border-emerald-200">
+            {((payModalStudent?.discountAmount || 0) > 0 || discountAmount > 0) && (
+              <div className="flex justify-between text-amber-700 font-semibold">
+                <span>Total Discount Applied:</span>
+                <span>{formatCurrency((payModalStudent?.discountAmount || 0) + discountAmount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-rose-700 font-bold pt-1.5 border-t border-emerald-200">
               <span>Remaining Balance After Payment:</span>
-              <span>{formatCurrency(Math.max(0, (payModalStudent?.pendingAmount || 0) - paymentAmount))}</span>
+              <span>
+                {formatCurrency(
+                  Math.max(0, (payModalStudent?.pendingAmount || 0) - paymentAmount - discountAmount)
+                )}
+              </span>
             </div>
           </div>
+
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <Button type="button" variant="outline" onClick={() => setPayModalStudent(null)}>Cancel</Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
               Confirm Payment & Mark Paid
             </Button>
           </div>
@@ -373,9 +411,15 @@ export const FeeManagementPage: React.FC = () => {
                     <span className="font-semibold">Subtotal</span>
                     <span className="font-bold font-mono text-slate-900">{formatCurrency(invoiceModalStudent.totalFee)}</span>
                   </div>
+                  {Boolean(invoiceModalStudent.discountAmount) && (
+                    <div className="flex justify-between items-center py-1.5 text-amber-700 border-b border-slate-200">
+                      <span className="font-semibold">Discount / Concession</span>
+                      <span className="font-bold font-mono">-{formatCurrency(invoiceModalStudent.discountAmount || 0)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center py-2 text-base font-black text-slate-900">
-                    <span>Total Amount</span>
-                    <span className="font-mono text-lg">{formatCurrency(invoiceModalStudent.totalFee)}</span>
+                    <span>Net Amount</span>
+                    <span className="font-mono text-lg">{formatCurrency(invoiceModalStudent.totalFee - (invoiceModalStudent.discountAmount || 0))}</span>
                   </div>
                 </div>
               </div>
@@ -530,7 +574,7 @@ export const FeeManagementPage: React.FC = () => {
                   <td className="py-3 px-3">{formatCurrency(totalExpected)}</td>
                   <td className="py-3 px-3 text-emerald-700">{formatCurrency(totalCollected)}</td>
                   <td className="py-3 px-3 text-rose-600">{formatCurrency(totalOutstanding)}</td>
-                  <td className="py-3 px-3 text-blue-700">{overdueCount > 0 ? `${overdueCount} Overdue` : 'All Paid'}</td>
+                  <td className="py-3 px-3 text-blue-700">{pendingCount > 0 ? `${pendingCount} Pending` : 'All Paid'}</td>
                 </tr>
               </tfoot>
             </table>
@@ -591,7 +635,7 @@ export const FeeManagementPage: React.FC = () => {
                     <td className="py-3 px-3">{formatCurrency(totalExpected)}</td>
                     <td className="py-3 px-3 text-emerald-700">{formatCurrency(totalCollected)}</td>
                     <td className="py-3 px-3 text-rose-600">{formatCurrency(totalOutstanding)}</td>
-                    <td className="py-3 px-3 text-blue-700">{overdueCount > 0 ? `${overdueCount} Overdue` : 'All Paid'}</td>
+                    <td className="py-3 px-3 text-blue-700">{pendingCount > 0 ? `${pendingCount} Pending` : 'All Paid'}</td>
                   </tr>
                 </tfoot>
               </table>

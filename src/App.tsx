@@ -130,6 +130,14 @@ export const App: React.FC = () => {
               }
             />
             <Route
+              path="/super-admin/invoices"
+              element={
+                <RoleGuard allowedRole="SUPER_ADMIN">
+                  <InvoiceListPage />
+                </RoleGuard>
+              }
+            />
+            <Route
               path="/super-admin/payments"
               element={
                 <RoleGuard allowedRole="SUPER_ADMIN">

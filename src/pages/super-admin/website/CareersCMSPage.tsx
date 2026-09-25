@@ -35,6 +35,7 @@ export const CareersCMSPage: React.FC = () => {
   const [form, setForm] = useState({
     position: '',
     location: 'KOZHIKODE, KERALA',
+    closingDate: '',
     jobDescription: '',
     experienceRequired: '3+ Years'
   });
@@ -55,7 +56,7 @@ export const CareersCMSPage: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingJob(null);
-    setForm({ position: '', location: 'KOZHIKODE, KERALA', jobDescription: '', experienceRequired: '3+ Years' });
+    setForm({ position: '', location: 'KOZHIKODE, KERALA', closingDate: 'OCT 31, 2026', jobDescription: '', experienceRequired: '3+ Years' });
     setModalOpen(true);
   };
 
@@ -64,6 +65,7 @@ export const CareersCMSPage: React.FC = () => {
     setForm({
       position: c.position,
       location: c.location,
+      closingDate: c.closingDate || 'OCT 31, 2026',
       jobDescription: c.jobDescription,
       experienceRequired: c.experienceRequired
     });
@@ -78,7 +80,7 @@ export const CareersCMSPage: React.FC = () => {
       setCareers(prev =>
         prev.map(c =>
           c.id === editingJob.id
-            ? { ...c, position: form.position, location: form.location, jobDescription: form.jobDescription, experienceRequired: form.experienceRequired }
+            ? { ...c, position: form.position, location: form.location, closingDate: form.closingDate, jobDescription: form.jobDescription, experienceRequired: form.experienceRequired }
             : c
         )
       );
@@ -89,6 +91,7 @@ export const CareersCMSPage: React.FC = () => {
         position: form.position,
         location: form.location,
         postedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+        closingDate: form.closingDate || 'OCT 31, 2026',
         jobDescription: form.jobDescription,
         experienceRequired: form.experienceRequired,
         status: 'Open',
@@ -161,6 +164,7 @@ export const CareersCMSPage: React.FC = () => {
                   <th className="py-3 px-4">Position Title</th>
                   <th className="py-3 px-4">Location</th>
                   <th className="py-3 px-4">Posted Date</th>
+                  <th className="py-3 px-4">Closing Date</th>
                   <th className="py-3 px-4">Description Snippet</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -180,6 +184,7 @@ export const CareersCMSPage: React.FC = () => {
                       </td>
                       <td className="py-3.5 px-4 text-slate-600">{c.location}</td>
                       <td className="py-3.5 px-4 text-slate-500 font-mono">{c.postedDate}</td>
+                      <td className="py-3.5 px-4 text-rose-600 font-mono font-bold">{c.closingDate || '—'}</td>
                       <td className="py-3.5 px-4 text-slate-500 max-w-xs truncate">{c.jobDescription}</td>
                       <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                         <StatusToggle
@@ -221,7 +226,7 @@ export const CareersCMSPage: React.FC = () => {
                     </div>
                   </div>
                   <p className="text-xs font-mono text-slate-500">
-                    📍 {c.location} • POSTED: {c.postedDate} • {c.experienceRequired}
+                    📍 {c.location} • POSTED: {c.postedDate} • <span className="text-rose-600 font-bold">CLOSING: {c.closingDate || 'Open until filled'}</span> • {c.experienceRequired}
                   </p>
                   <p className="text-xs text-slate-600 mt-2 max-w-2xl line-clamp-2">{c.jobDescription}</p>
                 </div>
@@ -264,7 +269,10 @@ export const CareersCMSPage: React.FC = () => {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingJob ? "Edit Job Opening" : "Post Career Opening"}>
         <form onSubmit={handleSaveCareer} className="space-y-4">
           <Input label="Job Position Title" required value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} placeholder="e.g. Academy Head Coach" />
-          <Input label="Location" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input label="Location" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
+            <Input label="Closing Date" value={form.closingDate} onChange={e => setForm({ ...form, closingDate: e.target.value })} placeholder="e.g. OCT 31, 2026" />
+          </div>
           <Input label="Experience Required" value={form.experienceRequired} onChange={e => setForm({ ...form, experienceRequired: e.target.value })} placeholder="e.g. 5+ Years (AFC / UEFA License)" />
           
           <div>

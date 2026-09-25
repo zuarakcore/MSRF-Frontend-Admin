@@ -55,7 +55,7 @@ export const CareerDetailModal: React.FC<CareerDetailModalProps> = ({
         </div>
 
         {/* Metadata Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
             <span className="text-slate-400 font-semibold flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-rose-500" /> Location:
@@ -67,6 +67,12 @@ export const CareerDetailModal: React.FC<CareerDetailModalProps> = ({
               <Calendar className="w-3.5 h-3.5 text-blue-500" /> Posted Date:
             </span>
             <p className="font-bold text-slate-800 font-mono">{career.postedDate}</p>
+          </div>
+          <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+            <span className="text-slate-400 font-semibold flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-rose-500" /> Closing Date:
+            </span>
+            <p className="font-bold text-rose-600 font-mono">{career.closingDate || 'Open until filled'}</p>
           </div>
           <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
             <span className="text-slate-400 font-semibold flex items-center gap-1">

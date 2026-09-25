@@ -24,11 +24,11 @@ export const CoachDashboard: React.FC = () => {
   // Coach attendance logs derived from sessions or today
   const coachAttendanceLogs = mySessions.length > 0 ? mySessions.map(s => ({
     date: s.date,
-    session: `${s.dailyTopic} (${s.time})`,
+    session: s.dailyTopic,
     status: 'Present',
-    markedTime: '06:00 AM'
+    markedTime: 'Auto-Logged'
   })) : [
-    { date: today, session: 'Morning Tactical Session (6:00 AM - 8:00 AM)', status: 'Present', markedTime: '05:55 AM' }
+    { date: today, session: 'Tactical Training Session', status: 'Present', markedTime: 'Auto-Logged' }
   ];
 
   return (
