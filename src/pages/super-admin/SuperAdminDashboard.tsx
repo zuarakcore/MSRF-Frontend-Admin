@@ -15,9 +15,22 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
-  Plus
+  Plus,
+  Globe,
+  ChevronRight
 } from 'lucide-react';
-import { INITIAL_STUDENTS, INITIAL_COACHES, INITIAL_PAYMENTS, INITIAL_INVOICES, INITIAL_NOTIFICATIONS } from '../../mock-data/msrf-data';
+import { 
+  INITIAL_STUDENTS, 
+  INITIAL_COACHES, 
+  INITIAL_PAYMENTS, 
+  INITIAL_INVOICES, 
+  INITIAL_CATEGORIES,
+  INITIAL_PROGRAMMES,
+  INITIAL_TEAM_CMS,
+  INITIAL_GALLERY,
+  INITIAL_CAREERS,
+  INITIAL_APPLICATIONS
+} from '../../mock-data/msrf-data';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { useNavigate } from 'react-router-dom';
 
@@ -53,8 +66,8 @@ export const SuperAdminDashboard: React.FC = () => {
         </div>
       }
     >
-      {/* Top KPI Cards Grid — Spacious 3-Column Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {/* Top KPI Cards Grid — Balanced 5-Column Desktop Layout (No Blank Space) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Total Students Enrolled"
           value={totalStudents}
@@ -73,16 +86,6 @@ export const SuperAdminDashboard: React.FC = () => {
           badgeVariant="emerald"
           badgeText="100% Active"
           linkTo="/super-admin/coaches"
-          className="p-6"
-        />
-        <StatCard
-          title="Today's Attendance Rate"
-          value={`${todayAttendancePct}%`}
-          subtitle="49 of 52 present today"
-          icon={<CalendarCheck className="w-6 h-6" />}
-          badgeVariant="emerald"
-          trend={{ value: '+2.1% vs avg', isPositive: true }}
-          linkTo="/super-admin/attendance"
           className="p-6"
         />
         <StatCard
@@ -119,7 +122,7 @@ export const SuperAdminDashboard: React.FC = () => {
 
       {/* Analytics & Overview Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Month-Wise Attendance Trend Graph Card (Matching Screenshot Layout) */}
+        {/* Month-Wise Attendance Trend Graph Card (Overall Trend Across Class Days) */}
         <Card
           header={
             <div className="flex items-center justify-between w-full">
@@ -129,7 +132,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">ATTENDANCE TREND (MONTH-WISE)</h3>
-                  <p className="text-[11px] text-slate-400 font-medium">Monthly average attendance rate</p>
+                  <p className="text-[11px] text-slate-400 font-medium">Overall attendance rate calculated across conducted class days</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -144,22 +147,22 @@ export const SuperAdminDashboard: React.FC = () => {
           }
         >
           <div className="space-y-6 pt-2">
-            {/* Summary Badges */}
+            {/* Overall Attendance Summary Badges */}
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Today Present</p>
-                <p className="text-xl font-black text-emerald-900 mt-0.5">49 / 52</p>
-                <p className="text-[11px] text-emerald-700 font-bold">94.2%</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Overall Average</p>
+                <p className="text-xl font-black text-emerald-900 mt-0.5">92.8%</p>
+                <p className="text-[11px] text-emerald-700 font-bold">Month-Wise Trend</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Monthly Peak</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Highest Month</p>
                 <p className="text-xl font-black text-blue-900 mt-0.5">96.0%</p>
                 <p className="text-[11px] text-blue-700 font-bold">Aug 2026</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">6-Mo Average</p>
-                <p className="text-xl font-black text-slate-900 mt-0.5">92.8%</p>
-                <p className="text-[11px] text-slate-500 font-bold">Consistent</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Class Days Basis</p>
+                <p className="text-xl font-black text-slate-900 mt-0.5">Active Days</p>
+                <p className="text-[11px] text-slate-500 font-bold">Class Days Only</p>
               </div>
             </div>
 
@@ -269,6 +272,100 @@ export const SuperAdminDashboard: React.FC = () => {
           </div>
         </Card>
       </div>
+
+      {/* Website Dynamic Content Overview Section */}
+      <Card
+        header={
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
+                <Globe className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">WEBSITE DYNAMIC CONTENT OVERVIEW</h3>
+                <p className="text-[11px] text-slate-400 font-medium">Real-time CMS status & website content management</p>
+              </div>
+            </div>
+            <Badge variant="blue">CMS Active</Badge>
+          </div>
+        }
+      >
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+          <div
+            onClick={() => navigate('/super-admin/website/categories')}
+            className="p-3.5 bg-slate-50 hover:bg-blue-50/60 rounded-xl border border-slate-200 cursor-pointer transition-all space-y-1 group"
+          >
+            <div className="flex items-center justify-between text-slate-500 group-hover:text-blue-600 font-bold">
+              <span>Categories</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
+            <p className="text-xl font-black text-slate-900">{INITIAL_CATEGORIES.length}</p>
+            <p className="text-[10px] text-slate-400">Sports academies</p>
+          </div>
+
+          <div
+            onClick={() => navigate('/super-admin/website/programmes')}
+            className="p-3.5 bg-slate-50 hover:bg-blue-50/60 rounded-xl border border-slate-200 cursor-pointer transition-all space-y-1 group"
+          >
+            <div className="flex items-center justify-between text-slate-500 group-hover:text-blue-600 font-bold">
+              <span>Programmes</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
+            <p className="text-xl font-black text-slate-900">{INITIAL_PROGRAMMES.length}</p>
+            <p className="text-[10px] text-slate-400">Training tracks</p>
+          </div>
+
+          <div
+            onClick={() => navigate('/super-admin/website/team')}
+            className="p-3.5 bg-slate-50 hover:bg-blue-50/60 rounded-xl border border-slate-200 cursor-pointer transition-all space-y-1 group"
+          >
+            <div className="flex items-center justify-between text-slate-500 group-hover:text-blue-600 font-bold">
+              <span>Team & Board</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
+            <p className="text-xl font-black text-slate-900">{INITIAL_TEAM_CMS.length}</p>
+            <p className="text-[10px] text-slate-400">Mentors & Directors</p>
+          </div>
+
+          <div
+            onClick={() => navigate('/super-admin/website/gallery')}
+            className="p-3.5 bg-slate-50 hover:bg-blue-50/60 rounded-xl border border-slate-200 cursor-pointer transition-all space-y-1 group"
+          >
+            <div className="flex items-center justify-between text-slate-500 group-hover:text-blue-600 font-bold">
+              <span>Media Gallery</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
+            <p className="text-xl font-black text-slate-900">{INITIAL_GALLERY.length}</p>
+            <p className="text-[10px] text-slate-400">Photos & Videos</p>
+          </div>
+
+          <div
+            onClick={() => navigate('/super-admin/website/careers')}
+            className="p-3.5 bg-slate-50 hover:bg-blue-50/60 rounded-xl border border-slate-200 cursor-pointer transition-all space-y-1 group"
+          >
+            <div className="flex items-center justify-between text-slate-500 group-hover:text-blue-600 font-bold">
+              <span>Careers</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
+            <p className="text-xl font-black text-slate-900">{INITIAL_CAREERS.length}</p>
+            <p className="text-[10px] text-emerald-600 font-bold">
+              {INITIAL_CAREERS.filter(c => c.status === 'Open').length} Openings Active
+            </p>
+          </div>
+
+          <div
+            onClick={() => navigate('/super-admin/website/applications')}
+            className="p-3.5 bg-slate-50 hover:bg-blue-50/60 rounded-xl border border-slate-200 cursor-pointer transition-all space-y-1 group"
+          >
+            <div className="flex items-center justify-between text-slate-500 group-hover:text-blue-600 font-bold">
+              <span>Job Applications</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
+            <p className="text-xl font-black text-blue-700">{INITIAL_APPLICATIONS.length}</p>
+            <p className="text-[10px] text-slate-400">Resumes received</p>
+          </div>
+        </div>
+      </Card>
 
       {/* Main Data Tables Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

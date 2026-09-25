@@ -26,7 +26,7 @@ import {
   Printer,
   FileDown
 } from 'lucide-react';
-import { formatDate } from '../../utils/format';
+import { formatDate, formatPhoneNumber } from '../../utils/format';
 import { useNotifications } from '../../context/NotificationContext';
 import { SessionSplit, DailyTrainingSessionReport } from '../../types';
 import { PrintPortal } from '../../components/ui/PrintPortal';
@@ -579,15 +579,19 @@ export const CoachAttendancePage: React.FC = () => {
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-extrabold uppercase tracking-wider">
                       <th className="py-3.5 px-4">Session Date</th>
+                      <th className="py-3.5 px-4">Coaches Present</th>
                       <th className="py-3.5 px-4">Categories</th>
                       <th className="py-3.5 px-4">Daily Topic</th>
-                      <th className="py-3.5 px-4">Venue & Time</th>
+                      <th className="py-3.5 px-4">Venue Location</th>
                       <th className="py-3.5 px-4 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                     {filteredReportsList.map(rep => {
                       const canEdit = isEditableWithin7Days(rep.date);
+                      const coachesList = rep.assignedCoaches && rep.assignedCoaches.length > 0
+                        ? rep.assignedCoaches
+                        : [rep.loggedByCoachName];
                       return (
                         <tr
                           key={rep.id}
@@ -598,6 +602,15 @@ export const CoachAttendancePage: React.FC = () => {
                           <td className="py-3.5 px-4 font-bold text-slate-900">
                             {formatDate(rep.date)}
                             <p className="text-[10px] text-slate-400 font-mono font-normal">{rep.id}</p>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-wrap gap-1">
+                              {coachesList.map((coachName, idx) => (
+                                <span key={idx} className="text-[10px] font-extrabold bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-200">
+                                  {coachName}
+                                </span>
+                              ))}
+                            </div>
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="flex flex-wrap gap-1">
@@ -613,7 +626,6 @@ export const CoachAttendancePage: React.FC = () => {
                           </td>
                           <td className="py-3.5 px-4">
                             <p className="font-bold text-slate-800">{rep.venue}</p>
-                            <p className="text-[11px] text-slate-500">{rep.time}</p>
                           </td>
                           <td className="py-3.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-1.5" onClick={e => e.stopPropagation()}>
@@ -801,40 +813,73 @@ export const CoachAttendancePage: React.FC = () => {
                   </div>
 
                   {/* 3. Coaches Selection (Multi-select, EXCLUDES logged-in coach name) */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        Select Additional Coaches (Dropdown Multi-Select):
+                        Choose Other Coaches Present ({assignedCoachesList.length} Total Selected):
                       </label>
+                      <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                        Click cards to select / unselect
+                      </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {availableCoaches.map(c => {
                         const isChecked = selectedCoachIds.includes(c.id);
                         return (
                           <div
                             key={c.id}
                             onClick={() => toggleCoach(c.id)}
-                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${
+                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 relative ${
                               isChecked
-                                ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-2xs'
-                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                ? 'bg-blue-50/80 border-blue-400 text-blue-950 shadow-sm ring-2 ring-blue-500/20'
+                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100/80'
                             }`}
                           >
-                            <img src={c.photo} alt={c.fullName} className="w-9 h-9 rounded-full object-cover border border-slate-200" />
-                            <div className="flex-1 truncate">
-                              <p className="font-bold text-xs">{c.fullName}</p>
-                              <p className="text-[10px] text-slate-500 truncate">{c.specialization || 'Sports Coach'}</p>
+                            <img src={c.photo} alt={c.fullName} className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-xs shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="font-extrabold text-xs text-slate-900 truncate">{c.fullName}</p>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {}}
+                                  className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 pointer-events-none shrink-0"
+                                />
+                              </div>
+                              <p className="text-[11px] text-blue-700 font-semibold truncate mt-0.5">{c.specialization || 'Sports Coach'}</p>
+                              <p className="text-[10px] text-slate-500 font-mono mt-1 flex items-center gap-1">
+                                📞 {formatPhoneNumber(c.phone)}
+                              </p>
                             </div>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {}}
-                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 pointer-events-none"
-                            />
                           </div>
                         );
                       })}
+                    </div>
+
+                    {/* Selected Session Coaches Details Breakdown Box */}
+                    <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 mt-4 border border-slate-800">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                          <UserCheck className="w-4 h-4 text-emerald-400" /> All Assigned Session Coaches ({assignedCoachesList.length})
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400">Selected for {formatDate(selectedDate)}</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {assignedCoachesList.map((c, idx) => (
+                          <div key={c.id} className="p-2.5 bg-slate-800/90 rounded-xl border border-slate-700/80 flex items-center gap-3">
+                            <img src={c.photo} alt={c.fullName} className="w-9 h-9 rounded-full object-cover border border-slate-600 shrink-0" />
+                            <div className="flex-1 min-w-0 text-xs">
+                              <p className="font-extrabold text-white truncate flex items-center gap-1">
+                                {c.fullName}
+                                {idx === 0 && <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded shrink-0">LEAD</span>}
+                              </p>
+                              <p className="text-[10px] text-slate-300 truncate">{c.specialization || 'Sports Coach'}</p>
+                              <p className="text-[10px] text-blue-400 font-mono mt-0.5">{formatPhoneNumber(c.phone)}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
@@ -870,14 +915,24 @@ export const CoachAttendancePage: React.FC = () => {
                   <div className="bg-amber-500/5 p-4 rounded-2xl border border-amber-500/20 space-y-6">
                     {/* Top Info Cards Bar */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* COACH NAME Box */}
-                      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-amber-400 flex items-center justify-center text-slate-900 font-extrabold shrink-0 shadow-xs">
-                          <UserCheck className="w-5 h-5" />
+                      {/* COACHES PRESENT Box */}
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-amber-400 flex items-center justify-center text-slate-900 font-extrabold shrink-0 shadow-xs">
+                            <UserCheck className="w-4 h-4" />
+                          </div>
+                          <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                            COACHES PRESENT ({assignedCoachesList.length})
+                          </p>
                         </div>
-                        <div>
-                          <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">COACH NAME</p>
-                          <p className="text-sm font-black text-slate-900 mt-0.5">{loggedInCoach.fullName}</p>
+                        <div className="space-y-1.5 pt-1 max-h-24 overflow-y-auto">
+                          {assignedCoachesList.map((c, i) => (
+                            <div key={c.id} className="flex items-center gap-2 text-xs">
+                              <img src={c.photo} alt={c.fullName} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                              <span className="font-extrabold text-slate-900 truncate">{c.fullName}</span>
+                              <span className="text-[10px] font-mono text-blue-600 truncate">{formatPhoneNumber(c.phone)}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
 
@@ -892,30 +947,21 @@ export const CoachAttendancePage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* VENUE & TIME Box */}
+                      {/* VENUE Box */}
                       <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-amber-400 flex items-center justify-center text-slate-900 font-extrabold shrink-0 shadow-xs">
                           <MapPin className="w-5 h-5" />
                         </div>
                         <div className="flex-1 space-y-1">
                           <div>
-                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">VENUE & TIME</p>
-                            <div className="grid grid-cols-2 gap-2 mt-0.5">
-                              <input
-                                type="text"
-                                value={venue}
-                                onChange={e => setVenue(e.target.value)}
-                                className="bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-xs font-bold text-slate-900"
-                                placeholder="Venue"
-                              />
-                              <input
-                                type="text"
-                                value={sessionTime}
-                                onChange={e => setSessionTime(e.target.value)}
-                                className="bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-xs font-bold text-slate-900"
-                                placeholder="Time"
-                              />
-                            </div>
+                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">VENUE LOCATION</p>
+                            <input
+                              type="text"
+                              value={venue}
+                              onChange={e => setVenue(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 mt-0.5"
+                              placeholder="Venue Location"
+                            />
                           </div>
                         </div>
                       </div>
@@ -1214,20 +1260,55 @@ export const CoachAttendancePage: React.FC = () => {
             {/* Top Cards Bar */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-bold">
               <Card className="bg-slate-50">
-                <p className="text-[10px] text-slate-400 font-black uppercase">LOGGED BY COACH</p>
-                <p className="text-sm font-black text-slate-900 mt-1 flex items-center gap-1.5">
-                  <UserCheck className="w-4 h-4 text-blue-600" /> {selectedReportDetail.loggedByCoachName}
-                </p>
+                <p className="text-[10px] text-slate-400 font-black uppercase">COACHES PRESENT</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {(selectedReportDetail.assignedCoaches && selectedReportDetail.assignedCoaches.length > 0
+                    ? selectedReportDetail.assignedCoaches
+                    : [selectedReportDetail.loggedByCoachName]
+                  ).map((c, i) => (
+                    <span key={i} className="text-xs font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <UserCheck className="w-3 h-3 text-emerald-600" /> {c}
+                    </span>
+                  ))}
+                </div>
               </Card>
               <Card className="bg-slate-50">
                 <p className="text-[10px] text-slate-400 font-black uppercase">TRAINEES ENROLLED</p>
                 <p className="text-sm font-black text-slate-900 mt-1">{selectedReportDetail.attendanceCount} Trainees</p>
               </Card>
               <Card className="bg-slate-50">
-                <p className="text-[10px] text-slate-400 font-black uppercase">VENUE & TIME</p>
-                <p className="text-sm font-black text-slate-900 mt-1">{selectedReportDetail.venue} ({selectedReportDetail.time})</p>
+                <p className="text-[10px] text-slate-400 font-black uppercase">VENUE LOCATION</p>
+                <p className="text-sm font-black text-slate-900 mt-1">{selectedReportDetail.venue}</p>
               </Card>
             </div>
+
+            {/* Coaches Present Full Details Card */}
+            <Card header={
+              <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-emerald-600" /> Coaches Present & Coaching Staff Details
+              </h3>
+            }>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {INITIAL_COACHES.filter(c =>
+                  selectedReportDetail.assignedCoaches?.includes(c.fullName) ||
+                  c.fullName === selectedReportDetail.loggedByCoachName
+                ).map((coach, cIdx) => (
+                  <div key={coach.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-3">
+                    <img src={coach.photo} alt={coach.fullName} className="w-10 h-10 rounded-full object-cover border border-slate-300 shrink-0" />
+                    <div className="flex-1 min-w-0 text-xs">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="font-extrabold text-slate-900 truncate">{coach.fullName}</p>
+                        {coach.fullName === selectedReportDetail.loggedByCoachName && (
+                          <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.2 rounded shrink-0">LOGGED</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-emerald-700 font-bold truncate">{coach.specialization || 'Sports Coach'}</p>
+                      <p className="text-[10px] font-mono text-blue-600 mt-0.5">{formatPhoneNumber(coach.phone)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
 
             {/* Daily Topic & Explanation */}
             <Card header={<h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">Training Session Overview</h3>}>
@@ -1321,8 +1402,12 @@ export const CoachAttendancePage: React.FC = () => {
             {/* Top Info Header Grid */}
             <div className="grid grid-cols-4 gap-3 text-xs font-bold">
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
-                <p className="text-[10px] text-slate-500 font-black uppercase">LOGGED BY COACH</p>
-                <p className="text-xs font-black text-slate-900 mt-1">{selectedReportForPrint.loggedByCoachName}</p>
+                <p className="text-[10px] text-slate-500 font-black uppercase">COACHES PRESENT</p>
+                <p className="text-xs font-black text-emerald-800 mt-1">
+                  {selectedReportForPrint.assignedCoaches && selectedReportForPrint.assignedCoaches.length > 0
+                    ? selectedReportForPrint.assignedCoaches.join(', ')
+                    : selectedReportForPrint.loggedByCoachName}
+                </p>
               </div>
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
                 <p className="text-[10px] text-slate-500 font-black uppercase">ATTENDANCE COUNT</p>
@@ -1333,8 +1418,8 @@ export const CoachAttendancePage: React.FC = () => {
                 <p className="text-xs font-black text-blue-700 mt-1">{selectedReportForPrint.categories.join(', ')}</p>
               </div>
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
-                <p className="text-[10px] text-slate-500 font-black uppercase">VENUE & TIME</p>
-                <p className="text-xs font-black text-slate-900 mt-1">{selectedReportForPrint.venue} ({selectedReportForPrint.time})</p>
+                <p className="text-[10px] text-slate-500 font-black uppercase">VENUE LOCATION</p>
+                <p className="text-xs font-black text-slate-900 mt-1">{selectedReportForPrint.venue}</p>
               </div>
             </div>
 

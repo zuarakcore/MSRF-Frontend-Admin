@@ -62,6 +62,28 @@ export const ReportsCenterPage: React.FC = () => {
     setViewModalOpen(true);
   };
 
+  const getCoachesForReport = (rep: DailyTrainingSessionReport) => {
+    const leadCoach = INITIAL_COACHES.find(c => c.fullName === rep.loggedByCoachName) || {
+      id: 'lead-fallback',
+      fullName: rep.loggedByCoachName,
+      phone: '+91 98470 12345',
+      specialization: 'Head Football Coach',
+      photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'
+    };
+
+    const coCoaches = (rep.assignedCoaches || []).map(cName => {
+      return INITIAL_COACHES.find(c => c.fullName === cName || c.id === cName) || {
+        id: `co-fallback-${cName}`,
+        fullName: cName,
+        phone: '+91 94471 23456',
+        specialization: 'Assistant Coach',
+        photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300'
+      };
+    });
+
+    return { leadCoach, coCoaches, allCoaches: [leadCoach, ...coCoaches] };
+  };
+
   return (
     <LayoutShell
       title="Analytics & Daily Reports Center"
@@ -165,7 +187,7 @@ export const ReportsCenterPage: React.FC = () => {
                     <th className="py-3.5 px-4">Session Date</th>
                     <th className="py-3.5 px-4">Categories</th>
                     <th className="py-3.5 px-4">Marked Coach</th>
-                    <th className="py-3.5 px-4">Venue & Time</th>
+                    <th className="py-3.5 px-4">Venue Location</th>
                     <th className="py-3.5 px-4">Daily Topic</th>
                     <th className="py-3.5 px-4 text-center">Actions</th>
                   </tr>
@@ -191,14 +213,28 @@ export const ReportsCenterPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-3.5 px-4 font-bold text-slate-900">
-                        <div className="flex items-center gap-1.5">
-                          <UserCheck className="w-4 h-4 text-emerald-600" />
-                          <span>{rep.loggedByCoachName}</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span className="font-extrabold text-slate-900">{rep.loggedByCoachName}</span>
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 shrink-0">
+                              Lead
+                            </span>
+                          </div>
+                          {rep.assignedCoaches && rep.assignedCoaches.length > 0 && (
+                            <div className="flex flex-wrap gap-1 items-center pt-0.5">
+                              {rep.assignedCoaches.map((cName, idx) => (
+                                <span key={idx} className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                                  <UserCheck className="w-3 h-3 text-emerald-600" />
+                                  {cName}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="py-3.5 px-4">
                         <p className="font-bold text-slate-800">{rep.venue}</p>
-                        <p className="text-[11px] text-slate-500">{rep.time}</p>
                       </td>
                       <td className="py-3.5 px-4 font-bold text-slate-900">
                         {rep.dailyTopic}
@@ -374,8 +410,51 @@ export const ReportsCenterPage: React.FC = () => {
                 <p className="font-extrabold text-slate-900 mt-0.5">{selectedReport.attendanceCount} Trainees Enrolled</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] font-black uppercase text-slate-400">VENUE & TIME</p>
-                <p className="font-extrabold text-slate-900 mt-0.5">{selectedReport.venue} ({selectedReport.time})</p>
+                <p className="text-[10px] font-black uppercase text-slate-400">VENUE LOCATION</p>
+                <p className="font-extrabold text-slate-900 mt-0.5">{selectedReport.venue}</p>
+              </div>
+            </div>
+
+            {/* Coaching Staff Present Section */}
+            <div className="space-y-3">
+              <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center justify-between">
+                <span>Coaching Staff Present ({getCoachesForReport(selectedReport).allCoaches.length} Coaches)</span>
+                <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  Attendance Marked & Verified
+                </span>
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {getCoachesForReport(selectedReport).allCoaches.map((coach, idx) => {
+                  const isLead = idx === 0;
+                  return (
+                    <div 
+                      key={coach.id || idx}
+                      className={`p-3 rounded-xl border flex items-center gap-3 ${
+                        isLead 
+                          ? 'bg-blue-50/60 border-blue-200' 
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <img 
+                        src={coach.photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'} 
+                        alt={coach.fullName}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-2xs shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-extrabold text-slate-900 text-xs truncate">{coach.fullName}</p>
+                          <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 ${
+                            isLead ? 'bg-blue-600 text-white' : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {isLead ? 'Lead' : 'Co-Coach'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-blue-600 font-semibold font-mono">{coach.phone}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{coach.specialization || 'Football Coach'}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -441,7 +520,7 @@ export const ReportsCenterPage: React.FC = () => {
             {/* Top Info Header Grid */}
             <div className="grid grid-cols-3 gap-4 text-xs font-bold">
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
-                <p className="text-[10px] text-slate-500 font-black uppercase">COACH NAME</p>
+                <p className="text-[10px] text-slate-500 font-black uppercase">LEAD COACH</p>
                 <p className="text-sm font-black text-slate-900 mt-1">{selectedReport.loggedByCoachName}</p>
               </div>
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
@@ -449,8 +528,39 @@ export const ReportsCenterPage: React.FC = () => {
                 <p className="text-sm font-black text-slate-900 mt-1">{selectedReport.attendanceCount} Trainees</p>
               </div>
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
-                <p className="text-[10px] text-slate-500 font-black uppercase">VENUE & TIME</p>
-                <p className="text-xs font-black text-slate-900 mt-1">{selectedReport.venue} ({selectedReport.time})</p>
+                <p className="text-[10px] text-slate-500 font-black uppercase">VENUE LOCATION</p>
+                <p className="text-xs font-black text-slate-900 mt-1">{selectedReport.venue}</p>
+              </div>
+            </div>
+
+            {/* Coaching Staff Present Section in PDF Export */}
+            <div className="space-y-2">
+              <h3 className="font-black text-xs uppercase tracking-wider text-slate-900">
+                Coaching Staff Present ({getCoachesForReport(selectedReport).allCoaches.length} Coaches)
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {getCoachesForReport(selectedReport).allCoaches.map((coach, idx) => {
+                  const isLead = idx === 0;
+                  return (
+                    <div key={coach.id || idx} className="border-2 border-slate-200 rounded-lg p-2.5 flex items-center gap-3 bg-slate-50 text-xs">
+                      <img 
+                        src={coach.photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'} 
+                        alt={coach.fullName} 
+                        className="w-9 h-9 rounded-full object-cover border border-slate-300 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          <span className="font-black text-slate-900 text-xs truncate">{coach.fullName}</span>
+                          <span className={`text-[8px] font-black uppercase px-1 py-0.5 rounded ${isLead ? 'bg-blue-700 text-white' : 'bg-emerald-700 text-white'}`}>
+                            {isLead ? 'Lead' : 'Co-Coach'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] font-mono font-bold text-blue-700">{coach.phone}</p>
+                        <p className="text-[9px] text-slate-500 truncate">{coach.specialization || 'Football Coach'}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

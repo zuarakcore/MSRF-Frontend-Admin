@@ -92,7 +92,7 @@ export const StudentListPage: React.FC = () => {
     emergencyName: '',
     emergencyRelationship: 'Father',
     emergencyPhone: '',
-    totalFee: 2500
+    monthlyFee: 2000
   });
 
   const navigate = useNavigate();
@@ -144,7 +144,7 @@ export const StudentListPage: React.FC = () => {
       emergencyName: '',
       emergencyRelationship: 'Father',
       emergencyPhone: '',
-      totalFee: 2500
+      monthlyFee: 2000
     });
     setIsAddModalOpen(true);
   };
@@ -174,7 +174,7 @@ export const StudentListPage: React.FC = () => {
       emergencyName: s.emergencyName || '',
       emergencyRelationship: s.emergencyRelationship || 'Father',
       emergencyPhone: s.emergencyPhone || '',
-      totalFee: s.totalFee || 2500
+      monthlyFee: s.monthlyFee || (s.totalFee ? Math.round(s.totalFee / 12) : 2000)
     });
     setIsAddModalOpen(true);
   };
@@ -198,6 +198,8 @@ export const StudentListPage: React.FC = () => {
     }
 
     const defaultPhoto = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
+    const computedMonthlyFee = Number(formData.monthlyFee) || 2000;
+    const computedTotalFee = computedMonthlyFee * 12;
 
     if (editingStudent) {
       setStudents(prev =>
@@ -227,7 +229,9 @@ export const StudentListPage: React.FC = () => {
                 emergencyName: formData.emergencyName,
                 emergencyRelationship: formData.emergencyRelationship,
                 emergencyPhone: formData.emergencyPhone,
-                totalFee: formData.totalFee
+                monthlyFee: computedMonthlyFee,
+                totalFee: computedTotalFee,
+                pendingAmount: Math.max(0, computedTotalFee - (s.paidAmount || 0))
               }
             : s
         )
@@ -265,9 +269,10 @@ export const StudentListPage: React.FC = () => {
         totalPresent: 0,
         totalAbsent: 0,
         feeStatus: 'Pending',
-        totalFee: formData.totalFee,
+        monthlyFee: computedMonthlyFee,
+        totalFee: computedTotalFee,
         paidAmount: 0,
-        pendingAmount: formData.totalFee,
+        pendingAmount: computedTotalFee,
         documents: []
       };
 
@@ -877,12 +882,18 @@ export const StudentListPage: React.FC = () => {
                 value={formData.trainingCenter}
                 onChange={e => setFormData({ ...formData, trainingCenter: e.target.value })}
               />
-              <Input
-                label="Monthly Fee (₹)"
-                type="number"
-                value={formData.totalFee}
-                onChange={e => setFormData({ ...formData, totalFee: Number(e.target.value) })}
-              />
+              <div>
+                <Input
+                  label="Monthly Fee (₹/month)"
+                  type="number"
+                  value={formData.monthlyFee}
+                  onChange={e => setFormData({ ...formData, monthlyFee: Number(e.target.value) })}
+                  placeholder="e.g. 2000"
+                />
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                  Yearly Fee: <span className="font-bold text-slate-800">₹{(Number(formData.monthlyFee || 0) * 12).toLocaleString('en-IN')}</span> (12 months)
+                </p>
+              </div>
             </div>
           </div>
 
