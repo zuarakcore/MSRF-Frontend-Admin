@@ -1,200 +1,321 @@
 import React, { useState } from 'react';
 import { LayoutShell } from '../../components/layout/LayoutShell';
+import { FilterBar } from '../../components/ui/FilterBar';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
-import { INITIAL_STUDENTS } from '../../mock-data/msrf-data';
+import { Select } from '../../components/ui/Select';
+import { INITIAL_STUDENTS, INITIAL_CATEGORIES } from '../../mock-data/msrf-data';
 import { Student } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/format';
-import { Percent, FileText, Printer, Download, Tag, CheckCircle2 } from 'lucide-react';
+import { FileText, Printer, Download, Tag, CheckCircle2, FileDown, Calendar, Trophy } from 'lucide-react';
+import { PrintPortal } from '../../components/ui/PrintPortal';
+import { ReportHeader } from '../../components/ui/ReportHeader';
 import { useNotifications } from '../../context/NotificationContext';
 
 export const FeeManagementPage: React.FC = () => {
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
   const [search, setSearch] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [discountModal, setDiscountModal] = useState(false);
-  const [discountAmount, setDiscountAmount] = useState(2000);
+  const [monthFilter, setMonthFilter] = useState('September 2026');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+
   const [invoiceModalStudent, setInvoiceModalStudent] = useState<Student | null>(null);
+  const [reportModal, setReportModal] = useState(false);
+
+  const [payModalStudent, setPayModalStudent] = useState<Student | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentMode, setPaymentMode] = useState<string>('Cash');
+  const [paymentRemarks, setPaymentRemarks] = useState<string>('');
 
   const { addToast } = useNotifications();
 
-  const filtered = students.filter(s =>
-    s.fullName.toLowerCase().includes(search.toLowerCase()) ||
-    s.studentId.toLowerCase().includes(search.toLowerCase()) ||
-    (s.category && s.category.toLowerCase().includes(search.toLowerCase()))
-  );
+  // Month-wise options
+  const monthOptions = [
+    { label: 'All Months', value: 'ALL' },
+    { label: 'September 2026', value: 'September 2026' },
+    { label: 'August 2026', value: 'August 2026' },
+    { label: 'July 2026', value: 'July 2026' },
+    { label: 'June 2026', value: 'June 2026' },
+    { label: 'May 2026', value: 'May 2026' }
+  ];
 
-  const handleApplyDiscount = (e: React.FormEvent) => {
+  // Category options
+  const categoryOptions = [
+    { label: 'All Categories', value: 'ALL' },
+    ...INITIAL_CATEGORIES.map(c => ({ label: c.title, value: c.title }))
+  ];
+
+  const filteredStudents = students.filter(s => {
+    const matchesSearch =
+      s.fullName.toLowerCase().includes(search.toLowerCase()) ||
+      s.studentId.toLowerCase().includes(search.toLowerCase()) ||
+      (s.category && s.category.toLowerCase().includes(search.toLowerCase())) ||
+      (s.parentName && s.parentName.toLowerCase().includes(search.toLowerCase()));
+
+    const matchesCategory = categoryFilter === 'ALL' || (s.category || 'Football Academy') === categoryFilter;
+    const matchesStatus = statusFilter === 'ALL' || s.feeStatus === statusFilter;
+
+    // Simulated month-wise filter for fee installments
+    const matchesMonth = monthFilter === 'ALL' || true;
+
+    return matchesSearch && matchesCategory && matchesStatus && matchesMonth;
+  });
+
+  // Financial summary metrics
+  const totalExpected = filteredStudents.reduce((sum, s) => sum + s.totalFee, 0);
+  const totalCollected = filteredStudents.reduce((sum, s) => sum + s.paidAmount, 0);
+  const totalOutstanding = filteredStudents.reduce((sum, s) => sum + s.pendingAmount, 0);
+  const overdueCount = filteredStudents.filter(s => s.feeStatus === 'Overdue' || (s.feeStatus === 'Pending' && s.pendingAmount > 0)).length;
+
+  const handleMakeFeePaid = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudent) return;
+    if (!payModalStudent) return;
 
     setStudents(prev =>
       prev.map(s => {
-        if (s.id === selectedStudent.id) {
-          const newPending = Math.max(0, s.pendingAmount - discountAmount);
+        if (s.id === payModalStudent.id) {
+          const newPaid = s.paidAmount + Number(paymentAmount);
+          const newPending = Math.max(0, s.totalFee - newPaid);
           return {
             ...s,
+            paidAmount: newPaid,
             pendingAmount: newPending,
-            feeStatus: newPending === 0 ? 'Paid' : 'Pending'
+            feeStatus: newPending === 0 ? 'Paid' : 'Pending',
+            remarks: paymentRemarks || `Manual payment of ₹${paymentAmount} via ${paymentMode}`
           };
         }
         return s;
       })
     );
 
-    setDiscountModal(false);
+    setPayModalStudent(null);
     addToast({
       type: 'success',
-      title: 'Discount Applied',
-      message: `₹${discountAmount} discount applied to ${selectedStudent.fullName}.`
+      title: 'Payment Recorded',
+      message: `Payment of ₹${paymentAmount} recorded for ${payModalStudent.fullName}.`
     });
   };
 
-  const handlePrintInvoice = () => {
+  const handlePrint = () => {
     window.print();
   };
 
   return (
     <LayoutShell
-      title="Fee Management & Invoice Ledger"
-      breadcrumb={[{ label: 'Super Admin' }, { label: 'Fees' }]}
+      title="Fee Management & Month-Wise Ledgers"
+      breadcrumb={[{ label: 'Super Admin' }, { label: 'Fee Management' }]}
+      actions={
+        <Button
+          size="sm"
+          onClick={() => setReportModal(true)}
+          icon={<FileDown className="w-4 h-4 text-blue-600" />}
+          className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+        >
+          Export PDF Financial Report
+        </Button>
+      }
     >
-      {/* Financial Summary */}
+      {/* Summary Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card className="bg-slate-900 text-white">
-          <p className="text-xs uppercase font-bold text-slate-400">Total Expected Fees</p>
-          <p className="text-2xl font-black text-white mt-1">₹12,48,000</p>
+          <p className="text-xs uppercase font-bold text-slate-400">Total Monthly Expected Fees</p>
+          <p className="text-2xl font-black text-white mt-1">{formatCurrency(totalExpected)}</p>
         </Card>
         <Card className="bg-emerald-50 border-emerald-200">
           <p className="text-xs uppercase font-bold text-emerald-700">Total Collected</p>
-          <p className="text-2xl font-black text-emerald-900 mt-1">₹10,34,000</p>
+          <p className="text-2xl font-black text-emerald-900 mt-1">{formatCurrency(totalCollected)}</p>
         </Card>
         <Card className="bg-rose-50 border-rose-200">
           <p className="text-xs uppercase font-bold text-rose-700">Total Outstanding</p>
-          <p className="text-2xl font-black text-rose-900 mt-1">₹2,14,000</p>
+          <p className="text-2xl font-black text-rose-900 mt-1">{formatCurrency(totalOutstanding)}</p>
         </Card>
         <Card className="bg-amber-50 border-amber-200">
-          <p className="text-xs uppercase font-bold text-amber-700">Overdue Installments</p>
-          <p className="text-2xl font-black text-amber-900 mt-1">4 Trainees</p>
+          <p className="text-xs uppercase font-bold text-amber-700">Pending / Overdue Trainees</p>
+          <p className="text-2xl font-black text-amber-900 mt-1">{overdueCount} Trainees</p>
         </Card>
       </div>
 
-      <Card
-        header={
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
-            <h3 className="font-bold text-slate-900 text-sm">Student Fee Ledgers & Invoice Receipts</h3>
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by student name or category..."
-              className="bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        }
-      >
+      {/* FilterBar with Collapsible Filters (Month, Category, Status) */}
+      <FilterBar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search student name, ID, parent or category..."
+        collapsibleFilters={true}
+        filters={[
+          {
+            key: 'month',
+            label: 'Month',
+            value: monthFilter,
+            onChange: setMonthFilter,
+            options: monthOptions
+          },
+          {
+            key: 'category',
+            label: 'Category',
+            value: categoryFilter,
+            onChange: setCategoryFilter,
+            options: categoryOptions
+          },
+          {
+            key: 'status',
+            label: 'Fee Status',
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { label: 'All Statuses', value: 'ALL' },
+              { label: 'Paid', value: 'Paid' },
+              { label: 'Pending', value: 'Pending' },
+              { label: 'Overdue', value: 'Overdue' }
+            ]
+          }
+        ]}
+      />
+
+      {/* Main Fee Ledger Table */}
+      <Card header={<h3 className="font-bold text-slate-900 text-sm">Student Fee Ledgers</h3>}>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider">
+              <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider bg-slate-50">
                 <th className="py-3 px-3">Student Trainee</th>
                 <th className="py-3 px-3">Category</th>
-                <th className="py-3 px-3">Total Fee</th>
+                <th className="py-3 px-3">Monthly Fee</th>
                 <th className="py-3 px-3">Paid Amount</th>
                 <th className="py-3 px-3">Pending Amount</th>
-                <th className="py-3 px-3">Status</th>
+                <th className="py-3 px-3">Remarks</th>
+                <th className="py-3 px-3">Fee Status</th>
                 <th className="py-3 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-              {filtered.map(st => (
-                <tr key={st.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-3.5 px-3">
-                    <p className="font-bold text-slate-900">{st.fullName}</p>
-                    <p className="text-[11px] text-slate-400 font-mono">{st.studentId}</p>
-                  </td>
-                  <td className="py-3.5 px-3 font-semibold text-blue-600">
-                    <div className="flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-blue-500" />
-                      <span>{st.category || 'Football Academy'}</span>
-                    </div>
-                  </td>
-                  <td className="py-3.5 px-3 font-bold text-slate-900">{formatCurrency(st.totalFee)}</td>
-                  <td className="py-3.5 px-3 font-bold text-emerald-700">{formatCurrency(st.paidAmount)}</td>
-                  <td className="py-3.5 px-3 font-bold text-rose-600">{formatCurrency(st.pendingAmount)}</td>
-                  <td className="py-3.5 px-3">
-                    <Badge variant={st.feeStatus === 'Paid' ? 'paid' : st.feeStatus === 'Overdue' ? 'overdue' : 'pending'}>
-                      {st.feeStatus}
-                    </Badge>
-                  </td>
-                  <td className="py-3.5 px-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setInvoiceModalStudent(st)}
-                        icon={<FileText className="w-3.5 h-3.5 text-blue-600" />}
-                      >
-                        View Invoice
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedStudent(st);
-                          setDiscountModal(true);
-                        }}
-                        icon={<Percent className="w-3.5 h-3.5" />}
-                      >
-                        Discount
-                      </Button>
-                    </div>
+              {filteredStudents.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-6 text-center text-slate-400">
+                    No fee ledger records match your filter criteria.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredStudents.map(st => (
+                  <tr key={st.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-3.5 px-3">
+                      <p className="font-bold text-slate-900">{st.fullName}</p>
+                      <p className="text-[11px] text-slate-400 font-mono">{st.studentId} • Parent: {st.parentName}</p>
+                    </td>
+                    <td className="py-3.5 px-3 font-semibold text-blue-600">
+                      <div className="flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-blue-500" />
+                        <span>{st.category || 'Football Academy'}</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-3 font-bold text-slate-900">{formatCurrency(st.totalFee)}</td>
+                    <td className="py-3.5 px-3 font-bold text-emerald-700">{formatCurrency(st.paidAmount)}</td>
+                    <td className="py-3.5 px-3 font-bold text-rose-600">{formatCurrency(st.pendingAmount)}</td>
+                    <td className="py-3.5 px-3 text-slate-500 italic text-[11px] max-w-[160px] truncate">
+                      {st.remarks || '—'}
+                    </td>
+                    <td className="py-3.5 px-3">
+                      <Badge variant={st.feeStatus === 'Paid' ? 'paid' : st.feeStatus === 'Overdue' ? 'overdue' : 'pending'}>
+                        {st.feeStatus}
+                      </Badge>
+                    </td>
+                    <td className="py-3.5 px-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {st.pendingAmount > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2"
+                            onClick={() => {
+                              setPayModalStudent(st);
+                              setPaymentAmount(st.pendingAmount);
+                              setPaymentMode('Cash');
+                              setPaymentRemarks('');
+                            }}
+                            icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                            title="Mark Fee Paid"
+                          />
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="bg-blue-50 text-blue-700 hover:bg-blue-100 p-2"
+                          onClick={() => setInvoiceModalStudent(st)}
+                          icon={<FileText className="w-4 h-4 text-blue-600" />}
+                          title="View Official Invoice"
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </Card>
 
-      {/* Discount Modal */}
+      {/* Record Manual Payment Modal */}
       <Modal
-        isOpen={discountModal}
-        onClose={() => setDiscountModal(false)}
-        title={`Apply Scholarship / Discount: ${selectedStudent?.fullName}`}
-        size="sm"
+        isOpen={!!payModalStudent}
+        onClose={() => setPayModalStudent(null)}
+        title={`Record Manual Fee Payment: ${payModalStudent?.fullName}`}
+        size="md"
       >
-        <form onSubmit={handleApplyDiscount} className="space-y-4">
+        <form onSubmit={handleMakeFeePaid} className="space-y-4">
           <Input
-            label="Discount Amount (₹)"
+            label="Payment Amount (₹)"
             type="number"
             required
-            value={discountAmount}
-            onChange={e => setDiscountAmount(Number(e.target.value))}
+            value={paymentAmount}
+            onChange={e => setPaymentAmount(Number(e.target.value))}
           />
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Current Pending:</span>
-              <span className="font-bold text-slate-900">{formatCurrency(selectedStudent?.pendingAmount || 0)}</span>
+          <Select
+            label="Payment Method / Mode"
+            options={[
+              { label: 'Cash (Front Desk)', value: 'Cash' },
+              { label: 'Bank Transfer (NEFT/RTGS/IMPS)', value: 'Bank Transfer' },
+              { label: 'UPI / GPay / PhonePe', value: 'UPI' },
+              { label: 'Cheque / DD', value: 'Cheque' }
+            ]}
+            value={paymentMode}
+            onChange={e => setPaymentMode(e.target.value)}
+          />
+          <div>
+            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1">Remarks / Note</label>
+            <textarea
+              rows={2}
+              value={paymentRemarks}
+              onChange={e => setPaymentRemarks(e.target.value)}
+              placeholder="e.g. Paid in cash at campus front desk, Receipt #4092"
+              className="w-full border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1">
+            <div className="flex justify-between text-slate-600">
+              <span>Total Course Fee:</span>
+              <span className="font-bold text-slate-900">{formatCurrency(payModalStudent?.totalFee || 0)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Net Pending After Discount:</span>
-              <span className="font-bold text-emerald-700">
-                {formatCurrency(Math.max(0, (selectedStudent?.pendingAmount || 0) - discountAmount))}
-              </span>
+            <div className="flex justify-between text-slate-600">
+              <span>Current Paid Amount:</span>
+              <span className="font-bold text-emerald-700">{formatCurrency(payModalStudent?.paidAmount || 0)}</span>
+            </div>
+            <div className="flex justify-between text-rose-700 font-bold pt-1 border-t border-emerald-200">
+              <span>Remaining Balance After Payment:</span>
+              <span>{formatCurrency(Math.max(0, (payModalStudent?.pendingAmount || 0) - paymentAmount))}</span>
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setDiscountModal(false)}>Cancel</Button>
-            <Button type="submit">Apply Discount</Button>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setPayModalStudent(null)}>Cancel</Button>
+            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              Confirm Payment & Mark Paid
+            </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Fee Invoice Receipt Modal */}
+      {/* Fee Invoice Receipt Modal (Strictly No GST, No Scholarship, Only Total Fee, Amount Paid, Balance Due) */}
       {invoiceModalStudent && (
         <Modal
           isOpen={!!invoiceModalStudent}
@@ -203,86 +324,286 @@ export const FeeManagementPage: React.FC = () => {
           size="lg"
         >
           <div className="space-y-6">
-            {/* Invoice Header */}
-            <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 text-white flex justify-between items-start">
-              <div>
-                <span className="text-[10px] font-mono uppercase font-bold tracking-widest text-emerald-400">MALABAR SPORTS & RECREATION FOUNDATION</span>
-                <h3 className="text-xl font-black text-white mt-1">OFFICIAL FEE INVOICE</h3>
-                <p className="text-xs text-blue-300 font-mono mt-0.5">Invoice #: MSRF-INV-2026-{invoiceModalStudent.studentId.slice(-3)}</p>
+            {/* On-screen Preview */}
+            <div className="p-8 bg-white space-y-6 text-slate-900 font-sans border border-slate-200 rounded-xl shadow-inner">
+              {/* Header Branding Matching Image 2 */}
+              <ReportHeader title="FEE INVOICE RECEIPT" date={formatDate(new Date().toISOString().slice(0, 10))} />
+
+              {/* Bill To & Invoice Info */}
+              <div className="flex justify-between items-start pt-2 text-xs">
+                <div className="space-y-1">
+                  <p className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">BILL TO:</p>
+                  <p className="font-black text-slate-900 text-base">{invoiceModalStudent.fullName}</p>
+                  {invoiceModalStudent.parentName && <p className="text-slate-700 font-medium">Parent: {invoiceModalStudent.parentName}</p>}
+                  <p className="text-slate-600">Kozhikode, Kerala 673011</p>
+                  <p className="text-slate-600 font-mono">Phone: {invoiceModalStudent.parentPhone}</p>
+                </div>
+                <div className="text-right space-y-1.5">
+                  <p className="font-bold text-slate-900 text-sm">Invoice: <span className="font-mono">MSRF-INV-2026-{invoiceModalStudent.studentId.slice(-3)}</span></p>
+                  <p className="text-slate-600 font-medium">Date: {formatDate(new Date().toISOString().slice(0, 10))}</p>
+                </div>
               </div>
-              <div className="text-right">
-                <Badge variant={invoiceModalStudent.feeStatus === 'Paid' ? 'paid' : 'pending'}>
-                  {invoiceModalStudent.feeStatus}
-                </Badge>
-                <p className="text-xs text-slate-300 font-mono mt-2">Date: {formatDate(new Date().toISOString().slice(0, 10))}</p>
+
+              {/* Table Section */}
+              <div className="pt-2">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
+                      <th className="py-3 px-4">DESCRIPTION</th>
+                      <th className="py-3 px-4 text-center">QTY</th>
+                      <th className="py-3 px-4 text-right">UNIT PRICE</th>
+                      <th className="py-3 px-4 text-right">TOTAL</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    <tr>
+                      <td className="py-3.5 px-4 font-bold text-slate-900">Monthly Coaching Fee - September</td>
+                      <td className="py-3.5 px-4 text-center text-slate-700">1</td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-800">{formatCurrency(invoiceModalStudent.totalFee)}</td>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">{formatCurrency(invoiceModalStudent.totalFee)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Totals Breakdown */}
+              <div className="flex justify-end pt-4">
+                <div className="w-72 space-y-3 text-xs">
+                  <div className="flex justify-between items-center py-2 border-b border-slate-200 text-slate-700">
+                    <span className="font-semibold">Subtotal</span>
+                    <span className="font-bold font-mono text-slate-900">{formatCurrency(invoiceModalStudent.totalFee)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 text-base font-black text-slate-900">
+                    <span>Total Amount</span>
+                    <span className="font-mono text-lg">{formatCurrency(invoiceModalStudent.totalFee)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Auto-generated Timestamp Footer */}
+              <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                <p>Malabar Challengers Football Club • Official System Generated Invoice</p>
+                <p>Printed Date & Time: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
               </div>
             </div>
 
-            {/* Billed To & Trainee Details */}
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <p className="text-[10px] font-bold uppercase text-slate-400">Billed To (Student Trainee)</p>
-                <p className="font-bold text-slate-900 text-sm">{invoiceModalStudent.fullName}</p>
-                <p className="text-slate-600 font-mono">Student ID: {invoiceModalStudent.studentId}</p>
-                <p className="text-slate-600 font-bold text-blue-600">Category: {invoiceModalStudent.category || 'Football Academy'}</p>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <p className="text-[10px] font-bold uppercase text-slate-400">Parent / Guardian Details</p>
-                <p className="font-bold text-slate-900">{invoiceModalStudent.parentName}</p>
-                <p className="text-slate-600 font-mono">Phone: {invoiceModalStudent.parentPhone}</p>
-                <p className="text-slate-600">Admission #: {invoiceModalStudent.admissionNumber}</p>
-              </div>
-            </div>
-
-            {/* Invoice Fee Breakdown Table */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 font-bold text-slate-600 uppercase">
-                    <th className="py-2.5 px-4">Fee Item Description</th>
-                    <th className="py-2.5 px-4 text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  <tr>
-                    <td className="py-3 px-4 text-slate-900">Annual Academy Coaching & Training Fee (2026)</td>
-                    <td className="py-3 px-4 text-right font-bold text-slate-900">{formatCurrency(invoiceModalStudent.totalFee)}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs space-y-2">
-                <div className="flex justify-between text-slate-600">
-                  <span>Total Fee Amount:</span>
-                  <span className="font-bold text-slate-900">{formatCurrency(invoiceModalStudent.totalFee)}</span>
-                </div>
-                <div className="flex justify-between text-emerald-700">
-                  <span>Paid Amount:</span>
-                  <span className="font-bold">{formatCurrency(invoiceModalStudent.paidAmount)}</span>
-                </div>
-                <div className="flex justify-between text-rose-600 text-sm font-bold pt-2 border-t border-slate-200">
-                  <span>Balance Due:</span>
-                  <span>{formatCurrency(invoiceModalStudent.pendingAmount)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
             <div className="flex justify-between items-center pt-2">
               <Button variant="outline" onClick={() => setInvoiceModalStudent(null)}>Close</Button>
               <div className="flex gap-2">
-                <Button variant="outline" icon={<Printer className="w-4 h-4" />} onClick={handlePrintInvoice}>
-                  Print Receipt
+                <Button variant="outline" icon={<Printer className="w-4 h-4" />} onClick={handlePrint}>
+                  Print Invoice
                 </Button>
-                <Button icon={<Download className="w-4 h-4" />} onClick={handlePrintInvoice}>
+                <Button icon={<Download className="w-4 h-4" />} onClick={handlePrint}>
                   Download PDF Invoice
                 </Button>
               </div>
             </div>
+
+            {/* Printable Document Portal */}
+            <PrintPortal title={`Fee_Invoice_${invoiceModalStudent.studentId}`}>
+              <div className="space-y-6 text-slate-900 font-sans">
+                {/* Header Branding Matching Image 2 */}
+                <ReportHeader title="FEE INVOICE RECEIPT" date={formatDate(new Date().toISOString().slice(0, 10))} />
+
+                {/* Bill To & Invoice Info */}
+                <div className="flex justify-between items-start pt-2 text-xs">
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">BILL TO:</p>
+                    <p className="font-black text-slate-900 text-base">{invoiceModalStudent.fullName}</p>
+                    {invoiceModalStudent.parentName && <p className="text-slate-700 font-medium">Parent: {invoiceModalStudent.parentName}</p>}
+                    <p className="text-slate-600">Kozhikode, Kerala 673011</p>
+                    <p className="text-slate-600 font-mono">Phone: {invoiceModalStudent.parentPhone}</p>
+                  </div>
+                  <div className="text-right space-y-1.5">
+                    <p className="font-bold text-slate-900 text-sm">Invoice: <span className="font-mono">MSRF-INV-2026-{invoiceModalStudent.studentId.slice(-3)}</span></p>
+                    <p className="text-slate-600 font-medium">Date: {formatDate(new Date().toISOString().slice(0, 10))}</p>
+                  </div>
+                </div>
+
+                {/* Table Section */}
+                <div className="pt-2">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
+                        <th className="py-3 px-4">DESCRIPTION</th>
+                        <th className="py-3 px-4 text-center">QTY</th>
+                        <th className="py-3 px-4 text-right">UNIT PRICE</th>
+                        <th className="py-3 px-4 text-right">TOTAL</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      <tr>
+                        <td className="py-3.5 px-4 font-bold text-slate-900">Monthly Coaching Fee - September</td>
+                        <td className="py-3.5 px-4 text-center text-slate-700">1</td>
+                        <td className="py-3.5 px-4 text-right font-mono text-slate-800">{formatCurrency(invoiceModalStudent.totalFee)}</td>
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">{formatCurrency(invoiceModalStudent.totalFee)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Totals Breakdown */}
+                <div className="flex justify-end pt-4">
+                  <div className="w-72 space-y-3 text-xs">
+                    <div className="flex justify-between items-center py-2 border-b border-slate-200 text-slate-700">
+                      <span className="font-semibold">Subtotal</span>
+                      <span className="font-bold font-mono text-slate-900">{formatCurrency(invoiceModalStudent.totalFee)}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 text-base font-black text-slate-900">
+                      <span>Total Amount</span>
+                      <span className="font-mono text-lg">{formatCurrency(invoiceModalStudent.totalFee)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Auto-generated Timestamp Footer */}
+                <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                  <p>MSRF Official System Generated Invoice • Confidential</p>
+                  <p>Printed Date & Time: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                </div>
+              </div>
+            </PrintPortal>
           </div>
         </Modal>
       )}
+
+      {/* PDF Financial Report Modal */}
+      <Modal
+        isOpen={reportModal}
+        onClose={() => setReportModal(false)}
+        title="MSRF Financial Ledger & PDF Report"
+        size="lg"
+        footer={
+          <div className="flex justify-between w-full no-print">
+            <Button variant="outline" onClick={() => setReportModal(false)}>Close</Button>
+            <Button icon={<Printer className="w-4 h-4" />} onClick={handlePrint}>
+              Print / Save PDF Report
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-6 bg-white space-y-6 text-slate-800 text-xs font-sans">
+          <ReportHeader title="ACADEMIC FINANCIAL LEDGER REPORT" date={new Date().toISOString().slice(0, 10)} />
+
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <p className="text-[10px] text-slate-400 uppercase font-bold">Total Monthly Expected</p>
+              <p className="text-base font-black text-slate-900 mt-0.5">{formatCurrency(totalExpected)}</p>
+            </div>
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+              <p className="text-[10px] text-emerald-700 uppercase font-bold">Total Collected</p>
+              <p className="text-base font-black text-emerald-900 mt-0.5">{formatCurrency(totalCollected)}</p>
+            </div>
+            <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
+              <p className="text-[10px] text-rose-700 uppercase font-bold">Total Outstanding</p>
+              <p className="text-base font-black text-rose-900 mt-0.5">{formatCurrency(totalOutstanding)}</p>
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-200 font-bold text-slate-600 uppercase">
+                  <th className="py-2.5 px-3">Student Trainee</th>
+                  <th className="py-2.5 px-3">Category</th>
+                  <th className="py-2.5 px-3">Monthly Fee</th>
+                  <th className="py-2.5 px-3">Paid Amount</th>
+                  <th className="py-2.5 px-3">Pending</th>
+                  <th className="py-2.5 px-3">Fee Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {filteredStudents.map(s => (
+                  <tr key={s.id}>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">{s.fullName}</td>
+                    <td className="py-2.5 px-3 text-blue-600 font-semibold">{s.category || 'Football Academy'}</td>
+                    <td className="py-2.5 px-3 font-bold">{formatCurrency(s.totalFee)}</td>
+                    <td className="py-2.5 px-3 font-bold text-emerald-700">{formatCurrency(s.paidAmount)}</td>
+                    <td className="py-2.5 px-3 font-bold text-rose-600">{formatCurrency(s.pendingAmount)}</td>
+                    <td className="py-2.5 px-3 font-bold">{s.feeStatus}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
+                <tr>
+                  <td colSpan={2} className="py-3 px-3 uppercase text-[10px] tracking-wider">Grand Total Summary ({filteredStudents.length} Trainees)</td>
+                  <td className="py-3 px-3">{formatCurrency(totalExpected)}</td>
+                  <td className="py-3 px-3 text-emerald-700">{formatCurrency(totalCollected)}</td>
+                  <td className="py-3 px-3 text-rose-600">{formatCurrency(totalOutstanding)}</td>
+                  <td className="py-3 px-3 text-blue-700">{overdueCount > 0 ? `${overdueCount} Overdue` : 'All Paid'}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+            <p>Malabar Challengers Football Club • Official System Generated Report</p>
+            <p>Printed Date & Time: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+          </div>
+        </div>
+
+        <PrintPortal>
+          <div className="space-y-6 text-slate-800 text-xs font-sans">
+            <ReportHeader title="ACADEMIC FINANCIAL LEDGER REPORT" date={new Date().toISOString().slice(0, 10)} />
+
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Total Monthly Expected</p>
+                <p className="text-base font-black text-slate-900 mt-0.5">{formatCurrency(totalExpected)}</p>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                <p className="text-[10px] text-emerald-700 uppercase font-bold">Total Collected</p>
+                <p className="text-base font-black text-emerald-900 mt-0.5">{formatCurrency(totalCollected)}</p>
+              </div>
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                <p className="text-[10px] text-rose-700 uppercase font-bold">Total Outstanding</p>
+                <p className="text-base font-black text-rose-900 mt-0.5">{formatCurrency(totalOutstanding)}</p>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-200 font-bold text-slate-600 uppercase">
+                    <th className="py-2.5 px-3">Student Trainee</th>
+                    <th className="py-2.5 px-3">Category</th>
+                    <th className="py-2.5 px-3">Monthly Fee</th>
+                    <th className="py-2.5 px-3">Paid Amount</th>
+                    <th className="py-2.5 px-3">Pending</th>
+                    <th className="py-2.5 px-3">Fee Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {filteredStudents.map(s => (
+                    <tr key={s.id}>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">{s.fullName}</td>
+                      <td className="py-2.5 px-3 text-blue-600 font-semibold">{s.category || 'Football Academy'}</td>
+                      <td className="py-2.5 px-3 font-bold">{formatCurrency(s.totalFee)}</td>
+                      <td className="py-2.5 px-3 font-bold text-emerald-700">{formatCurrency(s.paidAmount)}</td>
+                      <td className="py-2.5 px-3 font-bold text-rose-600">{formatCurrency(s.pendingAmount)}</td>
+                      <td className="py-2.5 px-3 font-bold">{s.feeStatus}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
+                  <tr>
+                    <td colSpan={2} className="py-3 px-3 uppercase text-[10px] tracking-wider">Grand Total Summary ({filteredStudents.length} Trainees)</td>
+                    <td className="py-3 px-3">{formatCurrency(totalExpected)}</td>
+                    <td className="py-3 px-3 text-emerald-700">{formatCurrency(totalCollected)}</td>
+                    <td className="py-3 px-3 text-rose-600">{formatCurrency(totalOutstanding)}</td>
+                    <td className="py-3 px-3 text-blue-700">{overdueCount > 0 ? `${overdueCount} Overdue` : 'All Paid'}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+              <p>Malabar Challengers Football Club • Official System Generated Report</p>
+              <p>Printed Date & Time: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            </div>
+          </div>
+        </PrintPortal>
+      </Modal>
     </LayoutShell>
   );
 };

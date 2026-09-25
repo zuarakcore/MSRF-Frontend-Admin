@@ -158,18 +158,13 @@ export const JobApplicationsCMSPage: React.FC = () => {
                 {paginatedData.map(app => {
                   const cvName = app.resumeFileName || `${app.applicantName.toLowerCase().replace(/\s+/g, '_')}_cv.pdf`;
                   return (
-                    <tr key={app.id} className="hover:bg-slate-50">
-                      <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">
-                        <button
-                          onClick={() => setDetailModalApp(app)}
-                          className="hover:text-blue-600 cursor-pointer text-left focus:outline-none"
-                        >
-                          {app.applicantName}
-                        </button>
+                    <tr key={app.id} onClick={() => setDetailModalApp(app)} className="hover:bg-slate-50 cursor-pointer">
+                      <td className="py-3.5 px-4 font-bold text-slate-900 text-sm hover:text-blue-600">
+                        {app.applicantName}
                       </td>
                       <td className="py-3.5 px-4 font-bold text-blue-600">{app.position}</td>
                       <td className="py-3.5 px-4 text-slate-600">{app.email} • {app.phone}</td>
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
                           <span className="p-1 rounded bg-rose-50 text-rose-600 font-mono text-[10px] font-bold border border-rose-200 flex items-center gap-1">
                             <FileText className="w-3 h-3" /> PDF
@@ -185,7 +180,7 @@ export const JobApplicationsCMSPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-3.5 px-4 text-slate-500 font-mono">{app.appliedDate}</td>
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                         <select
                           value={app.status}
                           onChange={e => handleStatusChange(app.id, e.target.value as any)}
@@ -202,22 +197,8 @@ export const JobApplicationsCMSPage: React.FC = () => {
                           <option value="Rejected">Rejected</option>
                         </select>
                       </td>
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            icon={<Eye className="w-3.5 h-3.5 text-slate-600" />}
-                            onClick={() => setDetailModalApp(app)}
-                            title="View Detailed Profile"
-                          />
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            icon={<Edit3 className="w-3.5 h-3.5 text-blue-600" />}
-                            onClick={() => handleOpenEdit(app)}
-                            title="Edit Application"
-                          />
                           <Button
                             size="sm"
                             variant="ghost"
@@ -371,42 +352,11 @@ export const JobApplicationsCMSPage: React.FC = () => {
               <Button variant="outline" onClick={() => setDetailModalApp(null)}>
                 Close Modal
               </Button>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => { const app = detailModalApp; setDetailModalApp(null); handleOpenEdit(app); }}>
-                  Edit Details
-                </Button>
-                <Button onClick={() => setDetailModalApp(null)}>
-                  Done
-                </Button>
-              </div>
+              <Button onClick={() => setDetailModalApp(null)}>
+                Done
+              </Button>
             </div>
           </div>
-        </Modal>
-      )}
-
-      {/* Edit Application Modal */}
-      {editingApp && (
-        <Modal isOpen={!!editingApp} onClose={() => setEditingApp(null)} title="Edit Job Application">
-          <form onSubmit={handleSaveEdit} className="space-y-4">
-            <Input label="Applicant Name" required value={form.applicantName} onChange={e => setForm({ ...form, applicantName: e.target.value })} />
-            <Input label="Email Address" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-            <Input label="Phone Number" isPhone value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-            <Input label="Applied Position" value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} />
-            <Select
-              label="Application Status"
-              options={[
-                { label: 'Under Review', value: 'Under Review' },
-                { label: 'Shortlisted', value: 'Shortlisted' },
-                { label: 'Rejected', value: 'Rejected' }
-              ]}
-              value={form.status}
-              onChange={e => setForm({ ...form, status: e.target.value as any })}
-            />
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={() => setEditingApp(null)}>Cancel</Button>
-              <Button type="submit">Update Application</Button>
-            </div>
-          </form>
         </Modal>
       )}
     </LayoutShell>

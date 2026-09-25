@@ -22,8 +22,14 @@ import {
   CheckCircle2,
   Clock,
   Download,
-  Plus
+  Plus,
+  Trash2,
+  FileDown,
+  Printer,
+  Trophy
 } from 'lucide-react';
+import { PrintPortal } from '../../components/ui/PrintPortal';
+import { ReportHeader } from '../../components/ui/ReportHeader';
 import { useNotifications } from '../../context/NotificationContext';
 
 export const StudentProfilePage: React.FC = () => {
@@ -41,6 +47,16 @@ export const StudentProfilePage: React.FC = () => {
   const [docs, setDocs] = useState(student.documents);
   const [docModal, setDocModal] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState('');
+  const [pdfModal, setPdfModal] = useState(false);
+
+  const handleDeleteDoc = (docId: string, title: string) => {
+    setDocs(prev => prev.filter(d => d.id !== docId));
+    addToast({ type: 'info', title: 'Document Removed', message: `"${title}" has been deleted.` });
+  };
+
+  const handleDownloadPDF = () => {
+    setPdfModal(true);
+  };
 
   const handleUploadDoc = (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,14 +85,24 @@ export const StudentProfilePage: React.FC = () => {
         { label: student.studentId }
       ]}
       actions={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/super-admin/students')}
-          icon={<ArrowLeft className="w-4 h-4" />}
-        >
-          Back to Roster
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleDownloadPDF}
+            icon={<FileDown className="w-4 h-4 text-blue-600" />}
+            className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+          >
+            Download PDF Profile
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/super-admin/students')}
+            icon={<ArrowLeft className="w-4 h-4" />}
+          >
+            Back to Roster
+          </Button>
+        </div>
       }
     >
       {/* Student Profile Header Banner */}
@@ -98,6 +124,9 @@ export const StudentProfilePage: React.FC = () => {
               <p className="text-xs text-blue-300 font-mono mt-0.5">{student.studentId} • Admission #: {student.admissionNumber}</p>
               
               <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-slate-300">
+                <span className="flex items-center gap-1 font-semibold text-rose-300">
+                  Blood Group: {student.bloodGroup || 'O+'}
+                </span>
                 <span className="flex items-center gap-1 font-semibold text-blue-300">
                   Category: {student.category || 'Football Academy'}
                 </span>
@@ -118,10 +147,6 @@ export const StudentProfilePage: React.FC = () => {
             <div className="text-right">
               <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Attendance Rate</p>
               <p className="text-2xl font-black text-emerald-400">{student.attendancePercentage}%</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Pending Fee</p>
-              <p className="text-lg font-bold text-rose-400">{formatCurrency(student.pendingAmount)}</p>
             </div>
           </div>
         </div>
@@ -150,6 +175,10 @@ export const StudentProfilePage: React.FC = () => {
               <div className="grid grid-cols-2">
                 <span className="text-slate-400">Full Name:</span>
                 <span className="font-bold text-slate-900">{student.fullName}</span>
+              </div>
+              <div className="grid grid-cols-2">
+                <span className="text-slate-400">Blood Group:</span>
+                <span className="font-bold text-rose-600">{student.bloodGroup || 'O+'}</span>
               </div>
               <div className="grid grid-cols-2">
                 <span className="text-slate-400">Gender:</span>
@@ -195,10 +224,6 @@ export const StudentProfilePage: React.FC = () => {
               <div className="grid grid-cols-2">
                 <span className="text-slate-400">Training Center:</span>
                 <span className="font-bold text-slate-900">{student.trainingCenter || 'Kozhikode Main Campus'}</span>
-              </div>
-              <div className="grid grid-cols-2">
-                <span className="text-slate-400">Batch Schedule:</span>
-                <span className="font-medium text-slate-800">{student.batch}</span>
               </div>
             </div>
           </Card>
@@ -412,7 +437,7 @@ export const StudentProfilePage: React.FC = () => {
                 <div className="space-y-3 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-700">Coach Rating:</span>
-                    <span className="text-amber-500 font-bold text-sm">{'★'.repeat(perf.rating)} ({perf.rating}/5)</span>
+                    <span className="text-amber-500 font-bold text-sm">{'★'.repeat(perf.rating || perf.overallRating || 5)} ({perf.rating || perf.overallRating || 5}/5)</span>
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div className="p-2 bg-slate-50 rounded-lg">
@@ -462,10 +487,11 @@ export const StudentProfilePage: React.FC = () => {
                     <p className="text-[11px] text-slate-400">{doc.fileName} • {doc.fileSize} • Uploaded {doc.uploadedDate}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" icon={<Download className="w-4 h-4" />} onClick={() => addToast({ type: 'info', title: 'Download Triggered', message: `Downloading ${doc.fileName}` })}>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" icon={<Download className="w-4 h-4 text-blue-600" />} onClick={() => addToast({ type: 'info', title: 'Download Triggered', message: `Downloading ${doc.fileName}` })}>
                     Download
                   </Button>
+                  <Button variant="ghost" size="sm" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-4 h-4" />} onClick={() => handleDeleteDoc(doc.id, doc.title)} title="Delete Document" />
                 </div>
               </div>
             ))}
@@ -495,6 +521,130 @@ export const StudentProfilePage: React.FC = () => {
             <Button type="submit">Save Document</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Official Printable Student Profile PDF Modal */}
+      <Modal
+        isOpen={pdfModal}
+        onClose={() => setPdfModal(false)}
+        title={`Official Student Profile Report: ${student.fullName}`}
+        size="lg"
+        footer={
+          <div className="flex items-center justify-between w-full no-print">
+            <Button variant="outline" onClick={() => setPdfModal(false)}>Close</Button>
+            <Button icon={<Printer className="w-4 h-4" />} onClick={() => window.print()}>
+              Print / Save PDF Report
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-6 bg-white space-y-6 text-slate-800 font-sans border border-slate-200 rounded-xl shadow-inner">
+          {/* Header MSRF Branding */}
+          <ReportHeader title="STUDENT TRAINEE PROFILE REPORT" date={new Date().toISOString().slice(0, 10)} />
+
+          {/* Student Profile Card Overview */}
+          <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <img src={student.photo} alt={student.fullName} className="w-20 h-20 rounded-xl object-cover border border-slate-300 shrink-0" />
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs flex-1">
+              <div>
+                <p className="text-[10px] uppercase font-bold text-slate-400">Full Name</p>
+                <p className="font-bold text-slate-900 text-sm">{student.fullName}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
+                <p className="font-bold text-rose-600 text-sm">{student.bloodGroup || 'O+'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-slate-400">Academy Category</p>
+                <p className="font-bold text-blue-600">{student.category || 'Football Academy'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-slate-400">Program Type</p>
+                <p className="font-semibold text-indigo-700">{student.programType || 'Day Scholar Program'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Details Grid */}
+          <div className="grid grid-cols-2 gap-4 text-xs">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+              <p className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">Personal Details</p>
+              <div className="flex justify-between"><span className="text-slate-500">Gender:</span><span className="font-semibold">{student.gender}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Date of Birth:</span><span className="font-semibold">{formatDate(student.dateOfBirth)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Phone:</span><span className="font-mono">{student.phone}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Center:</span><span className="font-semibold">{student.trainingCenter || 'Kozhikode Main Campus'}</span></div>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+              <p className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">Parent & Emergency Contact</p>
+              <div className="flex justify-between"><span className="text-slate-500">Parent Name:</span><span className="font-semibold">{student.parentName}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Parent Phone:</span><span className="font-mono">{student.parentPhone}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Emergency Contact:</span><span className="font-semibold">{student.emergencyName}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Emergency Phone:</span><span className="font-mono font-bold text-rose-600">{student.emergencyPhone}</span></div>
+            </div>
+          </div>
+
+          {/* Auto-generated Timestamp Footer */}
+          <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+            <p>Malabar Challengers Football Club • Official System Generated Report</p>
+            <p>Printed Date & Time: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+          </div>
+        </div>
+
+        <PrintPortal>
+          <div className="space-y-6 text-slate-800 font-sans">
+            {/* Header MSRF Branding */}
+            <ReportHeader title="STUDENT TRAINEE PROFILE REPORT" date={new Date().toISOString().slice(0, 10)} />
+
+            {/* Student Profile Card Overview */}
+            <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <img src={student.photo} alt={student.fullName} className="w-20 h-20 rounded-xl object-cover border border-slate-300 shrink-0" />
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs flex-1">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Full Name</p>
+                  <p className="font-bold text-slate-900 text-sm">{student.fullName}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
+                  <p className="font-bold text-rose-600 text-sm">{student.bloodGroup || 'O+'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Academy Category</p>
+                  <p className="font-bold text-blue-600">{student.category || 'Football Academy'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Program Type</p>
+                  <p className="font-semibold text-indigo-700">{student.programType || 'Day Scholar Program'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                <p className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">Personal Details</p>
+                <div className="flex justify-between"><span className="text-slate-500">Gender:</span><span className="font-semibold">{student.gender}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Date of Birth:</span><span className="font-semibold">{formatDate(student.dateOfBirth)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Phone:</span><span className="font-mono">{student.phone}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Center:</span><span className="font-semibold">{student.trainingCenter || 'Kozhikode Main Campus'}</span></div>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                <p className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">Parent & Emergency Contact</p>
+                <div className="flex justify-between"><span className="text-slate-500">Parent Name:</span><span className="font-semibold">{student.parentName}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Parent Phone:</span><span className="font-mono">{student.parentPhone}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Emergency Contact:</span><span className="font-semibold">{student.emergencyName}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Emergency Phone:</span><span className="font-mono font-bold text-rose-600">{student.emergencyPhone}</span></div>
+              </div>
+            </div>
+
+            {/* Auto-generated Timestamp Footer */}
+            <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+              <p>Malabar Challengers Football Club • Official System Generated Report</p>
+              <p>Printed Date & Time: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            </div>
+          </div>
+        </PrintPortal>
       </Modal>
     </LayoutShell>
   );

@@ -237,7 +237,7 @@ export const LoginPage: React.FC = () => {
       </Modal>
 
       <p className="text-center text-xs text-slate-400 mt-6 z-10">
-        © 2026 Malabar Sports & Recreation Foundation. All rights reserved.
+        © 2026 Malabar Challengers Football Club. All rights reserved.
       </p>
     </div>
   );

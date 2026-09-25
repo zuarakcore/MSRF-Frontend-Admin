@@ -11,7 +11,7 @@ import { DeleteConfirmationModal } from '../../../components/ui/DeleteConfirmati
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { INITIAL_ENQUIRIES } from '../../../mock-data/msrf-data';
 import { ContactEnquiryCMS } from '../../../types';
-import { Edit3, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Mail, Phone, Calendar, MessageSquare, Tag } from 'lucide-react';
 import { useNotifications } from '../../../context/NotificationContext';
 
 export const ContactEnquiriesCMSPage: React.FC = () => {
@@ -27,6 +27,7 @@ export const ContactEnquiriesCMSPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEnq, setEditingEnq] = useState<ContactEnquiryCMS | null>(null);
   const [deletingEnq, setDeletingEnq] = useState<ContactEnquiryCMS | null>(null);
+  const [detailEnq, setDetailEnq] = useState<ContactEnquiryCMS | null>(null);
 
   const [form, setForm] = useState({
     name: '',
@@ -86,11 +87,17 @@ export const ContactEnquiriesCMSPage: React.FC = () => {
     );
 
     setModalOpen(false);
+    if (detailEnq && detailEnq.id === editingEnq.id) {
+      setDetailEnq(prev => prev ? { ...prev, ...form } : null);
+    }
     addToast({ type: 'success', title: 'Enquiry Record Updated', message: form.name });
   };
 
   const handleStatusChange = (id: string, newStatus: 'New' | 'Contacted' | 'Resolved') => {
     setEnquiries(prev => prev.map(e => (e.id === id ? { ...e, status: newStatus } : e)));
+    if (detailEnq && detailEnq.id === id) {
+      setDetailEnq(prev => prev ? { ...prev, status: newStatus } : null);
+    }
     addToast({ type: 'info', title: 'Status Updated', message: `Enquiry status set to ${newStatus}` });
   };
 
@@ -99,6 +106,7 @@ export const ContactEnquiriesCMSPage: React.FC = () => {
     setEnquiries(prev => prev.filter(e => e.id !== deletingEnq.id));
     addToast({ type: 'info', title: 'Enquiry Removed', message: `Enquiry from ${deletingEnq.name} deleted.` });
     setDeletingEnq(null);
+    if (detailEnq && detailEnq.id === deletingEnq.id) setDetailEnq(null);
   };
 
   return (
@@ -144,15 +152,15 @@ export const ContactEnquiriesCMSPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedData.map(enq => (
-                  <tr key={enq.id} className="hover:bg-slate-50">
+                  <tr key={enq.id} onClick={() => setDetailEnq(enq)} className="hover:bg-slate-50 cursor-pointer">
                     <td className="py-3.5 px-4 font-bold text-slate-900">
-                      <div>{enq.name}</div>
+                      <div className="hover:text-blue-600">{enq.name}</div>
                       <div className="text-[11px] text-slate-400 font-normal">{enq.email} • {enq.phone}</div>
                     </td>
                     <td className="py-3.5 px-4 font-bold text-blue-600">{enq.programmeOrSubject}</td>
                     <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate">"{enq.message}"</td>
                     <td className="py-3.5 px-4 text-slate-500">{enq.submittedDate}</td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                       <select
                         value={enq.status}
                         onChange={e => handleStatusChange(enq.id, e.target.value as any)}
@@ -169,10 +177,9 @@ export const ContactEnquiriesCMSPage: React.FC = () => {
                         <option value="Resolved">Resolved</option>
                       </select>
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="ghost" icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(enq)} />
-                        <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingEnq(enq)} />
+                        <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingEnq(enq)} title="Delete Enquiry" />
                       </div>
                     </td>
                   </tr>
@@ -201,38 +208,81 @@ export const ContactEnquiriesCMSPage: React.FC = () => {
         itemName={deletingEnq?.name}
       />
 
-      {/* Edit Enquiry Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Edit Enquiry Record">
-        <form onSubmit={handleSaveEdit} className="space-y-4">
-          <Input label="Contact Name" required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          <Input label="Email Address" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-          <Input label="Phone Number" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-          <Input label="Programme / Subject" value={form.programmeOrSubject} onChange={e => setForm({ ...form, programmeOrSubject: e.target.value })} />
-          <div>
-            <label className="text-xs font-semibold text-slate-700">Enquiry Message</label>
-            <textarea
-              rows={3}
-              value={form.message}
-              onChange={e => setForm({ ...form, message: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 mt-1"
-            />
+      {/* Detailed View Modal */}
+      {detailEnq && (
+        <Modal
+          isOpen={!!detailEnq}
+          onClose={() => setDetailEnq(null)}
+          title={`Enquiry Detail: ${detailEnq.name}`}
+          size="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono text-blue-400 font-bold uppercase tracking-widest block">WEBSITE CONTACT ENQUIRY</span>
+                <h3 className="text-xl font-black text-white">{detailEnq.name}</h3>
+                <p className="text-xs text-slate-300 font-bold mt-0.5">{detailEnq.programmeOrSubject}</p>
+              </div>
+
+              <select
+                value={detailEnq.status}
+                onChange={e => handleStatusChange(detailEnq.id, e.target.value as any)}
+                className={`text-xs font-bold rounded-lg px-3 py-1.5 border cursor-pointer focus:outline-none ${
+                  detailEnq.status === 'Resolved'
+                    ? 'bg-emerald-500 text-white border-emerald-400'
+                    : detailEnq.status === 'Contacted'
+                    ? 'bg-blue-500 text-white border-blue-400'
+                    : 'bg-amber-500 text-white border-amber-400'
+                }`}
+              >
+                <option value="New" className="bg-slate-900 text-white">New</option>
+                <option value="Contacted" className="bg-slate-900 text-white">Contacted</option>
+                <option value="Resolved" className="bg-slate-900 text-white">Resolved</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Email Address</span>
+                <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{detailEnq.email}</span>
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Phone Number</span>
+                <p className="font-bold text-slate-900 flex items-center gap-1.5 font-mono">
+                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{detailEnq.phone}</span>
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Submitted Date</span>
+                <p className="font-bold text-slate-800 flex items-center gap-1.5 font-mono">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{detailEnq.submittedDate}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <MessageSquare className="w-3.5 h-3.5 text-blue-600" /> Message / Detailed Query
+              </span>
+              <p className="text-xs text-slate-700 leading-relaxed font-medium bg-slate-50 p-3 rounded-lg border border-slate-100">
+                "{detailEnq.message}"
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setDetailEnq(null)}>Close</Button>
+              <Button onClick={() => setDetailEnq(null)}>Done</Button>
+            </div>
           </div>
-          <Select
-            label="Enquiry Status"
-            options={[
-              { label: 'New', value: 'New' },
-              { label: 'Contacted', value: 'Contacted' },
-              { label: 'Resolved', value: 'Resolved' }
-            ]}
-            value={form.status}
-            onChange={e => setForm({ ...form, status: e.target.value as any })}
-          />
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit">Update Record</Button>
-          </div>
-        </form>
-      </Modal>
+        </Modal>
+      )}
     </LayoutShell>
   );
 };

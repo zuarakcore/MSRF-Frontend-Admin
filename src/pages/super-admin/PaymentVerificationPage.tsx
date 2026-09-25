@@ -6,16 +6,16 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { FilterBar } from '../../components/ui/FilterBar';
-import { INITIAL_PAYMENTS } from '../../mock-data/msrf-data';
+import { INITIAL_PAYMENTS, INITIAL_STUDENTS } from '../../mock-data/msrf-data';
 import { PaymentSubmission } from '../../types';
 import { formatCurrency } from '../../utils/format';
-import { CheckCircle2, XCircle, Eye, Image as ImageIcon, AlertTriangle, Edit3, Save } from 'lucide-react';
+import { CheckCircle2, XCircle, Eye, Image as ImageIcon, AlertTriangle, Pencil, Save } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 
 export const PaymentVerificationPage: React.FC = () => {
   const [payments, setPayments] = useState<PaymentSubmission[]>(INITIAL_PAYMENTS);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('Pending Verification');
   
   // Selected detail modal
   const [detailModal, setDetailModal] = useState(false);
@@ -32,6 +32,10 @@ export const PaymentVerificationPage: React.FC = () => {
   const { addToast } = useNotifications();
 
   const filteredPayments = payments.filter(p => {
+    // Hide verified payments from payment verification module
+    if (statusFilter !== 'Verified' && p.status === 'Verified') {
+      return false;
+    }
     const matchesSearch =
       p.studentName.toLowerCase().includes(search.toLowerCase()) ||
       p.parentName.toLowerCase().includes(search.toLowerCase()) ||
@@ -42,10 +46,44 @@ export const PaymentVerificationPage: React.FC = () => {
   });
 
   const handleVerify = (id: string) => {
+    const sub = payments.find(p => p.id === id);
     setPayments(prev =>
       prev.map(p => (p.id === id ? { ...p, status: 'Verified', verifiedBy: 'Super Admin', verifiedAt: 'Just now' } : p))
     );
-    addToast({ type: 'success', title: 'Payment Verified', message: 'Payment successfully credited to student ledger.' });
+
+    if (sub) {
+      // Backend phone number matching simulation
+      const matchedStudent = INITIAL_STUDENTS.find(s => {
+        const pPhone = sub.parentPhone || '';
+        const sPhone = s.parentPhone || s.phone || '';
+        const cleanSubPhone = pPhone.replace(/\D/g, '');
+        const cleanStudentPhone = sPhone.replace(/\D/g, '');
+
+        if (cleanSubPhone && cleanStudentPhone && (cleanStudentPhone.includes(cleanSubPhone) || cleanSubPhone.includes(cleanStudentPhone))) {
+          return true;
+        }
+        return s.studentId === sub.studentId || s.fullName.toLowerCase() === sub.studentName.toLowerCase();
+      });
+
+      if (matchedStudent) {
+        matchedStudent.paidAmount += sub.amount;
+        matchedStudent.pendingAmount = Math.max(0, matchedStudent.totalFee - matchedStudent.paidAmount);
+        matchedStudent.feeStatus = matchedStudent.pendingAmount === 0 ? 'Paid' : 'Pending';
+        matchedStudent.remarks = `Auto Verified payment ${sub.submissionNo} (₹${sub.amount})`;
+        
+        addToast({
+          type: 'success',
+          title: 'Payment Verified & Marked Fee Paid',
+          message: `Phone number matched (${matchedStudent.parentPhone}). Fee ledger for ${matchedStudent.fullName} automatically updated.`
+        });
+      } else {
+        addToast({
+          type: 'success',
+          title: 'Payment Verified',
+          message: `Submission ${sub.submissionNo} verified.`
+        });
+      }
+    }
   };
 
   const handleConfirmReject = (e: React.FormEvent) => {
@@ -149,11 +187,18 @@ export const PaymentVerificationPage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
               {filteredPayments.map(p => (
-                <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                <tr
+                  key={p.id}
+                  onClick={() => {
+                    setSelectedSub(p);
+                    setDetailModal(true);
+                  }}
+                  className="hover:bg-slate-50 transition-colors cursor-pointer"
+                >
                   <td className="py-3.5 px-3 font-mono font-bold text-slate-900">{p.submissionNo}</td>
                   
                   {/* Student Name with Edit in List View */}
-                  <td className="py-3.5 px-3">
+                  <td className="py-3.5 px-3" onClick={e => e.stopPropagation()}>
                     {editingStudentId === p.id ? (
                       <div className="flex items-center gap-1.5">
                         <input
@@ -173,13 +218,13 @@ export const PaymentVerificationPage: React.FC = () => {
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5 group">
-                        <span className="font-bold text-slate-900">{p.studentName}</span>
+                        <span className="font-bold text-slate-900 hover:text-blue-600">{p.studentName}</span>
                         <button
                           onClick={() => handleStartEditName(p)}
                           className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-blue-600 transition"
                           title="Edit Student Name"
                         >
-                          <Edit3 className="w-3 h-3" />
+                          <Pencil className="w-3 h-3" />
                         </button>
                       </div>
                     )}
@@ -190,7 +235,7 @@ export const PaymentVerificationPage: React.FC = () => {
                   <td className="py-3.5 px-3 font-bold text-emerald-700">{formatCurrency(p.amount)}</td>
                   <td className="py-3.5 px-3 font-mono text-slate-700">{p.transactionId}</td>
                   <td className="py-3.5 px-3 text-slate-500">{p.submittedDate}</td>
-                  <td className="py-3.5 px-3">
+                  <td className="py-3.5 px-3" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => {
                         setSelectedSub(p);
@@ -214,19 +259,9 @@ export const PaymentVerificationPage: React.FC = () => {
                       {p.status}
                     </Badge>
                   </td>
-                  <td className="py-3.5 px-3 text-right">
+                  <td className="py-3.5 px-3 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setSelectedSub(p);
-                          setDetailModal(true);
-                        }}
-                        icon={<Eye className="w-3.5 h-3.5" />}
-                        title="View Submission Details"
-                      />
-                      {p.status === 'Pending Verification' && (
+                      {p.status === 'Pending Verification' ? (
                         <>
                           <Button
                             size="sm"
@@ -248,6 +283,8 @@ export const PaymentVerificationPage: React.FC = () => {
                             Reject
                           </Button>
                         </>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 font-semibold">Processed</span>
                       )}
                     </div>
                   </td>
@@ -312,7 +349,7 @@ export const PaymentVerificationPage: React.FC = () => {
                       size="sm"
                       variant="outline"
                       onClick={() => handleStartEditName(selectedSub)}
-                      icon={<Edit3 className="w-3 h-3" />}
+                      icon={<Pencil className="w-3 h-3" />}
                     >
                       Edit Name
                     </Button>

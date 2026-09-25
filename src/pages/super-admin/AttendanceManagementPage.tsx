@@ -3,11 +3,14 @@ import { LayoutShell } from '../../components/layout/LayoutShell';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { Modal } from '../../components/ui/Modal';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { Pagination } from '../../components/ui/Pagination';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { PrintPortal } from '../../components/ui/PrintPortal';
+import { ReportHeader } from '../../components/ui/ReportHeader';
 import { INITIAL_STUDENTS, INITIAL_COACHES, INITIAL_CATEGORIES } from '../../mock-data/msrf-data';
-import { CalendarCheck, Download, UserCheck, Tag } from 'lucide-react';
+import { CalendarCheck, Download, UserCheck, Tag, FileDown, Printer, Trophy } from 'lucide-react';
 import { formatDate, exportToCSV } from '../../utils/format';
 
 interface AttendanceEntry {
@@ -15,17 +18,19 @@ interface AttendanceEntry {
   studentId: string;
   studentName: string;
   category: string;
-  status: 'Present' | 'Absent' | 'Late';
+  status: 'Present' | 'Absent' | 'Informed';
   markedByCoach: string;
   markedAtTime: string;
   date: string;
 }
 
 export const AttendanceManagementPage: React.FC = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [pdfModal, setPdfModal] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -34,12 +39,12 @@ export const AttendanceManagementPage: React.FC = () => {
   // Generate view-only attendance records for the super admin
   const attendanceLogs: AttendanceEntry[] = INITIAL_STUDENTS.map((s, idx) => {
     const coachObj = INITIAL_COACHES[idx % INITIAL_COACHES.length];
-    const status: 'Present' | 'Absent' | 'Late' = idx % 9 === 0 ? 'Absent' : idx % 14 === 0 ? 'Late' : 'Present';
+    const status: 'Present' | 'Absent' | 'Informed' = idx % 9 === 0 ? 'Absent' : idx % 14 === 0 ? 'Informed' : 'Present';
     return {
       id: `att-log-${idx + 1}`,
       studentId: s.studentId,
       studentName: s.fullName,
-      category: s.category || 'Football Academy',
+      category: s.category || 'Football Excellence',
       status,
       markedByCoach: coachObj ? coachObj.fullName : 'Rajesh Varma',
       markedAtTime: `${String(6 + (idx % 2) * 10).padStart(2, '0')}:${String((idx * 7) % 60).padStart(2, '0')} AM`,
@@ -63,7 +68,8 @@ export const AttendanceManagementPage: React.FC = () => {
 
   const presentCount = attendanceLogs.filter(l => l.status === 'Present').length;
   const absentCount = attendanceLogs.filter(l => l.status === 'Absent').length;
-  const lateCount = attendanceLogs.filter(l => l.status === 'Late').length;
+  const informedCount = attendanceLogs.filter(l => l.status === 'Informed').length;
+  const attendanceRate = Math.round((presentCount / (attendanceLogs.length || 1)) * 100);
 
   const handleExportCSV = () => {
     const data = filteredLogs.map(l => ({
@@ -78,14 +84,28 @@ export const AttendanceManagementPage: React.FC = () => {
     exportToCSV(`msrf_attendance_log_${selectedDate}`, data);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <LayoutShell
       title="Attendance Records & Coach Activity Logs"
       breadcrumb={[{ label: 'Super Admin' }, { label: 'Attendance' }]}
       actions={
-        <Button variant="outline" size="sm" onClick={handleExportCSV} icon={<Download className="w-4 h-4" />}>
-          Export CSV Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => setPdfModal(true)}
+            icon={<FileDown className="w-4 h-4 text-emerald-600" />}
+            className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+          >
+            Export Attendance PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportCSV} icon={<Download className="w-4 h-4" />}>
+            Export CSV
+          </Button>
+        </div>
       }
     >
       {/* Overview Metric Cards */}
@@ -99,32 +119,28 @@ export const AttendanceManagementPage: React.FC = () => {
           <p className="text-2xl font-black text-rose-900 mt-1">{absentCount}</p>
         </Card>
         <Card className="bg-amber-50 border-amber-200">
-          <p className="text-xs uppercase font-bold text-amber-700">Late Arrivals</p>
-          <p className="text-2xl font-black text-amber-900 mt-1">{lateCount}</p>
+          <p className="text-xs uppercase font-bold text-amber-700">Informed Leave</p>
+          <p className="text-2xl font-black text-amber-900 mt-1">{informedCount}</p>
         </Card>
         <Card className="bg-slate-50 border-slate-200">
           <p className="text-xs uppercase font-bold text-slate-500">Attendance Rate</p>
-          <p className="text-2xl font-black text-slate-900 mt-1">
-            {Math.round((presentCount / (attendanceLogs.length || 1)) * 100)}%
-          </p>
+          <p className="text-2xl font-black text-slate-900 mt-1">{attendanceRate}%</p>
         </Card>
       </div>
 
-      {/* Date Picker & Filter Bar */}
+      {/* Clean Calendar Date Picker (Future dates disabled with max attribute) */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
-          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Attendance Date:</label>
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <CalendarCheck className="w-4 h-4 text-emerald-600" /> Select Attendance Date:
+          </label>
           <input
             type="date"
+            max={todayStr}
             value={selectedDate}
             onChange={e => setSelectedDate(e.target.value)}
-            className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800"
+            className="bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 cursor-pointer"
           />
-          <span className="text-xs text-slate-500 font-semibold">{formatDate(selectedDate)}</span>
-        </div>
-
-        <div className="text-xs font-semibold text-slate-500">
-          Super Admin Read-Only Mode • Only Coaches Mark Attendance
         </div>
       </div>
 
@@ -152,7 +168,7 @@ export const AttendanceManagementPage: React.FC = () => {
               { label: 'All Statuses', value: 'ALL' },
               { label: 'Present', value: 'Present' },
               { label: 'Absent', value: 'Absent' },
-              { label: 'Late', value: 'Late' }
+              { label: 'Informed', value: 'Informed' }
             ]
           }
         ]}
@@ -223,6 +239,131 @@ export const AttendanceManagementPage: React.FC = () => {
         pageSize={pageSize}
         onPageChange={setCurrentPage}
       />
+
+      {/* Official Attendance PDF Report Modal */}
+      <Modal
+        isOpen={pdfModal}
+        onClose={() => setPdfModal(false)}
+        title={`MSRF Attendance PDF Report: ${formatDate(selectedDate)}`}
+        size="lg"
+        footer={
+          <div className="flex justify-between w-full no-print">
+            <Button variant="outline" onClick={() => setPdfModal(false)}>Close</Button>
+            <Button icon={<Printer className="w-4 h-4" />} onClick={handlePrint}>
+              Print / Save PDF Report
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-6 bg-white space-y-6 text-slate-800 text-xs font-sans">
+          <ReportHeader title="DAILY ATTENDANCE REPORT" date={formatDate(selectedDate)} />
+
+          <div className="grid grid-cols-4 gap-3 text-center">
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+              <p className="text-[10px] text-emerald-700 uppercase font-bold">Present Trainees</p>
+              <p className="text-base font-black text-emerald-900 mt-0.5">{presentCount}</p>
+            </div>
+            <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
+              <p className="text-[10px] text-rose-700 uppercase font-bold">Absent Trainees</p>
+              <p className="text-base font-black text-rose-900 mt-0.5">{absentCount}</p>
+            </div>
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+              <p className="text-[10px] text-amber-700 uppercase font-bold">Informed Absences</p>
+              <p className="text-base font-black text-amber-900 mt-0.5">{informedCount}</p>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <p className="text-[10px] text-slate-500 uppercase font-bold">Attendance Rate</p>
+              <p className="text-base font-black text-slate-900 mt-0.5">{attendanceRate}%</p>
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-200 font-bold text-slate-600 uppercase">
+                  <th className="py-2.5 px-3">Student Trainee</th>
+                  <th className="py-2.5 px-3">Category</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3">Marked By Coach</th>
+                  <th className="py-2.5 px-3">Marked Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {filteredLogs.map(log => (
+                  <tr key={log.id}>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">{log.studentName}</td>
+                    <td className="py-2.5 px-3 text-blue-600 font-semibold">{log.category}</td>
+                    <td className="py-2.5 px-3 font-bold">{log.status}</td>
+                    <td className="py-2.5 px-3 font-semibold">{log.markedByCoach}</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">{log.markedAtTime}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+            <p>Malabar Challengers Football Club • Official System Generated Report</p>
+            <p>Printed Date & Time: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+          </div>
+        </div>
+
+        {/* PrintPortal attaches clean printable content directly to body outside #root */}
+        <PrintPortal>
+          <div className="space-y-6 text-slate-800 text-xs font-sans">
+            <ReportHeader title="DAILY ATTENDANCE REPORT" date={formatDate(selectedDate)} />
+
+            <div className="grid grid-cols-4 gap-3 text-center">
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                <p className="text-[10px] text-emerald-700 uppercase font-bold">Present Trainees</p>
+                <p className="text-base font-black text-emerald-900 mt-0.5">{presentCount}</p>
+              </div>
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                <p className="text-[10px] text-rose-700 uppercase font-bold">Absent Trainees</p>
+                <p className="text-base font-black text-rose-900 mt-0.5">{absentCount}</p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <p className="text-[10px] text-amber-700 uppercase font-bold">Informed Absences</p>
+                <p className="text-base font-black text-amber-900 mt-0.5">{informedCount}</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-[10px] text-slate-500 uppercase font-bold">Attendance Rate</p>
+                <p className="text-base font-black text-slate-900 mt-0.5">{attendanceRate}%</p>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-200 font-bold text-slate-600 uppercase">
+                    <th className="py-2.5 px-3">Student Trainee</th>
+                    <th className="py-2.5 px-3">Category</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3">Marked By Coach</th>
+                    <th className="py-2.5 px-3">Marked Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {filteredLogs.map(log => (
+                    <tr key={log.id}>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">{log.studentName}</td>
+                      <td className="py-2.5 px-3 text-blue-600 font-semibold">{log.category}</td>
+                      <td className="py-2.5 px-3 font-bold">{log.status}</td>
+                      <td className="py-2.5 px-3 font-semibold">{log.markedByCoach}</td>
+                      <td className="py-2.5 px-3 font-mono text-slate-500">{log.markedAtTime}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+              <p>Malabar Challengers Football Club • Official System Generated Report</p>
+              <p>Printed Date & Time: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            </div>
+          </div>
+        </PrintPortal>
+      </Modal>
     </LayoutShell>
   );
 };

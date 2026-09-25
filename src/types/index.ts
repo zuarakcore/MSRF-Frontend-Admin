@@ -29,6 +29,7 @@ export interface Student {
   photo: string;
   dateOfBirth: string;
   gender: 'Male' | 'Female' | 'Other';
+  bloodGroup?: string; // e.g. O+, A+, B+, AB+, O-, A-, B-, AB-
   phone: string;
   email: string;
   address: string;
@@ -40,10 +41,11 @@ export interface Student {
   programType: string; // e.g. Day Scholar Program, Residential Program, Weekend Program
   trainingCenter: string; // e.g. Kozhikode Main Campus
   batch: 'Morning (6:00 AM - 8:00 AM)' | 'Evening (4:00 PM - 6:00 PM)' | 'Weekend Special';
-  course?: SportsCourse; // Legacy compatibility optional
+  course?: SportsCourse | string; // Academy course name
   coachId?: string;
   coachName?: string;
   status: 'Active' | 'Inactive';
+  remarks?: string;
   
   // Parent Details
   parentName: string;
@@ -80,13 +82,24 @@ export interface StudentDocument {
   url: string;
 }
 
+export interface CoachDocument {
+  id: string;
+  title: string;
+  fileName: string;
+  fileType: 'PDF' | 'IMAGE' | 'DOC';
+  fileSize: string;
+  uploadedDate: string;
+  url: string;
+}
+
 export interface Coach {
   id: string;
   fullName: string;
   email: string;
   phone: string;
   photo: string;
-  specialization: SportsCourse;
+  bloodGroup?: string; // e.g. O+, A+, B+, AB+
+  specialization?: string; // Descriptive coach specialization
   experienceYears: number;
   assignedStudentsCount: number;
   capacity: number; // e.g. 25 max students
@@ -97,6 +110,56 @@ export interface Coach {
   attendanceAvg: number; // e.g. 96%
   username?: string;
   tempPassword?: string;
+  contractUrl?: string; // Contract Document URL
+  documents?: CoachDocument[]; // Documents uploaded for coach
+}
+
+export interface SessionSplit {
+  id: string;
+  heading: string;
+  timeDoneMins: string;
+  explanation: string;
+}
+
+export interface DailyTrainingSessionReport {
+  id: string;
+  date: string;
+  categories: string[];
+  loggedByCoachName: string;
+  assignedCoaches: string[];
+  attendanceCount: number;
+  venue: string;
+  time: string;
+  weeklyTopic: string;
+  dailyTopic: string;
+  explanation: string;
+  splits: SessionSplit[];
+  fullSessionOverview: string;
+  studentAttendance: Record<string, { status: 'Present' | 'Absent' | 'Informed'; remarks?: string }>;
+  coachAttendance: Record<string, { status: 'Present' | 'Absent' | 'Informed'; remarks?: string }>;
+  createdAt: string;
+}
+
+export interface PlayerDevelopmentReport {
+  id: string;
+  date: string;
+  reportPeriod: string;
+  studentId: string;
+  studentName: string;
+  position: string;
+  dateOfBirth: string;
+  age: number;
+  strongFoot: 'Right' | 'Left' | 'Both';
+  ratings: Record<string, number>;
+  comments: Record<string, string>;
+  playerStrengths: string;
+  areasForImprovement: string;
+  developmentGoals: string[];
+  coachSummary: string;
+  overallRating: number;
+  coachSignatureDate?: string;
+  parentSignatureDate?: string;
+  playerSignatureDate?: string;
 }
 
 export interface AttendanceRecord {
@@ -109,7 +172,7 @@ export interface AttendanceRecord {
   course?: SportsCourse;
   category?: string;
   date: string; // YYYY-MM-DD
-  status: 'Present' | 'Absent' | 'Late' | 'Excused';
+  status: 'Present' | 'Absent' | 'Informed' | 'Excused';
   remarks?: string;
   markedAt: string;
 }
@@ -140,6 +203,7 @@ export interface PaymentSubmission {
   studentId: string;
   studentName: string;
   parentName: string;
+  parentPhone?: string;
   course?: SportsCourse;
   category?: string;
   amount: number;
@@ -184,6 +248,12 @@ export interface InvoiceItem {
 
 export type RatingStar = 1 | 2 | 3 | 4 | 5;
 
+export interface SkillAssessment {
+  category: string;
+  rating: number; // 1 to 5
+  comments?: string;
+}
+
 export interface PerformanceRecord {
   id: string;
   studentId: string;
@@ -191,14 +261,27 @@ export interface PerformanceRecord {
   coachId: string;
   coachName: string;
   monthYear: string; // e.g. "September 2026"
-  rating: RatingStar;
-  technicalSkills: number; // 1-100
-  staminaDiscipline: number; // 1-100
-  teamwork: number; // 1-100
+  recordedDate: string;
+  // Player Information
+  position?: string;
+  dob?: string;
+  age?: string;
+  strongFoot?: 'Right' | 'Left' | 'Both';
+  reportPeriod?: string;
+  // 15 Performance Assessment Categories
+  skillAssessments?: SkillAssessment[];
+  // Summary boxes
   strengths: string;
   areasForImprovement: string;
+  developmentGoals?: string[];
+  customGoal?: string;
   coachRemarks: string;
-  recordedDate: string;
+  overallRating: RatingStar;
+  // Legacy fields
+  technicalSkills?: number;
+  staminaDiscipline?: number;
+  teamwork?: number;
+  rating?: RatingStar;
 }
 
 export interface SystemNotification {

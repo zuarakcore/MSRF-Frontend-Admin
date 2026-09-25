@@ -15,7 +15,7 @@ import { ImageUpload } from '../../components/ui/ImageUpload';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { INITIAL_GALLERY } from '../../mock-data/msrf-data';
 import { GalleryItemCMS, GalleryCategory } from '../../types';
-import { Plus, Trash2, Edit3, Eye } from 'lucide-react';
+import { Plus, Trash2, Pencil, Eye } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 
 export const GalleryManagementPage: React.FC = () => {
@@ -206,33 +206,31 @@ export const GalleryManagementPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedData.map(img => (
-                  <tr key={img.id} className="hover:bg-slate-50">
+                  <tr key={img.id} onClick={() => setLightboxImg({ url: img.imageUrl, title: img.title, caption: img.caption })} className="hover:bg-slate-50 cursor-pointer">
                     <td className="py-3.5 px-4">
                       <img
                         src={img.imageUrl}
                         alt={img.title}
-                        onClick={() => setLightboxImg({ url: img.imageUrl, title: img.title, caption: img.caption })}
-                        className="w-16 h-12 rounded-lg object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
+                        className="w-16 h-12 rounded-lg object-cover border border-slate-200 hover:opacity-80 transition-opacity"
                       />
                     </td>
                     <td className="py-3.5 px-4">
-                      <p className="font-extrabold text-slate-900 text-sm">{img.title}</p>
+                      <p className="font-extrabold text-slate-900 text-sm hover:text-blue-600">{img.title}</p>
                       <p className="text-[11px] text-slate-500 mt-0.5">{img.caption}</p>
                     </td>
                     <td className="py-3.5 px-4">
                       <Badge variant="blue">{img.category}</Badge>
                     </td>
                     <td className="py-3.5 px-4 text-slate-500">{img.uploadedDate}</td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                       <StatusToggle
                         status={img.status || 'Active'}
                         onChange={newStatus => handleStatusChange(img.id, newStatus)}
                       />
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="ghost" icon={<Eye className="w-3.5 h-3.5" />} onClick={() => setLightboxImg({ url: img.imageUrl, title: img.title, caption: img.caption })} />
-                        <Button size="sm" variant="ghost" icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(img)} />
+                        <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(img)} />
                         <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingItem(img)} />
                       </div>
                     </td>
@@ -271,7 +269,7 @@ export const GalleryManagementPage: React.FC = () => {
                 <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
                   <span className="text-[11px] text-slate-400">Uploaded: {img.uploadedDate}</span>
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" className="text-slate-600 hover:text-slate-900" icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(img)} />
+                    <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(img)} />
                     <Button size="sm" variant="ghost" className="text-rose-500 hover:text-rose-700 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingItem(img)} />
                   </div>
                 </div>

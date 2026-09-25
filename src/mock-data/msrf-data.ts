@@ -20,7 +20,9 @@ import {
   GalleryItemCMS,
   CategoryCMS,
   ProgramTypeCMS,
-  TrainingCenterCMS
+  TrainingCenterCMS,
+  DailyTrainingSessionReport,
+  PlayerDevelopmentReport
 } from '../types';
 
 export const INITIAL_COACHES: Coach[] = [
@@ -30,15 +32,37 @@ export const INITIAL_COACHES: Coach[] = [
     email: 'rajesh.varma@msrf.org',
     phone: '+91 98470 12345',
     photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300',
-    specialization: 'Swimming Academy',
+    bloodGroup: 'O+',
+    specialization: 'Head Football Coach (Tactics & Strategy)',
     experienceYears: 12,
     assignedStudentsCount: 14,
     capacity: 20,
     joinedDate: '2021-03-15',
     status: 'Active',
-    bio: 'Former State National Gold Medalist Swimmer. FINA Certified Senior Aquatic Coach with 12+ years of competitive experience.',
+    bio: 'AFC Pro License Holder. Former National Team Player & Senior Football Coach with 12+ years of professional football coaching experience.',
     monthlyRating: 4.9,
-    attendanceAvg: 97
+    attendanceAvg: 97,
+    contractUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    documents: [
+      {
+        id: 'cdoc-1',
+        title: 'Employment Agreement 2026',
+        fileName: 'rajesh_varma_contract_2026.pdf',
+        fileType: 'PDF',
+        fileSize: '1.8 MB',
+        uploadedDate: '2026-01-10',
+        url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
+      },
+      {
+        id: 'cdoc-2',
+        title: 'AFC Pro License Certification',
+        fileName: 'afc_pro_coaching_license.pdf',
+        fileType: 'PDF',
+        fileSize: '2.4 MB',
+        uploadedDate: '2026-02-15',
+        url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
+      }
+    ]
   },
   {
     id: 'coach-2',
@@ -46,15 +70,28 @@ export const INITIAL_COACHES: Coach[] = [
     email: 'priya.nambiar@msrf.org',
     phone: '+91 94471 23456',
     photo: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
-    specialization: 'Badminton Club',
+    bloodGroup: 'A+',
+    specialization: 'Youth Football & Physical Conditioning',
     experienceYears: 8,
     assignedStudentsCount: 12,
     capacity: 18,
     joinedDate: '2022-01-10',
     status: 'Active',
-    bio: 'BWF Level 2 Accredited Coach. Specialized in junior tactical footwork and international tournament preparation.',
+    bio: 'AFC Level 2 Accredited Football Coach. Specialized in youth tactical movement, pressing, and speed agility conditioning.',
     monthlyRating: 4.8,
-    attendanceAvg: 95
+    attendanceAvg: 95,
+    contractUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    documents: [
+      {
+        id: 'cdoc-3',
+        title: 'AFC Level 2 License',
+        fileName: 'priya_afc_license.pdf',
+        fileType: 'PDF',
+        fileSize: '1.2 MB',
+        uploadedDate: '2026-01-15',
+        url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
+      }
+    ]
   },
   {
     id: 'coach-3',
@@ -62,15 +99,28 @@ export const INITIAL_COACHES: Coach[] = [
     email: 'alex.dsouza@msrf.org',
     phone: '+91 98952 34567',
     photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
-    specialization: 'Football Excellence',
+    bloodGroup: 'B+',
+    specialization: 'Attacking & Finishing Specialist',
     experienceYears: 10,
     assignedStudentsCount: 16,
     capacity: 25,
     joinedDate: '2020-08-01',
     status: 'Active',
-    bio: 'AFC \'A\' License Holder. Former I-League player focused on youth grassroots tactical systems.',
+    bio: 'AFC \'A\' License Holder. Former I-League Striker focused on attacking transitions, 1v1 finishing, and wing overloads.',
     monthlyRating: 4.7,
-    attendanceAvg: 94
+    attendanceAvg: 94,
+    contractUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    documents: [
+      {
+        id: 'cdoc-4',
+        title: 'AFC A License Certificate',
+        fileName: 'alex_dsouza_afc_license.pdf',
+        fileType: 'PDF',
+        fileSize: '3.1 MB',
+        uploadedDate: '2026-02-01',
+        url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
+      }
+    ]
   },
   {
     id: 'coach-4',
@@ -78,15 +128,18 @@ export const INITIAL_COACHES: Coach[] = [
     email: 'sunil.chacko@msrf.org',
     phone: '+91 97453 45678',
     photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300',
-    specialization: 'Athletics & Track',
+    bloodGroup: 'AB+',
+    specialization: 'Goalkeeping & Reflex Specialist',
     experienceYears: 15,
     assignedStudentsCount: 10,
     capacity: 20,
     joinedDate: '2019-11-20',
     status: 'Active',
-    bio: 'NIS Athletics Specialist. Coach for National Junior Sprint & Jump Champions.',
+    bio: 'AIFF Certified Goalkeeping Coach. Specialized in shot stopping, high cross interception, and distribution skills.',
     monthlyRating: 4.9,
-    attendanceAvg: 98
+    attendanceAvg: 98,
+    contractUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    documents: []
   },
   {
     id: 'coach-5',
@@ -94,15 +147,18 @@ export const INITIAL_COACHES: Coach[] = [
     email: 'sandeep.kumar@msrf.org',
     phone: '+91 98464 56789',
     photo: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=300',
-    specialization: 'Cricket Performance',
+    bloodGroup: 'O-',
+    specialization: 'Grassroots Football Coach (U-10)',
     experienceYears: 9,
     assignedStudentsCount: 15,
     capacity: 22,
     joinedDate: '2022-06-15',
     status: 'Active',
-    bio: 'BCCI Level 1 High-Performance Coach. Focus on modern batting biomechanics and seam bowling precision.',
+    bio: 'AIFF Level 2 Youth Coach. Focus on fundamental ball control, passing accuracy, and junior player enjoyment.',
     monthlyRating: 4.6,
-    attendanceAvg: 93
+    attendanceAvg: 93,
+    contractUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    documents: []
   },
   {
     id: 'coach-6',
@@ -110,27 +166,28 @@ export const INITIAL_COACHES: Coach[] = [
     email: 'anitha.raj@msrf.org',
     phone: '+91 94465 67890',
     photo: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=300',
-    specialization: 'Tennis Training',
+    bloodGroup: 'A-',
+    specialization: 'Tactical Analysis & Set Piece Specialist',
     experienceYears: 7,
     assignedStudentsCount: 8,
     capacity: 15,
     joinedDate: '2023-02-01',
     status: 'Active',
-    bio: 'ITF Level 2 Certified. Expert in hard-court conditioning and topspin baseline tactics.',
+    bio: 'UEFA \'B\' License Certified. Video match analyst and set-piece strategy specialist.',
     monthlyRating: 4.8,
-    attendanceAvg: 96
+    attendanceAvg: 96,
+    contractUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    documents: []
   }
 ];
 
-const COURSES: Student['course'][] = [
-  'Swimming Academy',
-  'Football Excellence',
-  'Badminton Club',
-  'Tennis Training',
-  'Athletics & Track',
-  'Cricket Performance',
-  'Basketball Squad',
-  'Martial Arts & Karate'
+const COURSES: string[] = [
+  'Football Excellence U-13',
+  'Grassroots Football U-10',
+  'Elite Football Squad U-15',
+  'Pro Football Division U-18',
+  'Goalkeeping Academy',
+  'Tactical & Fitness Conditioning'
 ];
 
 const NAMES = [
@@ -169,29 +226,29 @@ const NAMES = [
 export const INITIAL_CATEGORIES: CategoryCMS[] = [
   {
     id: 'cat-1',
-    title: 'Football Academy',
-    description: 'Youth grassroots & elite football development programs',
+    title: 'Grassroots Football (U-10)',
+    description: 'Junior grassroots ball control & fundamental football skills',
     status: 'Active',
     createdAt: '2026-01-10'
   },
   {
     id: 'cat-2',
-    title: 'Swimming & Aquatics',
-    description: 'Competitive swimming and water safety training',
+    title: 'Youth Football Squad (U-13)',
+    description: 'Youth tactical awareness, passing accuracy & speed conditioning',
     status: 'Active',
     createdAt: '2026-01-12'
   },
   {
     id: 'cat-3',
-    title: 'Badminton & Racket Sports',
-    description: 'Precision badminton tactics & physical conditioning',
+    title: 'Junior Football Academy (U-15)',
+    description: 'Competitive 11v11 squad preparation & positional play',
     status: 'Active',
     createdAt: '2026-02-01'
   },
   {
     id: 'cat-4',
-    title: 'Athletics & Track',
-    description: 'Sprint, endurance & field event coaching',
+    title: 'Senior Pro Division (U-18)',
+    description: 'Advanced match tactics, physical power & state championship squad',
     status: 'Active',
     createdAt: '2026-02-15'
   }
@@ -248,22 +305,24 @@ export const INITIAL_TRAINING_CENTERS: TrainingCenterCMS[] = [
   }
 ];
 
-const CATEGORY_NAMES = ['Football Academy', 'Swimming & Aquatics', 'Badminton & Racket Sports', 'Athletics & Track'];
+const CATEGORY_NAMES = ['Grassroots Football (U-10)', 'Youth Football Squad (U-13)', 'Junior Football Academy (U-15)', 'Senior Pro Division (U-18)'];
 const PROGRAM_TYPE_NAMES = ['Day Scholar Program', 'Residential Program', 'Weekend Program'];
 const TRAINING_CENTER_NAMES = ['Kozhikode Main Campus', 'Malappuram Sports Hub', 'Calicut Stadium Annex'];
+const BLOOD_GROUPS = ['O+', 'A+', 'B+', 'AB+', 'O-', 'A-', 'B-', 'AB+'];
 
 export const INITIAL_STUDENTS: Student[] = NAMES.map((item, idx) => {
   const category = CATEGORY_NAMES[idx % CATEGORY_NAMES.length];
   const programType = PROGRAM_TYPE_NAMES[idx % PROGRAM_TYPE_NAMES.length];
   const trainingCenter = TRAINING_CENTER_NAMES[idx % TRAINING_CENTER_NAMES.length];
+  const bloodGroup = BLOOD_GROUPS[idx % BLOOD_GROUPS.length];
   const course = COURSES[idx % COURSES.length];
   const coachObj = INITIAL_COACHES.find(c => c.specialization === course) || INITIAL_COACHES[0];
   const idNum = String(idx + 1).padStart(3, '0');
-  const totalFee = 24000;
-  const paidRatio = (idx % 4 === 0) ? 1 : (idx % 4 === 1) ? 0.5 : (idx % 4 === 2) ? 0 : 0.75;
-  const paidAmount = totalFee * paidRatio;
+  const totalFee = (idx % 3 === 0) ? 2000 : (idx % 3 === 1) ? 2500 : 3000;
+  const paidRatio = (idx % 4 === 0) ? 1 : (idx % 4 === 1) ? 0.5 : (idx % 4 === 2) ? 0 : 1;
+  const paidAmount = Math.round(totalFee * paidRatio);
   const pendingAmount = totalFee - paidAmount;
-  const feeStatus: Student['feeStatus'] = paidAmount === totalFee ? 'Paid' : pendingAmount > 12000 ? 'Overdue' : 'Pending';
+  const feeStatus: Student['feeStatus'] = pendingAmount === 0 ? 'Paid' : (idx % 5 === 0) ? 'Overdue' : 'Pending';
   const attendancePercentage = 80 + (idx % 20);
 
   return {
@@ -273,6 +332,7 @@ export const INITIAL_STUDENTS: Student[] = NAMES.map((item, idx) => {
     photo: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200`,
     dateOfBirth: `2012-0${(idx % 8) + 1}-15`,
     gender: item.gender as any,
+    bloodGroup,
     phone: `+91 984${String(100000 + idx * 8765).slice(0, 7)}`,
     email: `${item.name.toLowerCase().replace(/[^a-z]/g, '')}@gmail.com`,
     address: `${idx + 101}, Sports Enclave, Malabar Region, Kerala - 673001`,
@@ -327,6 +387,7 @@ export const INITIAL_PAYMENTS: PaymentSubmission[] = [
     studentId: 'student-1',
     studentName: 'Adarsh Nair',
     parentName: 'Ramesh Nair',
+    parentPhone: '+91 9442000000',
     course: 'Swimming Academy',
     amount: 12000,
     transactionId: 'UPI/60293182739/PAY',
@@ -342,6 +403,7 @@ export const INITIAL_PAYMENTS: PaymentSubmission[] = [
     studentId: 'student-3',
     studentName: 'Rohan Kulkarni',
     parentName: 'Sanjay Kulkarni',
+    parentPhone: '+91 9442086420',
     course: 'Badminton Club',
     amount: 6000,
     transactionId: 'IMPS/NEFT/88129038',
@@ -380,6 +442,24 @@ export const INITIAL_INVOICES: Invoice[] = [
   }
 ];
 
+export const DEFAULT_15_CATEGORIES = [
+  'TECHNICAL ABILITY',
+  'TACTICAL UNDERSTANDING',
+  'BALL CONTROL / FIRST TOUCH',
+  'PASSING',
+  'DRIBBLING',
+  'SHOOTING / FINISHING',
+  'DEFENDING',
+  'DECISION MAKING',
+  'INDIVIDUAL SKILLS',
+  'TEAMWORK',
+  'COMMUNICATION',
+  'HARD WORK',
+  'DISCIPLINE',
+  'CHARACTER & ATTITUDE',
+  'FITNESS'
+];
+
 export const INITIAL_PERFORMANCE: PerformanceRecord[] = [
   {
     id: 'perf-1',
@@ -388,14 +468,80 @@ export const INITIAL_PERFORMANCE: PerformanceRecord[] = [
     coachId: 'coach-1',
     coachName: 'Rajesh Varma',
     monthYear: 'September 2026',
+    recordedDate: '2026-09-20',
+    position: 'Central Midfielder',
+    dob: '2012-05-14',
+    age: '14',
+    strongFoot: 'Right',
+    reportPeriod: 'Monthly Evaluation - Sep 2026',
+    overallRating: 5,
     rating: 5,
     technicalSkills: 92,
     staminaDiscipline: 95,
     teamwork: 88,
-    strengths: 'Outstanding freestyle stroke efficiency.',
-    areasForImprovement: 'Needs focus on butterfly kick.',
-    coachRemarks: 'Adarsh is preparing well for the State Championship.',
-    recordedDate: '2026-09-20'
+    skillAssessments: [
+      { category: 'TECHNICAL ABILITY', rating: 5, comments: 'Exceptional stroke technique & body alignment' },
+      { category: 'TACTICAL UNDERSTANDING', rating: 4, comments: 'Understands pace management during sets' },
+      { category: 'BALL CONTROL / FIRST TOUCH', rating: 5, comments: 'Quick off-the-wall turn transition' },
+      { category: 'PASSING', rating: 4, comments: 'Good rhythm during relay exchanges' },
+      { category: 'DRIBBLING', rating: 4, comments: 'Agile lateral movement' },
+      { category: 'SHOOTING / FINISHING', rating: 5, comments: 'Strong sprint finish in final 25m' },
+      { category: 'DEFENDING', rating: 4, comments: 'Maintains lane discipline under pressure' },
+      { category: 'DECISION MAKING', rating: 5, comments: 'Smart energy expenditure' },
+      { category: 'INDIVIDUAL SKILLS', rating: 5, comments: 'Mastery over underwater streamline kick' },
+      { category: 'TEAMWORK', rating: 4, comments: 'Encouraging squad teammate during hard sets' },
+      { category: 'COMMUNICATION', rating: 4, comments: 'Proactive feedback to coaching staff' },
+      { category: 'HARD WORK', rating: 5, comments: 'Never skips main set intervals' },
+      { category: 'DISCIPLINE', rating: 5, comments: 'Always on deck 15 mins prior to warm up' },
+      { category: 'CHARACTER & ATTITUDE', rating: 5, comments: 'Exemplary leadership attitude' },
+      { category: 'FITNESS', rating: 5, comments: 'Top tier VO2 max and core endurance' }
+    ],
+    strengths: '1. Outstanding freestyle stroke efficiency & underwater kick.\n2. Exceptional focus during high intensity interval sets.\n3. High discipline & punctuality.',
+    areasForImprovement: '1. Fine-tune breath control during butterfly transition.\n2. Explosive start block reaction time.',
+    developmentGoals: ['Improve weak foot', 'Improve first touch', 'Improve tactical awareness', 'Improve fitness'],
+    customGoal: 'Achieve sub-58s performance in 100m freestyle at State Trials.',
+    coachRemarks: 'Adarsh is preparing exceptionally well for the upcoming State Championship. Consistent leadership on and off the pool deck.'
+  },
+  {
+    id: 'perf-2',
+    studentId: 'student-2',
+    studentName: 'Fathima Raniya',
+    coachId: 'coach-2',
+    coachName: 'Anil Kumar',
+    monthYear: 'September 2026',
+    recordedDate: '2026-09-22',
+    position: 'Winger / Attacking Mid',
+    dob: '2013-08-19',
+    age: '13',
+    strongFoot: 'Both',
+    reportPeriod: 'Monthly Evaluation - Sep 2026',
+    overallRating: 4,
+    rating: 4,
+    technicalSkills: 86,
+    staminaDiscipline: 89,
+    teamwork: 92,
+    skillAssessments: [
+      { category: 'TECHNICAL ABILITY', rating: 4, comments: 'Clean ball striker with both feet' },
+      { category: 'TACTICAL UNDERSTANDING', rating: 4, comments: 'Creates dangerous wide space' },
+      { category: 'BALL CONTROL / FIRST TOUCH', rating: 5, comments: 'Cushions aerial balls effortlessly' },
+      { category: 'PASSING', rating: 4, comments: 'Accurate diagonal crosses' },
+      { category: 'DRIBBLING', rating: 5, comments: 'Dynamic 1v1 trickery and burst speed' },
+      { category: 'SHOOTING / FINISHING', rating: 4, comments: 'Composed inside 18-yard box' },
+      { category: 'DEFENDING', rating: 3, comments: 'Needs to track back faster on counter-attacks' },
+      { category: 'DECISION MAKING', rating: 4, comments: 'Good awareness when to release ball' },
+      { category: 'INDIVIDUAL SKILLS', rating: 5, comments: 'Creative feints and stepovers' },
+      { category: 'TEAMWORK', rating: 5, comments: 'Generous in setting up teammate goals' },
+      { category: 'COMMUNICATION', rating: 4, comments: 'Calls clearly for wing overlaps' },
+      { category: 'HARD WORK', rating: 4, comments: 'High work rate during possession drills' },
+      { category: 'DISCIPLINE', rating: 5, comments: 'Respectful and focused at all times' },
+      { category: 'CHARACTER & ATTITUDE', rating: 5, comments: 'Highly receptive to tactical corrections' },
+      { category: 'FITNESS', rating: 4, comments: 'Agile stamina with fast acceleration' }
+    ],
+    strengths: '1. Equal comfort with both left and right foot.\n2. Exceptional 1v1 dribbling skills.\n3. Great team player.',
+    areasForImprovement: '1. Track back defensively when team loses possession.\n2. Aerial heading timing.',
+    developmentGoals: ['Improve passing accuracy', 'Improve tactical awareness', 'Improve fitness'],
+    customGoal: 'Master defensive press triggers when winger drops deep.',
+    coachRemarks: 'Fathima shows incredible promise as a dual-foot attacking winger. She is one of our most creative youth academy players.'
   }
 ];
 
@@ -771,5 +917,105 @@ export const INITIAL_BLOGS: BlogCMS[] = [
     author: 'Coach Alex D\'Souza',
     category: 'Football',
     status: 'Published'
+  }
+];
+
+export const INITIAL_WEEKLY_TOPICS: string[] = [
+  'Tactical High-Pressing & Counter Attacks',
+  'Possession Retention & Quick One-Touch Passing',
+  'Defensive Structure & Zonal Positioning',
+  'Speed, Agility & Plyometric Fitness',
+  'Finishing & 1v1 Attacking Scenarios',
+  'Set Piece Strategies & Corner Kick Routines'
+];
+
+export const INITIAL_SESSION_REPORTS: DailyTrainingSessionReport[] = [
+  {
+    id: 'report-2026-001',
+    date: '2026-09-25',
+    categories: ['Football Excellence', 'Swimming Academy'],
+    loggedByCoachName: 'Rajesh Varma',
+    assignedCoaches: ['Priya Nambiar', 'Alex D\'Souza'],
+    attendanceCount: 48,
+    venue: 'Main Stadium Ground Pitch A',
+    time: '06:00 AM - 08:00 AM',
+    weeklyTopic: 'Tactical High-Pressing & Counter Attacks',
+    dailyTopic: 'Midfield Transition & Defensive Recovery',
+    explanation: 'Focus on organized press in the middle third and rapid transition upon turnover.',
+    splits: [
+      {
+        id: 'sp-1',
+        heading: 'Warmup & Agility Drills',
+        timeDoneMins: '15',
+        explanation: 'Dynamic stretching, joint mobility, 4x50m acceleration sprints with agility ladder.'
+      },
+      {
+        id: 'sp-2',
+        heading: 'Rondo 4v2 Overload',
+        timeDoneMins: '20',
+        explanation: 'One-touch ball retention under high pressure. Goal of 15 consecutive passes.'
+      },
+      {
+        id: 'sp-3',
+        heading: '7v7 Half-Pitch Pressing Game',
+        timeDoneMins: '35',
+        explanation: 'Simulated match conditions focusing on trigger calls and compact shape.'
+      },
+      {
+        id: 'sp-4',
+        heading: 'Cool Down & Post-Session Debrief',
+        timeDoneMins: '15',
+        explanation: 'Static stretching, hydration check, and individual tactical feedback.'
+      }
+    ],
+    fullSessionOverview: 'Excellent energy and discipline. Defensive line maintained compact depth throughout the 7v7 game.',
+    studentAttendance: {
+      'st-1': { status: 'Present', remarks: 'Good pressing energy' },
+      'st-2': { status: 'Present', remarks: 'Solid positioning' },
+      'st-3': { status: 'Informed', remarks: 'Medical leave approved' }
+    },
+    coachAttendance: {
+      'coach-1': { status: 'Present' },
+      'coach-2': { status: 'Present' },
+      'coach-3': { status: 'Informed', remarks: 'State tournament duty' }
+    },
+    createdAt: '2026-09-25T08:00:00Z'
+  },
+  {
+    id: 'report-2026-002',
+    date: '2026-09-24',
+    categories: ['Youth Football Squad (U-13)', 'Grassroots Football (U-10)'],
+    loggedByCoachName: 'Priya Nambiar',
+    assignedCoaches: ['Rajesh Varma'],
+    attendanceCount: 36,
+    venue: 'Pitch B Synthetic Turf',
+    time: '04:00 PM - 06:00 PM',
+    weeklyTopic: 'Finishing & 1v1 Attacking Scenarios',
+    dailyTopic: 'Overlapping Runs & Wing Cross Finishing',
+    explanation: 'High intensity wing overlap patterns and 1v1 finishing against goalkeeper.',
+    splits: [
+      {
+        id: 'sp-1',
+        heading: 'Dynamic Ball Master Warmup',
+        timeDoneMins: '20',
+        explanation: 'Passing triangles and quick one-touch ball control.'
+      },
+      {
+        id: 'sp-2',
+        heading: '2v1 Wing Overload Drills',
+        timeDoneMins: '30',
+        explanation: 'Fullbacks overlapping winger to deliver low crosses into penalty area.'
+      }
+    ],
+    fullSessionOverview: 'Trainees showed great improvements in crossing accuracy and box movement.',
+    studentAttendance: {
+      'st-1': { status: 'Present' },
+      'st-2': { status: 'Absent', remarks: 'Unexcused' }
+    },
+    coachAttendance: {
+      'coach-2': { status: 'Present' },
+      'coach-1': { status: 'Present' }
+    },
+    createdAt: '2026-09-24T18:00:00Z'
   }
 ];

@@ -11,7 +11,7 @@ import { StatusToggle } from '../../components/ui/StatusToggle';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { INITIAL_PROGRAM_TYPES } from '../../mock-data/msrf-data';
 import { ProgramTypeCMS } from '../../types';
-import { Plus, Trash2, Edit3, Layers } from 'lucide-react';
+import { Plus, Trash2, Pencil, Layers } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 
 export const ProgramTypesCMSPage: React.FC = () => {
@@ -162,7 +162,7 @@ export const ProgramTypesCMSPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="ghost" icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(pt)} />
+                        <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(pt)} />
                         <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingType(pt)} />
                       </div>
                     </td>
@@ -190,7 +190,7 @@ export const ProgramTypesCMSPage: React.FC = () => {
               </div>
               <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed">{pt.description}</p>
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-1 text-xs">
-                <Button size="sm" variant="ghost" className="text-slate-600 hover:text-slate-900" icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(pt)} />
+                <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(pt)} />
                 <Button size="sm" variant="ghost" className="text-rose-500 hover:text-rose-700 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingType(pt)} />
               </div>
             </Card>

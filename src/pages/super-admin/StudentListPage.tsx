@@ -16,16 +16,22 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { 
   UserPlus, 
   Eye, 
-  Edit3, 
+  Pencil, 
   Trash2, 
   Download,
+  Upload,
+  FileSpreadsheet,
+  FileUp,
   Tag,
   Layers,
-  MapPin
+  MapPin,
+  FileDown
 } from 'lucide-react';
 import { INITIAL_STUDENTS, INITIAL_CATEGORIES, INITIAL_PROGRAM_TYPES, INITIAL_TRAINING_CENTERS } from '../../mock-data/msrf-data';
 import { Student } from '../../types';
-import { formatCurrency, exportToCSV } from '../../utils/format';
+import { formatCurrency, formatDate, exportToCSV } from '../../utils/format';
+import { PrintPortal } from '../../components/ui/PrintPortal';
+import { ReportHeader } from '../../components/ui/ReportHeader';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../context/NotificationContext';
 
@@ -41,6 +47,7 @@ export const StudentListPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('Active');
   const [feeStatusFilter, setFeeStatusFilter] = useState('ALL');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
+  const [pdfStudentRecord, setPdfStudentRecord] = useState<Student | null>(null);
 
   // Dynamic lists from modules
   const categoriesList = INITIAL_CATEGORIES.map(c => c.title);
@@ -54,6 +61,8 @@ export const StudentListPage: React.FC = () => {
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
   const [lightboxImg, setLightboxImg] = useState<{ url: string; title: string } | null>(null);
@@ -63,21 +72,26 @@ export const StudentListPage: React.FC = () => {
     fullName: '',
     photo: '',
     gender: 'Male' as 'Male' | 'Female',
+    bloodGroup: 'O+',
     dateOfBirth: '',
     phone: '',
     email: '',
     address: '',
+    admissionNumber: '',
+    admissionDate: new Date().toISOString().split('T')[0],
     category: categoriesList[0] || 'Football Academy',
     programType: programTypesList[0] || 'Day Scholar Program',
     trainingCenter: trainingCentersList[0] || 'Kozhikode Main Campus',
     batch: 'Morning (6:00 AM - 8:00 AM)',
     parentName: '',
-    relationship: 'Father',
+    relationship: 'Father' as 'Father' | 'Mother' | 'Guardian',
     parentPhone: '',
     parentEmail: '',
+    parentAddress: '',
     emergencyName: '',
+    emergencyRelationship: 'Father',
     emergencyPhone: '',
-    totalFee: 24000
+    totalFee: 2500
   });
 
   const navigate = useNavigate();
@@ -110,10 +124,13 @@ export const StudentListPage: React.FC = () => {
       fullName: '',
       photo: '',
       gender: 'Male',
+      bloodGroup: 'O+',
       dateOfBirth: '',
       phone: '',
       email: '',
       address: '',
+      admissionNumber: '',
+      admissionDate: todayDateStr,
       category: categoriesList[0] || 'Football Academy',
       programType: programTypesList[0] || 'Day Scholar Program',
       trainingCenter: trainingCentersList[0] || 'Kozhikode Main Campus',
@@ -122,9 +139,11 @@ export const StudentListPage: React.FC = () => {
       relationship: 'Father',
       parentPhone: '',
       parentEmail: '',
+      parentAddress: '',
       emergencyName: '',
+      emergencyRelationship: 'Father',
       emergencyPhone: '',
-      totalFee: 24000
+      totalFee: 2500
     });
     setIsAddModalOpen(true);
   };
@@ -135,21 +154,26 @@ export const StudentListPage: React.FC = () => {
       fullName: s.fullName,
       photo: s.photo,
       gender: s.gender as any,
+      bloodGroup: s.bloodGroup || 'O+',
       dateOfBirth: s.dateOfBirth,
       phone: s.phone,
-      email: s.email,
-      address: s.address,
+      email: s.email || '',
+      address: s.address || '',
+      admissionNumber: s.admissionNumber || '',
+      admissionDate: s.admissionDate || todayDateStr,
       category: s.category || categoriesList[0],
       programType: s.programType || programTypesList[0],
       trainingCenter: s.trainingCenter || trainingCentersList[0],
-      batch: s.batch,
-      parentName: s.parentName,
-      relationship: s.relationship,
-      parentPhone: s.parentPhone,
-      parentEmail: s.parentEmail,
-      emergencyName: s.emergencyName,
-      emergencyPhone: s.emergencyPhone,
-      totalFee: s.totalFee
+      batch: s.batch || 'Morning (6:00 AM - 8:00 AM)',
+      parentName: s.parentName || '',
+      relationship: s.relationship || 'Father',
+      parentPhone: s.parentPhone || '',
+      parentEmail: s.parentEmail || '',
+      parentAddress: s.parentAddress || s.address || '',
+      emergencyName: s.emergencyName || '',
+      emergencyRelationship: s.emergencyRelationship || 'Father',
+      emergencyPhone: s.emergencyPhone || '',
+      totalFee: s.totalFee || 2500
     });
     setIsAddModalOpen(true);
   };
@@ -183,14 +207,25 @@ export const StudentListPage: React.FC = () => {
                 fullName: formData.fullName,
                 photo: formData.photo || defaultPhoto,
                 gender: formData.gender,
+                bloodGroup: formData.bloodGroup,
                 dateOfBirth: formData.dateOfBirth,
                 phone: formData.phone,
                 email: formData.email,
+                address: formData.address,
+                admissionNumber: formData.admissionNumber || s.admissionNumber,
+                admissionDate: formData.admissionDate,
                 category: formData.category,
                 programType: formData.programType,
                 trainingCenter: formData.trainingCenter,
+                batch: formData.batch as any,
                 parentName: formData.parentName,
+                relationship: formData.relationship as any,
                 parentPhone: formData.parentPhone,
+                parentEmail: formData.parentEmail,
+                parentAddress: formData.parentAddress || formData.address,
+                emergencyName: formData.emergencyName,
+                emergencyRelationship: formData.emergencyRelationship,
+                emergencyPhone: formData.emergencyPhone,
                 totalFee: formData.totalFee
               }
             : s
@@ -206,11 +241,12 @@ export const StudentListPage: React.FC = () => {
         photo: formData.photo || defaultPhoto,
         dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
+        bloodGroup: formData.bloodGroup,
         phone: formData.phone || '9847000000',
         email: formData.email || 'student@msrf.org',
         address: formData.address || 'Calicut, Kerala',
-        admissionNumber: `ADM-2026-${newIdNum}`,
-        admissionDate: new Date().toISOString().slice(0, 10),
+        admissionNumber: formData.admissionNumber || `ADM-2026-${newIdNum}`,
+        admissionDate: formData.admissionDate || todayDateStr,
         category: formData.category,
         programType: formData.programType,
         trainingCenter: formData.trainingCenter,
@@ -220,9 +256,9 @@ export const StudentListPage: React.FC = () => {
         relationship: formData.relationship as any,
         parentPhone: formData.parentPhone || '9447000000',
         parentEmail: formData.parentEmail || 'parent@gmail.com',
-        parentAddress: formData.address || 'Calicut, Kerala',
+        parentAddress: formData.parentAddress || formData.address || 'Calicut, Kerala',
         emergencyName: formData.emergencyName || formData.parentName,
-        emergencyRelationship: formData.relationship,
+        emergencyRelationship: formData.emergencyRelationship || formData.relationship,
         emergencyPhone: formData.emergencyPhone || formData.parentPhone,
         attendancePercentage: 100,
         totalPresent: 0,
@@ -272,12 +308,150 @@ export const StudentListPage: React.FC = () => {
     exportToCSV('msrf_students_roster', exportData);
   };
 
+  const handleDownloadSampleCSV = () => {
+    const sampleData = [
+      {
+        'Full Name': 'Arjun K',
+        'Gender': 'Male',
+        'Blood Group': 'O+',
+        'Date of Birth': '2012-05-14',
+        'Phone': '9847112233',
+        'Email': 'arjun@gmail.com',
+        'Address': 'Calicut, Kerala',
+        'Category': 'Football Academy',
+        'Program Type': 'Day Scholar Program',
+        'Training Center': 'Kozhikode Main Campus',
+        'Parent Name': 'Krishnan K',
+        'Parent Phone': '9447112233',
+        'Parent Email': 'krishnan@gmail.com',
+        'Emergency Phone': '9447112233'
+      },
+      {
+        'Full Name': 'Ananya Nair',
+        'Gender': 'Female',
+        'Blood Group': 'A+',
+        'Date of Birth': '2014-08-20',
+        'Phone': '9847223344',
+        'Email': 'ananya@gmail.com',
+        'Address': 'Wayanad, Kerala',
+        'Category': 'Swimming High Performance',
+        'Program Type': 'Residential Program',
+        'Training Center': 'Wayanad Training Center',
+        'Parent Name': 'Ramesh Nair',
+        'Parent Phone': '9447223344',
+        'Parent Email': 'ramesh@gmail.com',
+        'Emergency Phone': '9447223344'
+      }
+    ];
+    exportToCSV('msrf_student_import_sample_template', sampleData);
+    addToast({ type: 'success', title: 'Sample CSV Downloaded', message: 'Template saved to downloads.' });
+  };
+
+  const handleImportCSVSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!importFile) {
+      addToast({ type: 'warning', title: 'No File Selected', message: 'Please select a CSV file to upload.' });
+      return;
+    }
+
+    const mockNewStudents: Student[] = [
+      {
+        id: `student-imp-${Date.now()}-1`,
+        studentId: `MSRF-2026-${String(students.length + 1).padStart(3, '0')}`,
+        fullName: 'Rahul Varma',
+        photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300',
+        dateOfBirth: '2012-04-10',
+        gender: 'Male',
+        bloodGroup: 'B+',
+        phone: '9847556677',
+        email: 'rahul@gmail.com',
+        address: 'Kozhikode, Kerala',
+        admissionNumber: `ADM-2026-${String(students.length + 1).padStart(3, '0')}`,
+        admissionDate: new Date().toISOString().slice(0, 10),
+        category: categoriesList[0] || 'Football Academy',
+        programType: programTypesList[0] || 'Day Scholar Program',
+        trainingCenter: trainingCentersList[0] || 'Kozhikode Main Campus',
+        batch: 'Morning (6:00 AM - 8:00 AM)',
+        status: 'Active',
+        parentName: 'Vikram Varma',
+        relationship: 'Father',
+        parentPhone: '9447556677',
+        parentEmail: 'vikram@gmail.com',
+        parentAddress: 'Kozhikode, Kerala',
+        emergencyName: 'Vikram Varma',
+        emergencyRelationship: 'Father',
+        emergencyPhone: '9447556677',
+        attendancePercentage: 100,
+        totalPresent: 0,
+        totalAbsent: 0,
+        feeStatus: 'Pending',
+        totalFee: 24000,
+        paidAmount: 0,
+        pendingAmount: 24000,
+        documents: []
+      },
+      {
+        id: `student-imp-${Date.now()}-2`,
+        studentId: `MSRF-2026-${String(students.length + 2).padStart(3, '0')}`,
+        fullName: 'Meera Suresh',
+        photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=300',
+        dateOfBirth: '2013-09-15',
+        gender: 'Female',
+        bloodGroup: 'O+',
+        phone: '9847667788',
+        email: 'meera@gmail.com',
+        address: 'Malappuram, Kerala',
+        admissionNumber: `ADM-2026-${String(students.length + 2).padStart(3, '0')}`,
+        admissionDate: new Date().toISOString().slice(0, 10),
+        category: categoriesList[1] || 'Athletics & Track',
+        programType: programTypesList[1] || 'Weekend Program',
+        trainingCenter: trainingCentersList[0] || 'Kozhikode Main Campus',
+        batch: 'Evening (4:00 PM - 6:00 PM)',
+        status: 'Active',
+        parentName: 'Suresh Kumar',
+        relationship: 'Father',
+        parentPhone: '9447667788',
+        parentEmail: 'suresh@gmail.com',
+        parentAddress: 'Malappuram, Kerala',
+        emergencyName: 'Suresh Kumar',
+        emergencyRelationship: 'Father',
+        emergencyPhone: '9447667788',
+        attendancePercentage: 100,
+        totalPresent: 0,
+        totalAbsent: 0,
+        feeStatus: 'Pending',
+        totalFee: 24000,
+        paidAmount: 0,
+        pendingAmount: 24000,
+        documents: []
+      }
+    ];
+
+    setStudents([...mockNewStudents, ...students]);
+    setIsImportModalOpen(false);
+    setImportFile(null);
+    addToast({
+      type: 'success',
+      title: 'CSV Import Successful',
+      message: `${mockNewStudents.length} student records imported into the system.`
+    });
+  };
+
   return (
     <LayoutShell
       title="Student Roster & Admission Directory"
       breadcrumb={[{ label: 'Super Admin' }, { label: 'Students' }]}
       actions={
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsImportModalOpen(true)}
+            icon={<FileUp className="w-4 h-4 text-emerald-600" />}
+            className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+          >
+            Import CSV
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -395,7 +569,7 @@ export const StudentListPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedStudents.map(st => (
-                  <tr key={st.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr key={st.id} onClick={() => navigate(`/super-admin/students/${st.id}`)} className="hover:bg-slate-50/80 transition-colors cursor-pointer">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
                         <img
@@ -408,7 +582,9 @@ export const StudentListPage: React.FC = () => {
                           <p className="font-bold text-slate-900 text-sm hover:text-blue-600 cursor-pointer" onClick={() => navigate(`/super-admin/students/${st.id}`)}>
                             {st.fullName}
                           </p>
-                          <p className="text-[11px] text-slate-400 font-normal">{st.phone}</p>
+                          <p className="text-[11px] text-slate-400 font-normal">
+                            {st.phone} • <span className="font-semibold text-rose-600">Blood: {st.bloodGroup || 'O+'}</span>
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -448,26 +624,26 @@ export const StudentListPage: React.FC = () => {
                         {st.feeStatus} ({formatCurrency(st.pendingAmount)})
                       </Badge>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                       <StatusToggle
                         status={st.status || 'Active'}
                         onChange={newStatus => handleStatusChange(st.id, newStatus)}
                       />
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/super-admin/students/${st.id}`)}
-                          icon={<Eye className="w-3.5 h-3.5 text-slate-600" />}
-                          title="View Full Profile"
+                          onClick={() => setPdfStudentRecord(st)}
+                          icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />}
+                          title="View & Print Student PDF Report"
                         />
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleOpenEdit(st)}
-                          icon={<Edit3 className="w-3.5 h-3.5 text-blue-600" />}
+                          icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />}
                           title="Edit Student"
                         />
                         <Button
@@ -538,7 +714,8 @@ export const StudentListPage: React.FC = () => {
                   View Profile
                 </Button>
                 <div className="flex items-center gap-1 text-slate-400" onClick={e => e.stopPropagation()}>
-                  <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(st)} icon={<Edit3 className="w-3.5 h-3.5 text-blue-600" />} />
+                  <Button variant="ghost" size="sm" onClick={() => setPdfStudentRecord(st)} icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} title="Student PDF Report" />
+                  <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(st)} icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} />
                   <Button variant="ghost" size="sm" onClick={() => setDeletingStudent(st)} icon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />} />
                 </div>
               </div>
@@ -602,6 +779,21 @@ export const StudentListPage: React.FC = () => {
                 value={formData.gender}
                 onChange={e => setFormData({ ...formData, gender: e.target.value as any })}
               />
+              <Select
+                label="Blood Group"
+                options={[
+                  { label: 'O+', value: 'O+' },
+                  { label: 'A+', value: 'A+' },
+                  { label: 'B+', value: 'B+' },
+                  { label: 'AB+', value: 'AB+' },
+                  { label: 'O-', value: 'O-' },
+                  { label: 'A-', value: 'A-' },
+                  { label: 'B-', value: 'B-' },
+                  { label: 'AB-', value: 'AB-' }
+                ]}
+                value={formData.bloodGroup}
+                onChange={e => setFormData({ ...formData, bloodGroup: e.target.value })}
+              />
               <Input
                 label="Date of Birth"
                 type="date"
@@ -617,8 +809,24 @@ export const StudentListPage: React.FC = () => {
                 onChange={e => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="10-digit mobile"
               />
+              <Input
+                label="Student Email Address"
+                type="email"
+                value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                placeholder="student@gmail.com"
+              />
             </div>
             
+            <div className="mt-4">
+              <Input
+                label="Residential Address"
+                value={formData.address}
+                onChange={e => setFormData({ ...formData, address: e.target.value })}
+                placeholder="Full street address, city, pin code..."
+              />
+            </div>
+
             <div className="mt-4">
               <ImageUpload
                 label="Student Profile Photo"
@@ -634,6 +842,18 @@ export const StudentListPage: React.FC = () => {
               2. Admission & Enrollment Details
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Admission Number"
+                value={formData.admissionNumber}
+                onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
+                placeholder="Auto-generated if left empty (e.g. ADM-2026-101)"
+              />
+              <Input
+                label="Admission Date"
+                type="date"
+                value={formData.admissionDate}
+                onChange={e => setFormData({ ...formData, admissionDate: e.target.value })}
+              />
               <Select
                 label="Category"
                 options={categoriesList.map(c => ({ label: c, value: c }))}
@@ -653,7 +873,7 @@ export const StudentListPage: React.FC = () => {
                 onChange={e => setFormData({ ...formData, trainingCenter: e.target.value })}
               />
               <Input
-                label="Annual Course Fee (₹)"
+                label="Monthly Fee (₹)"
                 type="number"
                 value={formData.totalFee}
                 onChange={e => setFormData({ ...formData, totalFee: Number(e.target.value) })}
@@ -661,10 +881,10 @@ export const StudentListPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 3: Parent & Emergency */}
+          {/* Section 3: Parent & Guardian Details */}
           <div>
             <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-200 pb-1 mb-3">
-              3. Parent & Emergency Contact
+              3. Parent & Guardian Details
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
@@ -674,6 +894,16 @@ export const StudentListPage: React.FC = () => {
                 onChange={e => setFormData({ ...formData, parentName: e.target.value })}
                 placeholder="e.g. Ramesh Nair"
               />
+              <Select
+                label="Relationship to Trainee"
+                options={[
+                  { label: 'Father', value: 'Father' },
+                  { label: 'Mother', value: 'Mother' },
+                  { label: 'Guardian', value: 'Guardian' }
+                ]}
+                value={formData.relationship}
+                onChange={e => setFormData({ ...formData, relationship: e.target.value as any })}
+              />
               <Input
                 label="Parent Phone Number"
                 isPhone
@@ -681,6 +911,49 @@ export const StudentListPage: React.FC = () => {
                 value={formData.parentPhone}
                 onChange={e => setFormData({ ...formData, parentPhone: e.target.value })}
                 placeholder="10-digit mobile"
+              />
+              <Input
+                label="Parent Email Address"
+                type="email"
+                value={formData.parentEmail}
+                onChange={e => setFormData({ ...formData, parentEmail: e.target.value })}
+                placeholder="parent@gmail.com"
+              />
+            </div>
+            <div className="mt-4">
+              <Input
+                label="Parent Address"
+                value={formData.parentAddress}
+                onChange={e => setFormData({ ...formData, parentAddress: e.target.value })}
+                placeholder="Parent residential address..."
+              />
+            </div>
+          </div>
+
+          {/* Section 4: Emergency Contact */}
+          <div>
+            <h4 className="text-xs font-bold text-rose-600 uppercase tracking-widest border-b border-slate-200 pb-1 mb-3">
+              4. Emergency Contact Info
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input
+                label="Emergency Contact Name"
+                value={formData.emergencyName}
+                onChange={e => setFormData({ ...formData, emergencyName: e.target.value })}
+                placeholder="e.g. Suresh Kumar"
+              />
+              <Input
+                label="Relationship"
+                value={formData.emergencyRelationship}
+                onChange={e => setFormData({ ...formData, emergencyRelationship: e.target.value })}
+                placeholder="e.g. Uncle / Parent"
+              />
+              <Input
+                label="Emergency Phone"
+                isPhone
+                value={formData.emergencyPhone}
+                onChange={e => setFormData({ ...formData, emergencyPhone: e.target.value })}
+                placeholder="10-digit emergency number"
               />
             </div>
           </div>
@@ -693,6 +966,121 @@ export const StudentListPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Import Students CSV Modal */}
+      <Modal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Import Students Batch via CSV File"
+        size="md"
+      >
+        <form onSubmit={handleImportCSVSubmit} className="space-y-5">
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs">
+            <div>
+              <p className="font-bold text-slate-900">Need the CSV Template Format?</p>
+              <p className="text-[11px] text-slate-500">Download the official pre-formatted CSV template with sample data.</p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleDownloadSampleCSV}
+              icon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />}
+              className="bg-white border-blue-200 text-blue-700 hover:bg-blue-50 shrink-0"
+            >
+              Download Sample CSV
+            </Button>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1.5">
+              Select CSV File to Upload
+            </label>
+            <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-6 text-center bg-slate-50 hover:bg-emerald-50/20 transition cursor-pointer">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={e => setImportFile(e.target.files?.[0] || null)}
+                className="w-full text-xs text-slate-600 cursor-pointer"
+              />
+              <p className="text-[11px] text-slate-400 mt-2">Supports UTF-8 formatted CSV files (Max 5MB)</p>
+            </div>
+          </div>
+
+          {importFile && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs flex items-center justify-between text-emerald-900 font-medium">
+              <span>Selected File: <b>{importFile.name}</b></span>
+              <span className="text-[11px] text-emerald-700">Ready to Import</span>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setIsImportModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" icon={<Upload className="w-4 h-4" />}>
+              Import Students Batch
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* STUDENT PROFILE PDF REPORT PORTAL */}
+      {pdfStudentRecord && (
+        <PrintPortal
+          title={`Student_Report_${pdfStudentRecord.fullName}`}
+          onClose={() => setPdfStudentRecord(null)}
+        >
+          <div className="space-y-6 text-slate-800 font-sans">
+            <ReportHeader title="STUDENT TRAINEE PROFILE REPORT" date={new Date().toISOString().slice(0, 10)} />
+            
+            <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <img src={pdfStudentRecord.photo} alt={pdfStudentRecord.fullName} className="w-20 h-20 rounded-xl object-cover border border-slate-300 shrink-0" />
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs flex-1">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Full Name</p>
+                  <p className="font-bold text-slate-900 text-sm">{pdfStudentRecord.fullName}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
+                  <p className="font-bold text-rose-600 text-sm">{pdfStudentRecord.bloodGroup || 'O+'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Academy Category</p>
+                  <p className="font-bold text-blue-600">{pdfStudentRecord.category || 'Football Academy'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Program Type</p>
+                  <p className="font-semibold text-indigo-700">{pdfStudentRecord.programType || 'Day Scholar Program'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                <p className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">Personal Details</p>
+                <div className="flex justify-between"><span className="text-slate-500">Gender:</span><span className="font-semibold">{pdfStudentRecord.gender}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Date of Birth:</span><span className="font-semibold">{formatDate(pdfStudentRecord.dateOfBirth)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Phone:</span><span className="font-mono">{pdfStudentRecord.phone}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Center:</span><span className="font-semibold">{pdfStudentRecord.trainingCenter || 'Kozhikode Main Campus'}</span></div>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                <p className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">Parent & Emergency Contact</p>
+                <div className="flex justify-between"><span className="text-slate-500">Parent Name:</span><span className="font-semibold">{pdfStudentRecord.parentName}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Parent Phone:</span><span className="font-mono">{pdfStudentRecord.parentPhone}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Emergency Contact:</span><span className="font-semibold">{pdfStudentRecord.emergencyName}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Emergency Phone:</span><span className="font-mono font-bold text-rose-600">{pdfStudentRecord.emergencyPhone}</span></div>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+              <p>Malabar Challengers Football Club • Official System Generated Report</p>
+              <p>Printed Date & Time: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            </div>
+          </div>
+        </PrintPortal>
+      )}
     </LayoutShell>
   );
 };

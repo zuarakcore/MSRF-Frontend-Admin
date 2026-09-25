@@ -14,7 +14,7 @@ import { ImageUpload } from '../../../components/ui/ImageUpload';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { INITIAL_TEAM_CMS } from '../../../mock-data/msrf-data';
 import { TeamCMS } from '../../../types';
-import { Plus, Trash2, Edit3 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import { useNotifications } from '../../../context/NotificationContext';
 
 export const TeamCMSPage: React.FC = () => {
@@ -31,6 +31,7 @@ export const TeamCMSPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamCMS | null>(null);
   const [deletingMember, setDeletingMember] = useState<TeamCMS | null>(null);
+  const [detailMember, setDetailMember] = useState<TeamCMS | null>(null);
   const [lightboxImg, setLightboxImg] = useState<{ url: string; title: string } | null>(null);
 
   const DEFAULT_DESIGNATIONS = [
@@ -195,13 +196,13 @@ export const TeamCMSPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedData.map(t => (
-                  <tr key={t.id} className="hover:bg-slate-50">
+                  <tr key={t.id} onClick={() => setDetailMember(t)} className="hover:bg-slate-50 cursor-pointer">
                     <td className="py-3.5 px-4">
                       {t.photo ? (
                         <img
                           src={t.photo}
                           alt={t.name}
-                          onClick={() => setLightboxImg({ url: t.photo!, title: `${t.name} — ${t.designation}` })}
+                          onClick={(e) => { e.stopPropagation(); setLightboxImg({ url: t.photo!, title: `${t.name} — ${t.designation}` }); }}
                           className="w-10 h-10 rounded-xl object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
                         />
                       ) : (
@@ -210,18 +211,18 @@ export const TeamCMSPage: React.FC = () => {
                         </div>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 font-extrabold text-slate-900 text-sm">{t.name}</td>
+                    <td className="py-3.5 px-4 font-extrabold text-slate-900 text-sm hover:text-blue-600">{t.name}</td>
                     <td className="py-3.5 px-4 font-bold text-emerald-600 uppercase tracking-wider text-[11px]">{t.designation}</td>
                     <td className="py-3.5 px-4 text-slate-600 max-w-md truncate">{t.biography}</td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                       <StatusToggle
                         status={t.status || 'Active'}
                         onChange={newStatus => handleStatusChange(t.id, newStatus)}
                       />
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="ghost" icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(t)} />
+                        <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(t)} />
                         <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingMember(t)} />
                       </div>
                     </td>
@@ -234,12 +235,12 @@ export const TeamCMSPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {paginatedData.map(t => (
-            <Card key={t.id} hoverEffect className="space-y-4 bg-white border border-slate-200 text-slate-900">
+            <Card key={t.id} onClick={() => setDetailMember(t)} hoverEffect className="space-y-4 bg-white border border-slate-200 text-slate-900 cursor-pointer">
               {t.photo ? (
                 <img
                   src={t.photo}
                   alt={t.name}
-                  onClick={() => setLightboxImg({ url: t.photo!, title: `${t.name} — ${t.designation}` })}
+                  onClick={(e) => { e.stopPropagation(); setLightboxImg({ url: t.photo!, title: `${t.name} — ${t.designation}` }); }}
                   className="w-24 h-24 rounded-2xl object-cover border border-slate-200 mx-auto cursor-pointer hover:scale-105 transition-transform"
                 />
               ) : (
@@ -248,7 +249,7 @@ export const TeamCMSPage: React.FC = () => {
                 </div>
               )}
               <div className="text-center space-y-1">
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-2" onClick={e => e.stopPropagation()}>
                   <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block">
                     {t.designation}
                   </span>
@@ -257,11 +258,11 @@ export const TeamCMSPage: React.FC = () => {
                     onChange={newStatus => handleStatusChange(t.id, newStatus)}
                   />
                 </div>
-                <h3 className="text-base font-black text-slate-900">{t.name}</h3>
-                <p className="text-xs text-slate-500">{t.biography}</p>
+                <h3 className="text-base font-black text-slate-900 hover:text-blue-600">{t.name}</h3>
+                <p className="text-xs text-slate-500 line-clamp-2">{t.biography}</p>
               </div>
-              <div className="pt-2 border-t border-slate-100 flex justify-end gap-1">
-                <Button size="sm" variant="ghost" className="text-slate-600 hover:text-slate-900" icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(t)} />
+              <div className="pt-2 border-t border-slate-100 flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(t)} />
                 <Button size="sm" variant="ghost" className="text-rose-500 hover:text-rose-700 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingMember(t)} />
               </div>
             </Card>
@@ -360,6 +361,51 @@ export const TeamCMSPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Team Member Detailed Modal */}
+      {detailMember && (
+        <Modal
+          isOpen={!!detailMember}
+          onClose={() => setDetailMember(null)}
+          title={`Team Member: ${detailMember.name}`}
+          size="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+              {detailMember.photo ? (
+                <img
+                  src={detailMember.photo}
+                  alt={detailMember.name}
+                  className="w-20 h-20 rounded-2xl object-cover border border-slate-300 shrink-0"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-2xl bg-slate-900 text-white font-mono font-black text-2xl flex items-center justify-center border border-slate-700 shrink-0">
+                  {detailMember.initials || detailMember.name[0]}
+                </div>
+              )}
+              <div className="space-y-1">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[10px] uppercase tracking-wider inline-block">
+                  {detailMember.designation}
+                </span>
+                <h3 className="text-lg font-black text-slate-900">{detailMember.name}</h3>
+                <p className="text-xs text-slate-500 font-medium">Status: <b className="text-slate-800">{detailMember.status || 'Active'}</b></p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Biography / Executive Bio</p>
+              <p className="text-xs text-slate-700 leading-relaxed font-medium">{detailMember.biography || 'No additional bio recorded.'}</p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setDetailMember(null)}>Close</Button>
+              <Button onClick={() => { const member = detailMember; setDetailMember(null); handleOpenEdit(member); }}>
+                Edit Member
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </LayoutShell>
   );
 };

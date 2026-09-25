@@ -31,6 +31,7 @@ export const SuperAdminDashboard: React.FC = () => {
   const todayAttendancePct = 94.2;
   const pendingFeesTotal = INITIAL_STUDENTS.reduce((acc, s) => acc + s.pendingAmount, 0);
   const monthlyCollectionsTotal = INITIAL_STUDENTS.reduce((acc, s) => acc + s.paidAmount, 0);
+  const annualCollectionTotal = monthlyCollectionsTotal * 12;
   const pendingVerificationsCount = INITIAL_PAYMENTS.filter(p => p.status === 'Pending Verification').length;
 
   const recentAdmissions = INITIAL_STUDENTS.slice(0, 5);
@@ -87,17 +88,17 @@ export const SuperAdminDashboard: React.FC = () => {
         <StatCard
           title="Pending Fee Outstanding"
           value={formatCurrency(pendingFeesTotal)}
-          subtitle="Pending student dues"
+          subtitle="Click to view student list"
           icon={<AlertCircle className="w-6 h-6" />}
           badgeVariant="rose"
           badgeText={`${pendingVerificationsCount} to verify`}
-          linkTo="/super-admin/fees"
-          className="p-6"
+          linkTo="/super-admin/students"
+          className="p-6 cursor-pointer"
         />
         <StatCard
           title="Monthly Collections"
           value={formatCurrency(monthlyCollectionsTotal)}
-          subtitle="Target: ₹12.48L annual"
+          subtitle="This month collection"
           icon={<TrendingUp className="w-6 h-6" />}
           badgeVariant="emerald"
           trend={{ value: '+14.5% vs target', isPositive: true }}
@@ -105,95 +106,108 @@ export const SuperAdminDashboard: React.FC = () => {
           className="p-6"
         />
         <StatCard
-          title="Upcoming Payments Due"
-          value={upcomingDuePayments.length}
-          subtitle="Due in next 7 days"
+          title="Annual Collection"
+          value={formatCurrency(annualCollectionTotal)}
+          subtitle="Annual 2026 projected total"
           icon={<CreditCard className="w-6 h-6" />}
-          badgeVariant="amber"
-          badgeText="Action Needed"
-          linkTo="/super-admin/invoices"
+          badgeVariant="emerald"
+          badgeText="2026 Total"
+          linkTo="/super-admin/payments"
           className="p-6"
         />
       </div>
 
       {/* Analytics & Overview Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Attendance Overview Chart Card */}
+        {/* Month-Wise Attendance Trend Graph Card (Matching Screenshot Layout) */}
         <Card
           header={
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-2">
-                <CalendarCheck className="w-5 h-5 text-blue-600" />
-                <h3 className="font-bold text-slate-900 text-sm">Attendance Overview</h3>
+                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">ATTENDANCE TREND (MONTH-WISE)</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Monthly average attendance rate</p>
+                </div>
               </div>
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold">
-                <button
-                  onClick={() => setAttendancePeriod('today')}
-                  className={`px-3 py-1 rounded-lg transition-all ${attendancePeriod === 'today' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}`}
-                >
-                  Today
-                </button>
-                <button
-                  onClick={() => setAttendancePeriod('week')}
-                  className={`px-3 py-1 rounded-lg transition-all ${attendancePeriod === 'week' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}`}
-                >
-                  This Week
-                </button>
-                <button
-                  onClick={() => setAttendancePeriod('month')}
-                  className={`px-3 py-1 rounded-lg transition-all ${attendancePeriod === 'month' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}`}
-                >
-                  This Month
-                </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                  Avg 92.8%
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/super-admin/attendance')}>
+                  View Details <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </Button>
               </div>
             </div>
           }
         >
-          <div className="space-y-4">
+          <div className="space-y-6 pt-2">
+            {/* Summary Badges */}
             <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-100">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Present</p>
-                <p className="text-2xl font-black text-emerald-900 mt-0.5">49</p>
-                <p className="text-[11px] text-emerald-700 font-semibold">94.2%</p>
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Today Present</p>
+                <p className="text-xl font-black text-emerald-900 mt-0.5">49 / 52</p>
+                <p className="text-[11px] text-emerald-700 font-bold">94.2%</p>
               </div>
-              <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-100">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700">Absent</p>
-                <p className="text-2xl font-black text-rose-900 mt-0.5">3</p>
-                <p className="text-[11px] text-rose-700 font-semibold">5.8%</p>
+              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Monthly Peak</p>
+                <p className="text-xl font-black text-blue-900 mt-0.5">96.0%</p>
+                <p className="text-[11px] text-blue-700 font-bold">Aug 2026</p>
               </div>
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Enrolled</p>
-                <p className="text-2xl font-black text-slate-900 mt-0.5">52</p>
-                <p className="text-[11px] text-slate-500 font-semibold">8 Academies</p>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">6-Mo Average</p>
+                <p className="text-xl font-black text-slate-900 mt-0.5">92.8%</p>
+                <p className="text-[11px] text-slate-500 font-bold">Consistent</p>
               </div>
             </div>
 
-            {/* Visual Attendance Bar Breakdown */}
-            <div className="space-y-2.5 pt-2">
-              <div className="flex justify-between text-xs font-semibold text-slate-600">
-                <span>Swimming Academy</span>
-                <span>14 / 14 Present (100%)</span>
-              </div>
-              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
-                <div className="h-full bg-emerald-500 w-[100%]" />
-              </div>
-
-              <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1">
-                <span>Football Excellence</span>
-                <span>15 / 16 Present (93.7%)</span>
-              </div>
-              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
-                <div className="h-full bg-emerald-500 w-[93.7%]" />
-                <div className="h-full bg-rose-500 w-[6.3%]" />
+            {/* Month-Wise Bar Chart Matching Screenshot Layout */}
+            <div className="relative pt-6 pb-2 px-2 sm:px-6">
+              {/* Dashed Horizontal Grid Lines & Y-Axis Scale */}
+              <div className="absolute inset-x-2 sm:inset-x-6 top-6 bottom-8 flex flex-col justify-between pointer-events-none text-[10px] text-slate-400 font-mono">
+                <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1"><span>100%</span></div>
+                <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1"><span>75%</span></div>
+                <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1"><span>50%</span></div>
+                <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1"><span>25%</span></div>
+                <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1"><span>0%</span></div>
               </div>
 
-              <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1">
-                <span>Badminton Club</span>
-                <span>11 / 12 Present (91.6%)</span>
-              </div>
-              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
-                <div className="h-full bg-emerald-500 w-[91.6%]" />
-                <div className="h-full bg-rose-500 w-[8.4%]" />
+              {/* Monthly Bar Visuals */}
+              <div className="relative h-48 flex items-end justify-between gap-3 sm:gap-6 z-10 pt-4">
+                {[
+                  { month: 'Apr 26', rate: 88, present: 45, total: 51 },
+                  { month: 'May 26', rate: 91, present: 47, total: 51 },
+                  { month: 'Jun 26', rate: 85, present: 44, total: 52 },
+                  { month: 'Jul 26', rate: 94, present: 49, total: 52 },
+                  { month: 'Aug 26', rate: 96, present: 50, total: 52 },
+                  { month: 'Sep 26', rate: 94.2, present: 49, total: 52, active: true }
+                ].map((item, idx) => (
+                  <div key={idx} className="relative group flex flex-col items-center flex-1">
+                    {/* Tooltip Popup on Hover */}
+                    <div className="opacity-0 group-hover:opacity-100 transition-all duration-200 absolute -top-10 bg-slate-900 text-white text-[11px] font-bold py-1 px-2.5 rounded-lg whitespace-nowrap pointer-events-none shadow-lg z-30">
+                      {item.month}: {item.rate}% ({item.present}/{item.total})
+                    </div>
+
+                    {/* Bar Container */}
+                    <div className="w-full max-w-[44px] bg-slate-100/80 rounded-t-xl overflow-hidden flex items-end h-40 border border-slate-200/50">
+                      <div
+                        style={{ height: `${item.rate}%` }}
+                        className={`w-full transition-all duration-500 rounded-t-lg ${
+                          item.active
+                            ? 'bg-gradient-to-t from-blue-600 via-indigo-500 to-indigo-600 shadow-md'
+                            : 'bg-gradient-to-t from-emerald-500 to-teal-400 group-hover:from-emerald-600 group-hover:to-teal-500'
+                        }`}
+                      />
+                    </div>
+
+                    {/* Month X-Axis Label */}
+                    <span className={`text-xs font-bold mt-2.5 ${item.active ? 'text-blue-600 font-black' : 'text-slate-500'}`}>
+                      {item.month}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -220,7 +234,11 @@ export const SuperAdminDashboard: React.FC = () => {
                 <h4 className="text-2xl font-black text-slate-900 mt-0.5">{formatCurrency(monthlyCollectionsTotal)}</h4>
               </div>
               <div className="text-right">
-                <span className="text-xs font-bold text-rose-600 bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
+                <span
+                  onClick={() => navigate('/super-admin/students')}
+                  className="text-xs font-bold text-rose-600 bg-rose-50 px-3 py-1 rounded-full border border-rose-200 cursor-pointer hover:bg-rose-100 transition-colors"
+                  title="Click to view student list for pending dues"
+                >
                   Pending: {formatCurrency(pendingFeesTotal)}
                 </span>
               </div>

@@ -12,7 +12,7 @@ import { StatusToggle } from '../../../components/ui/StatusToggle';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { INITIAL_PROGRAMMES } from '../../../mock-data/msrf-data';
 import { ProgrammeCMS } from '../../../types';
-import { Plus, Trash2, Edit3 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import { useNotifications } from '../../../context/NotificationContext';
 
 export const ProgrammesCMSPage: React.FC = () => {
@@ -29,6 +29,7 @@ export const ProgrammesCMSPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProg, setEditingProg] = useState<ProgrammeCMS | null>(null);
   const [deletingProg, setDeletingProg] = useState<ProgrammeCMS | null>(null);
+  const [detailProg, setDetailProg] = useState<ProgrammeCMS | null>(null);
 
   const [form, setForm] = useState({
     ageGroup: '6 - 10 YEARS',
@@ -152,20 +153,20 @@ export const ProgrammesCMSPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedData.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50">
+                  <tr key={p.id} onClick={() => setDetailProg(p)} className="hover:bg-slate-50 cursor-pointer">
                     <td className="py-3.5 px-4 font-bold text-emerald-600 font-mono">{p.ageGroup}</td>
-                    <td className="py-3.5 px-4 font-extrabold text-slate-900">{p.title}</td>
+                    <td className="py-3.5 px-4 font-extrabold text-slate-900 hover:text-blue-600">{p.title}</td>
                     <td className="py-3.5 px-4 text-slate-600 max-w-md truncate">{p.description}</td>
                     <td className="py-3.5 px-4 font-bold text-blue-600">{p.enquiriesCount} Enquiries</td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                       <StatusToggle
                         status={p.status || 'Active'}
                         onChange={newStatus => handleStatusChange(p.id, newStatus)}
                       />
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="ghost" icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(p)} />
+                        <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(p)} />
                         <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingProg(p)} />
                       </div>
                     </td>
@@ -178,22 +179,24 @@ export const ProgrammesCMSPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {paginatedData.map(p => (
-            <Card key={p.id} hoverEffect className="space-y-3 bg-white border border-slate-200 text-slate-900">
+            <Card key={p.id} onClick={() => setDetailProg(p)} hoverEffect className="space-y-3 bg-white border border-slate-200 text-slate-900 cursor-pointer">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-extrabold text-emerald-600 uppercase tracking-widest block font-mono">
                   {p.ageGroup}
                 </span>
-                <StatusToggle
-                  status={p.status || 'Active'}
-                  onChange={newStatus => handleStatusChange(p.id, newStatus)}
-                />
+                <div onClick={e => e.stopPropagation()}>
+                  <StatusToggle
+                    status={p.status || 'Active'}
+                    onChange={newStatus => handleStatusChange(p.id, newStatus)}
+                  />
+                </div>
               </div>
-              <h3 className="text-lg font-black text-slate-900">{p.title}</h3>
+              <h3 className="text-lg font-black text-slate-900 hover:text-blue-600">{p.title}</h3>
               <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed">{p.description}</p>
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                 <span className="text-blue-600 font-bold">{p.enquiriesCount} Enquiries</span>
-                <div className="flex gap-1">
-                  <Button size="sm" variant="ghost" className="text-slate-600 hover:text-slate-900" icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(p)} />
+                <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                  <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(p)} />
                   <Button size="sm" variant="ghost" className="text-rose-500 hover:text-rose-700 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingProg(p)} />
                 </div>
               </div>
@@ -218,6 +221,38 @@ export const ProgrammesCMSPage: React.FC = () => {
         onConfirm={handleDeleteConfirm}
         itemName={deletingProg?.title}
       />
+
+      {/* Programme Detailed View Modal */}
+      {detailProg && (
+        <Modal
+          isOpen={!!detailProg}
+          onClose={() => setDetailProg(null)}
+          title={`Programme Detail: ${detailProg.title}`}
+          size="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
+              <span className="px-2.5 py-1 rounded-md bg-emerald-700 text-white font-mono font-extrabold text-[10px] tracking-wider uppercase inline-block">
+                AGE GROUP: {detailProg.ageGroup}
+              </span>
+              <h3 className="text-xl font-black text-slate-900">{detailProg.title}</h3>
+              <p className="text-xs text-emerald-800 font-semibold">Total Student Enquiries Received: <b>{detailProg.enquiriesCount}</b></p>
+            </div>
+
+            <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Programme Overview & Description</p>
+              <p className="text-xs text-slate-700 leading-relaxed font-medium">{detailProg.description}</p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setDetailProg(null)}>Close</Button>
+              <Button onClick={() => { const prog = detailProg; setDetailProg(null); handleOpenEdit(prog); }}>
+                Edit Programme
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Add / Edit Modal */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingProg ? "Edit Sports Programme" : "Add Website Sports Programme"}>

@@ -40,7 +40,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
   const filteredCoaches = query.trim()
     ? INITIAL_COACHES.filter(c =>
         c.fullName.toLowerCase().includes(query.toLowerCase()) ||
-        c.specialization.toLowerCase().includes(query.toLowerCase())
+        c.email.toLowerCase().includes(query.toLowerCase()) ||
+        (c.specialization && c.specialization.toLowerCase().includes(query.toLowerCase()))
       ).slice(0, 3)
     : [];
 

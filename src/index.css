@@ -29,22 +29,51 @@
   background: #94a3b8;
 }
 
-/* Print styling for Invoice */
+/* Strict Professional Print & PDF Export Styling */
 @media print {
-  body {
-    background-color: white !important;
-    color: black !important;
+  html, body {
+    height: auto !important;
+    min-height: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
+
+  /* Completely hide the main web app root container during print */
+  #root {
+    display: none !important;
+  }
+
+  /* Render ONLY the dedicated print portal document attached to document.body */
+  .printable-document {
+    display: block !important;
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-sizing: border-box !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Hide any non-printable controls inside print container */
   .no-print {
     display: none !important;
   }
-  .print-only {
-    display: block !important;
+
+  /* Force exact background colors and graphic printing */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  .shadow-sm, .shadow-md, .shadow-lg {
-    box-shadow: none !important;
-  }
-  .border {
-    border-color: #cbd5e1 !important;
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
   }
 }

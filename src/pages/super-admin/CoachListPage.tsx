@@ -12,19 +12,23 @@ import { DeleteConfirmationModal } from '../../components/ui/DeleteConfirmationM
 import { CoachCredentialsModal } from '../../components/ui/CoachCredentialsModal';
 import { StatusToggle } from '../../components/ui/StatusToggle';
 import { ImageUpload } from '../../components/ui/ImageUpload';
+import { FileUpload } from '../../components/ui/FileUpload';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { INITIAL_COACHES } from '../../mock-data/msrf-data';
 import { Coach, SportsCourse } from '../../types';
-import { Eye, Edit3, Trash2, UserPlus, Key } from 'lucide-react';
+import { Eye, Pencil, Trash2, UserPlus, Key, FileText, FileDown } from 'lucide-react';
+import { formatDate } from '../../utils/format';
+import { PrintPortal } from '../../components/ui/PrintPortal';
+import { ReportHeader } from '../../components/ui/ReportHeader';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../context/NotificationContext';
 
 export const CoachListPage: React.FC = () => {
   const [coaches, setCoaches] = useState<Coach[]>(INITIAL_COACHES);
   const [search, setSearch] = useState('');
-  const [specFilter, setSpecFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('Active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
+  const [pdfCoachRecord, setPdfCoachRecord] = useState<Coach | null>(null);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -41,10 +45,13 @@ export const CoachListPage: React.FC = () => {
     fullName: '',
     email: '',
     phone: '',
-    specialization: 'Swimming Academy' as SportsCourse,
+    gender: 'Male' as 'Male' | 'Female',
+    bloodGroup: 'O+',
     experienceYears: 5,
-    capacity: 20,
+    joinedDate: new Date().toISOString().slice(0, 10),
+    address: '',
     photo: '',
+    contractUrl: '',
     bio: ''
   });
 
@@ -53,9 +60,8 @@ export const CoachListPage: React.FC = () => {
 
   const filteredCoaches = coaches.filter(c => {
     const matchesSearch = c.fullName.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
-    const matchesSpec = specFilter === 'ALL' || c.specialization === specFilter;
     const matchesStatus = statusFilter === 'ALL' || c.status === statusFilter;
-    return matchesSearch && matchesSpec && matchesStatus;
+    return matchesSearch && matchesStatus;
   });
 
   const totalPages = Math.ceil(filteredCoaches.length / pageSize) || 1;
@@ -67,10 +73,13 @@ export const CoachListPage: React.FC = () => {
       fullName: '',
       email: '',
       phone: '',
-      specialization: 'Swimming Academy',
+      gender: 'Male',
+      bloodGroup: 'O+',
       experienceYears: 5,
-      capacity: 20,
+      joinedDate: new Date().toISOString().slice(0, 10),
+      address: '',
       photo: '',
+      contractUrl: '',
       bio: ''
     });
     setAddModal(true);
@@ -82,10 +91,13 @@ export const CoachListPage: React.FC = () => {
       fullName: c.fullName,
       email: c.email,
       phone: c.phone,
-      specialization: c.specialization,
+      gender: (c as any).gender || 'Male',
+      bloodGroup: c.bloodGroup || 'O+',
       experienceYears: c.experienceYears,
-      capacity: c.capacity,
+      joinedDate: c.joinedDate || new Date().toISOString().slice(0, 10),
+      address: (c as any).address || '',
       photo: c.photo,
+      contractUrl: c.contractUrl || '',
       bio: c.bio
     });
     setAddModal(true);
@@ -100,6 +112,8 @@ export const CoachListPage: React.FC = () => {
       return;
     }
 
+    const defaultContract = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+
     if (editingCoach) {
       setCoaches(prev =>
         prev.map(c =>
@@ -109,10 +123,13 @@ export const CoachListPage: React.FC = () => {
                 fullName: formData.fullName,
                 email: formData.email,
                 phone: formData.phone,
-                specialization: formData.specialization,
+                gender: formData.gender as any,
+                bloodGroup: formData.bloodGroup,
                 experienceYears: Number(formData.experienceYears),
-                capacity: Number(formData.capacity),
+                joinedDate: formData.joinedDate,
+                address: formData.address as any,
                 photo: formData.photo || c.photo,
+                contractUrl: formData.contractUrl || c.contractUrl || defaultContract,
                 bio: formData.bio
               }
             : c
@@ -127,16 +144,18 @@ export const CoachListPage: React.FC = () => {
         email: formData.email || 'coach@msrf.org',
         phone: formData.phone || '9847000000',
         photo: formData.photo || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
-        specialization: formData.specialization,
+        bloodGroup: formData.bloodGroup,
         experienceYears: Number(formData.experienceYears),
         assignedStudentsCount: 0,
-        capacity: Number(formData.capacity),
-        joinedDate: new Date().toISOString().slice(0, 10),
+        capacity: 25,
+        joinedDate: formData.joinedDate || new Date().toISOString().slice(0, 10),
         status: 'Active',
         bio: formData.bio || 'Certified MSRF Senior Sports Coach.',
         monthlyRating: 4.8,
         attendanceAvg: 95,
-        tempPassword: generatedPass
+        tempPassword: generatedPass,
+        contractUrl: formData.contractUrl || defaultContract,
+        documents: []
       };
 
       setCoaches([newCoach, ...coaches]);
@@ -171,34 +190,19 @@ export const CoachListPage: React.FC = () => {
       <FilterBar
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search coach name, email, specialization..."
+        searchPlaceholder="Search coach name, email, phone..."
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         filters={[
-          {
-            key: 'spec',
-            label: 'Specialization',
-            value: specFilter,
-            onChange: setSpecFilter,
-            options: [
-              { label: 'All Academies', value: 'ALL' },
-              { label: 'Swimming Academy', value: 'Swimming Academy' },
-              { label: 'Badminton Club', value: 'Badminton Club' },
-              { label: 'Football Excellence', value: 'Football Excellence' },
-              { label: 'Athletics & Track', value: 'Athletics & Track' },
-              { label: 'Cricket Performance', value: 'Cricket Performance' },
-              { label: 'Tennis Training', value: 'Tennis Training' }
-            ]
-          },
           {
             key: 'status',
             label: 'Status',
             value: statusFilter,
             onChange: setStatusFilter,
             options: [
-              { label: 'All Statuses', value: 'ALL' },
               { label: 'Active', value: 'Active' },
-              { label: 'Inactive', value: 'Inactive' }
+              { label: 'Inactive', value: 'Inactive' },
+              { label: 'All Statuses', value: 'ALL' }
             ]
           }
         ]}
@@ -213,48 +217,53 @@ export const CoachListPage: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase">
                   <th className="py-3 px-4">Coach</th>
-                  <th className="py-3 px-4">Specialization</th>
+                  <th className="py-3 px-4">Blood Group</th>
                   <th className="py-3 px-4">Contact</th>
-                  <th className="py-3 px-4">Capacity Utilization</th>
-                  <th className="py-3 px-4">Rating</th>
+                  <th className="py-3 px-4">Contract Document</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedCoaches.map(c => (
-                  <tr key={c.id} className="hover:bg-slate-50">
+                  <tr key={c.id} onClick={() => navigate(`/super-admin/coaches/${c.id}`)} className="hover:bg-slate-50 cursor-pointer">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
                         <img
                           src={c.photo}
                           alt={c.fullName}
-                          onClick={() => setLightboxImg({ url: c.photo, title: `${c.fullName} (${c.specialization})` })}
+                          onClick={(e) => { e.stopPropagation(); setLightboxImg({ url: c.photo, title: c.fullName }); }}
                           className="w-9 h-9 rounded-full object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
                         />
                         <div>
-                          <p className="font-bold text-slate-900 text-sm">{c.fullName}</p>
+                          <p className="font-bold text-slate-900 text-sm hover:text-blue-600 font-semibold">{c.fullName}</p>
                           <p className="text-[11px] text-slate-400">{c.experienceYears} Years Exp.</p>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-blue-600">{c.specialization}</td>
+                    <td className="py-3.5 px-4 font-bold text-rose-600">{c.bloodGroup || 'O+'}</td>
                     <td className="py-3.5 px-4 text-slate-600">{c.email} • {c.phone}</td>
-                    <td className="py-3.5 px-4">
-                      <span className="font-bold text-slate-800">{c.assignedStudentsCount} / {c.capacity} Trainees</span>
+                    <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
+                      <a
+                        href={c.contractUrl || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-blue-600 font-semibold hover:underline bg-blue-50 px-2.5 py-1 rounded border border-blue-200"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-blue-600" /> Contract PDF
+                      </a>
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-amber-500">★ {c.monthlyRating}</td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                       <StatusToggle
                         status={c.status || 'Active'}
                         onChange={newStatus => handleStatusChange(c.id, newStatus)}
                       />
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
+                        <Button size="sm" variant="ghost" icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} onClick={() => setPdfCoachRecord(c)} title="View & Print Coach PDF Report" />
                         <Button size="sm" variant="ghost" icon={<Key className="w-3.5 h-3.5 text-amber-500" />} onClick={() => setCredentialsCoach(c)} title="View & Copy Login Credentials" />
-                        <Button size="sm" variant="ghost" icon={<Eye className="w-3.5 h-3.5 text-slate-600" />} onClick={() => navigate(`/super-admin/coaches/${c.id}`)} title="View Coach Profile" />
-                        <Button size="sm" variant="ghost" icon={<Edit3 className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(c)} title="Edit Coach" />
+                        <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(c)} title="Edit Coach" />
                         <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingCoach(c)} title="Delete Coach" />
                       </div>
                     </td>
@@ -283,7 +292,7 @@ export const CoachListPage: React.FC = () => {
                     >
                       {c.fullName}
                     </h3>
-                    <p className="text-xs font-semibold text-blue-600">{c.specialization}</p>
+                    <p className="text-xs font-semibold text-rose-600">Blood: {c.bloodGroup || 'O+'}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">{c.experienceYears} Years Exp.</p>
                   </div>
                 </div>
@@ -297,9 +306,18 @@ export const CoachListPage: React.FC = () => {
                 <Button size="sm" variant="outline" onClick={() => navigate(`/super-admin/coaches/${c.id}`)} icon={<Eye className="w-3.5 h-3.5" />}>
                   Profile
                 </Button>
+                <a
+                  href={c.contractUrl || '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-blue-600 font-semibold hover:underline bg-blue-50 px-2 py-1 rounded"
+                >
+                  <FileText className="w-3 h-3 text-blue-600" /> Contract
+                </a>
                 <div className="flex items-center gap-1">
+                  <Button size="sm" variant="ghost" icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} onClick={() => setPdfCoachRecord(c)} title="Coach PDF Report" />
                   <Button size="sm" variant="ghost" icon={<Key className="w-3.5 h-3.5 text-amber-500" />} onClick={() => setCredentialsCoach(c)} title="Credentials" />
-                  <Button size="sm" variant="ghost" icon={<Edit3 className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(c)} />
+                  <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(c)} />
                   <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingCoach(c)} />
                 </div>
               </div>
@@ -343,13 +361,24 @@ export const CoachListPage: React.FC = () => {
       {/* Add / Edit Coach Modal (Without Status field - First always active) */}
       <Modal isOpen={addModal} onClose={() => setAddModal(false)} title={editingCoach ? "Edit Coach Profile" : "Onboard New Head Coach"}>
         <form onSubmit={handleSaveCoach} className="space-y-4">
-          <Input
-            label="Full Name"
-            required
-            value={formData.fullName}
-            onChange={e => setFormData({ ...formData, fullName: e.target.value })}
-            placeholder="e.g. Coach Sandeep Kumar"
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Full Name"
+              required
+              value={formData.fullName}
+              onChange={e => setFormData({ ...formData, fullName: e.target.value })}
+              placeholder="e.g. Coach Sandeep Kumar"
+            />
+            <Select
+              label="Gender"
+              options={[
+                { label: 'Male', value: 'Male' },
+                { label: 'Female', value: 'Female' }
+              ]}
+              value={formData.gender}
+              onChange={e => setFormData({ ...formData, gender: e.target.value as any })}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Email Address (Login Username)"
@@ -368,30 +397,53 @@ export const CoachListPage: React.FC = () => {
               placeholder="10-digit mobile"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <Select
-              label="Specialization"
+              label="Blood Group"
               options={[
-                { label: 'Swimming Academy', value: 'Swimming Academy' },
-                { label: 'Badminton Club', value: 'Badminton Club' },
-                { label: 'Football Excellence', value: 'Football Excellence' },
-                { label: 'Athletics & Track', value: 'Athletics & Track' },
-                { label: 'Cricket Performance', value: 'Cricket Performance' },
-                { label: 'Tennis Training', value: 'Tennis Training' }
+                { label: 'O+', value: 'O+' },
+                { label: 'A+', value: 'A+' },
+                { label: 'B+', value: 'B+' },
+                { label: 'AB+', value: 'AB+' },
+                { label: 'O-', value: 'O-' },
+                { label: 'A-', value: 'A-' },
+                { label: 'B-', value: 'B-' },
+                { label: 'AB-', value: 'AB-' }
               ]}
-              value={formData.specialization}
-              onChange={e => setFormData({ ...formData, specialization: e.target.value as any })}
+              value={formData.bloodGroup}
+              onChange={e => setFormData({ ...formData, bloodGroup: e.target.value })}
             />
             <Input
-              label="Max Student Capacity"
+              label="Experience (Years)"
               type="number"
-              value={formData.capacity}
-              onChange={e => setFormData({ ...formData, capacity: Number(e.target.value) })}
+              value={formData.experienceYears}
+              onChange={e => setFormData({ ...formData, experienceYears: Number(e.target.value) })}
+            />
+            <Input
+              label="Date Joined MSRF"
+              type="date"
+              value={formData.joinedDate}
+              onChange={e => setFormData({ ...formData, joinedDate: e.target.value })}
             />
           </div>
 
+          <Input
+            label="Residential / Office Address"
+            value={formData.address}
+            onChange={e => setFormData({ ...formData, address: e.target.value })}
+            placeholder="Full street address, Kozhikode, Kerala..."
+          />
+
+          <FileUpload
+            label="Coach Contract Document File"
+            value={formData.contractUrl}
+            onChange={(url) => setFormData({ ...formData, contractUrl: url })}
+            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+            placeholder="Click to upload coach contract file (PDF, Word, or Image)"
+          />
+
           <ImageUpload
-            label="Coach Photo Image"
+            label="Coach Profile Photograph"
             value={formData.photo}
             onChange={url => setFormData({ ...formData, photo: url })}
           />
@@ -412,6 +464,59 @@ export const CoachListPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* COACH PROFILE PDF REPORT PORTAL */}
+      {pdfCoachRecord && (
+        <PrintPortal
+          title={`Coach_Report_${pdfCoachRecord.fullName}`}
+          onClose={() => setPdfCoachRecord(null)}
+        >
+          <div className="space-y-6 text-slate-800 font-sans">
+            <ReportHeader title="COACH PROFILE REPORT" date={new Date().toISOString().slice(0, 10)} />
+
+            <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <img src={pdfCoachRecord.photo} alt={pdfCoachRecord.fullName} className="w-20 h-20 rounded-xl object-cover border border-slate-300 shrink-0" />
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs flex-1">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Full Name</p>
+                  <p className="font-bold text-slate-900 text-sm">{pdfCoachRecord.fullName}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
+                  <p className="font-bold text-rose-600 text-sm">{pdfCoachRecord.bloodGroup || 'O+'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Experience</p>
+                  <p className="font-bold text-blue-600">{pdfCoachRecord.experienceYears} Years</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Attendance Rate</p>
+                  <p className="font-bold text-emerald-600">{pdfCoachRecord.attendanceAvg}%</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                <p className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">Contact Information</p>
+                <div className="flex justify-between"><span className="text-slate-500">Email:</span><span className="font-mono">{pdfCoachRecord.email}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Phone:</span><span className="font-mono">{pdfCoachRecord.phone}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Joined Date:</span><span className="font-semibold">{formatDate(pdfCoachRecord.joinedDate)}</span></div>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
+                <p className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">Biography & Accreditations</p>
+                <p className="text-slate-700 italic">{pdfCoachRecord.bio || 'Certified Senior Sports Coach at MSRF.'}</p>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+              <p>Malabar Challengers Football Club • Official System Generated Report</p>
+              <p>Printed Date & Time: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            </div>
+          </div>
+        </PrintPortal>
+      )}
     </LayoutShell>
   );
 };

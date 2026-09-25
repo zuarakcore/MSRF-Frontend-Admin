@@ -76,11 +76,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const coachNav = [
     { title: 'COACH PORTAL', items: [
       { label: 'My Dashboard', path: '/coach/dashboard', icon: LayoutDashboard },
-      { label: 'My Students', path: '/coach/students', icon: Users },
       { label: 'Daily Attendance', path: '/coach/attendance', icon: CalendarCheck },
       { label: 'Performance Ratings', path: '/coach/performance', icon: Award },
     ]}
   ];
+
+  const activeRef = React.useRef<HTMLAnchorElement | null>(null);
+
+  React.useEffect(() => {
+    if (activeRef.current) {
+      activeRef.current.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    }
+  }, [location.pathname]);
 
   const navGroups = role === 'SUPER_ADMIN' ? superAdminNav : coachNav;
 
@@ -119,20 +126,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
             {group.items.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path;
+              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
               return (
                 <NavLink
                   key={item.path}
+                  ref={isActive ? activeRef : undefined}
                   to={item.path}
                   onClick={(e) => {
-                    // Prevent default auto-scrolling sidebar to top when clicked
                     e.stopPropagation();
                     if (isMobileOpen) onCloseMobile();
                   }}
                   className={cn(
                     'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group relative',
                     isActive
-                      ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
+                      ? role === 'COACH'
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow-md shadow-emerald-600/30'
+                        : 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                   )}
                   title={collapsed ? item.label : undefined}

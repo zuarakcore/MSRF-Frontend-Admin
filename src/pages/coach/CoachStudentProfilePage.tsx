@@ -58,7 +58,8 @@ export const CoachStudentProfilePage: React.FC = () => {
           <div>
             <h2 className="text-xl font-black">{student.fullName}</h2>
             <p className="text-xs text-blue-400 font-mono">{student.studentId} • {student.course}</p>
-            <p className="text-xs text-slate-300 mt-1">Parent: {student.parentName} ({student.parentPhone})</p>
+            <p className="text-xs text-rose-300 font-bold mt-0.5">Blood Group: {student.bloodGroup || 'O+'}</p>
+            <p className="text-xs text-slate-300 mt-0.5">Parent: {student.parentName} ({student.parentPhone})</p>
           </div>
         </div>
       </Card>

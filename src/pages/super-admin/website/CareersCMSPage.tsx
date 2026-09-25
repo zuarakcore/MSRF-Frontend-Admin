@@ -13,13 +13,13 @@ import { StatusToggle } from '../../../components/ui/StatusToggle';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { INITIAL_CAREERS } from '../../../mock-data/msrf-data';
 import { CareerCMS } from '../../../types';
-import { Plus, Trash2, Edit3 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import { useNotifications } from '../../../context/NotificationContext';
 
 export const CareersCMSPage: React.FC = () => {
   const [careers, setCareers] = useState<CareerCMS[]>(INITIAL_CAREERS);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('Active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
 
   // Pagination
@@ -142,9 +142,9 @@ export const CareersCMSPage: React.FC = () => {
             value: statusFilter,
             onChange: setStatusFilter,
             options: [
-              { label: 'All Status', value: 'all' },
               { label: 'Active', value: 'Active' },
-              { label: 'Inactive', value: 'Inactive' }
+              { label: 'Inactive', value: 'Inactive' },
+              { label: 'All Status', value: 'all' }
             ]
           }
         ]}
@@ -189,7 +189,7 @@ export const CareersCMSPage: React.FC = () => {
                       </td>
                       <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          <Button size="sm" variant="ghost" icon={<Edit3 className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(c)} title="Edit Opening" />
+                          <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(c)} title="Edit Opening" />
                           <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingJob(c)} title="Delete Opening" />
                         </div>
                       </td>
@@ -226,7 +226,7 @@ export const CareersCMSPage: React.FC = () => {
                   <p className="text-xs text-slate-600 mt-2 max-w-2xl line-clamp-2">{c.jobDescription}</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0" onClick={e => e.stopPropagation()}>
-                  <Button size="sm" variant="ghost" className="text-slate-600 hover:text-slate-900" icon={<Edit3 className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(c)} />
+                  <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(c)} />
                   <Button size="sm" variant="ghost" className="text-rose-500 hover:text-rose-700 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingJob(c)} />
                 </div>
               </Card>
