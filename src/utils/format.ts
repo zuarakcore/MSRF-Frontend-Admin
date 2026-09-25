@@ -44,3 +44,22 @@ export function exportToCSV(filename: string, rows: Record<string, any>[]) {
 export function triggerPrint() {
   window.print();
 }
+
+export function formatPhoneNumber(phone?: string): string {
+  if (!phone) return '-';
+  const clean = phone.trim();
+  const digitsOnly = clean.replace(/\D/g, '');
+  
+  if (digitsOnly.length === 10) {
+    return `+91 ${digitsOnly.slice(0, 5)} ${digitsOnly.slice(5)}`;
+  } else if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
+    const main = digitsOnly.slice(2);
+    return `+91 ${main.slice(0, 5)} ${main.slice(5)}`;
+  }
+  
+  if (clean.startsWith('+')) {
+    return clean.replace(/\s+/g, ' ');
+  }
+  
+  return `+91 ${clean}`;
+}

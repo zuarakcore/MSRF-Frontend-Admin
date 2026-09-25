@@ -5,6 +5,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { INITIAL_STUDENTS, INITIAL_COACHES } from '../../mock-data/msrf-data';
+import { formatPhoneNumber } from '../../utils/format';
 import { Eye, Search, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -70,7 +71,7 @@ export const CoachStudentListPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Parent Phone:</span>
-                  <span className="font-mono text-slate-700">{st.parentPhone}</span>
+                  <span className="font-mono text-blue-600 font-semibold">{formatPhoneNumber(st.parentPhone)}</span>
                 </div>
               </div>
               <div className="pt-2 flex justify-end">
