@@ -25,11 +25,12 @@ import {
   Tag,
   Layers,
   MapPin,
-  FileDown
+  FileDown,
+  Phone
 } from 'lucide-react';
 import { INITIAL_STUDENTS, INITIAL_CATEGORIES, INITIAL_PROGRAM_TYPES, INITIAL_TRAINING_CENTERS } from '../../mock-data/msrf-data';
 import { Student } from '../../types';
-import { formatCurrency, formatDate, exportToCSV } from '../../utils/format';
+import { formatCurrency, formatDate, formatPhoneNumber, exportToCSV } from '../../utils/format';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
 import { useNavigate } from 'react-router-dom';
@@ -582,8 +583,8 @@ export const StudentListPage: React.FC = () => {
                           <p className="font-bold text-slate-900 text-sm hover:text-blue-600 cursor-pointer" onClick={() => navigate(`/super-admin/students/${st.id}`)}>
                             {st.fullName}
                           </p>
-                          <p className="text-[11px] text-slate-400 font-normal">
-                            {st.phone} • <span className="font-semibold text-rose-600">Blood: {st.bloodGroup || 'O+'}</span>
+                          <p className="text-[11px] font-mono text-blue-600 font-semibold mt-0.5 whitespace-nowrap">
+                            {formatPhoneNumber(st.phone)}
                           </p>
                         </div>
                       </div>
@@ -607,9 +608,12 @@ export const StudentListPage: React.FC = () => {
                         <span>{st.trainingCenter}</span>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <p className="font-bold text-slate-800">{st.parentName}</p>
-                      <p className="text-[11px] text-slate-400">{st.parentPhone}</p>
+                      <p className="text-[11px] font-mono text-slate-500 font-medium mt-0.5 flex items-center gap-1">
+                        <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{formatPhoneNumber(st.parentPhone)}</span>
+                      </p>
                     </td>
                     <td className="py-3.5 px-4">
                       <Badge
@@ -682,6 +686,7 @@ export const StudentListPage: React.FC = () => {
                   <div>
                     <h3 className="text-base font-bold text-slate-900">{st.fullName}</h3>
                     <p className="text-xs font-mono text-slate-400">{st.studentId}</p>
+                    <p className="text-[11px] font-mono text-blue-600 font-semibold">{formatPhoneNumber(st.phone)}</p>
                   </div>
                 </div>
                 <StatusToggle
@@ -703,9 +708,9 @@ export const StudentListPage: React.FC = () => {
                   <span className="text-slate-400 flex items-center gap-1"><MapPin className="w-3 h-3 text-rose-500" /> Training Center:</span>
                   <span className="font-semibold text-slate-800">{st.trainingCenter}</span>
                 </div>
-                <div className="flex justify-between items-center pt-1">
-                  <span className="text-slate-400">Fee Balance:</span>
-                  <span className="font-bold text-rose-600">{formatCurrency(st.pendingAmount)}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> Parent Details:</span>
+                  <span className="font-bold text-slate-800">{st.parentName} ({formatPhoneNumber(st.parentPhone)})</span>
                 </div>
               </div>
 

@@ -16,8 +16,8 @@ import { FileUpload } from '../../components/ui/FileUpload';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { INITIAL_COACHES } from '../../mock-data/msrf-data';
 import { Coach, SportsCourse } from '../../types';
-import { Eye, Pencil, Trash2, UserPlus, Key, FileText, FileDown } from 'lucide-react';
-import { formatDate } from '../../utils/format';
+import { Eye, Pencil, Trash2, UserPlus, Key, FileText, FileDown, Phone } from 'lucide-react';
+import { formatDate, formatPhoneNumber } from '../../utils/format';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
 import { useNavigate } from 'react-router-dom';
@@ -217,8 +217,7 @@ export const CoachListPage: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase">
                   <th className="py-3 px-4">Coach</th>
-                  <th className="py-3 px-4">Blood Group</th>
-                  <th className="py-3 px-4">Contact</th>
+                  <th className="py-3 px-4">Contact Details</th>
                   <th className="py-3 px-4">Contract Document</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -241,8 +240,13 @@ export const CoachListPage: React.FC = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-rose-600">{c.bloodGroup || 'O+'}</td>
-                    <td className="py-3.5 px-4 text-slate-600">{c.email} • {c.phone}</td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <p className="font-medium text-slate-800 text-xs">{c.email}</p>
+                      <p className="text-[11px] font-mono text-blue-600 font-semibold mt-0.5 flex items-center gap-1">
+                        <Phone className="w-3 h-3 text-blue-500 shrink-0" />
+                        <span>{formatPhoneNumber(c.phone)}</span>
+                      </p>
+                    </td>
                     <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                       <a
                         href={c.contractUrl || '#'}
@@ -292,7 +296,6 @@ export const CoachListPage: React.FC = () => {
                     >
                       {c.fullName}
                     </h3>
-                    <p className="text-xs font-semibold text-rose-600">Blood: {c.bloodGroup || 'O+'}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">{c.experienceYears} Years Exp.</p>
                   </div>
                 </div>
@@ -300,6 +303,13 @@ export const CoachListPage: React.FC = () => {
                   status={c.status || 'Active'}
                   onChange={newStatus => handleStatusChange(c.id, newStatus)}
                 />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 text-xs space-y-1.5">
+                <p className="font-medium text-slate-800">{c.email}</p>
+                <p className="font-mono text-blue-600 font-semibold flex items-center gap-1 text-[11px]">
+                  <Phone className="w-3 h-3 text-blue-500" /> {formatPhoneNumber(c.phone)}
+                </p>
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
