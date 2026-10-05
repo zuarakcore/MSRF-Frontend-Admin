@@ -64,8 +64,16 @@ export const CoachAttendancePage: React.FC = () => {
   const [reportsList, setReportsList] = useState<DailyTrainingSessionReport[]>(INITIAL_SESSION_REPORTS);
 
   // List Filters & Search
+  const currentYear = new Date().getFullYear();
+  const currentMonthIdx = new Date().getMonth();
+  const ALL_MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [yearFilter, setYearFilter] = useState('ALL');
+  const [monthFilter, setMonthFilter] = useState('ALL');
   const [dateFilter, setDateFilter] = useState('');
 
   // 3-Step Form Tab State: 'setup' | 'session-form' | 'mark-attendance'
@@ -457,8 +465,10 @@ export const CoachAttendancePage: React.FC = () => {
       r.dailyTopic.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.venue.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'ALL' || r.categories.includes(categoryFilter);
+    const matchesYear = yearFilter === 'ALL' || r.date.startsWith(yearFilter);
+    const matchesMonth = monthFilter === 'ALL' || ALL_MONTHS[parseInt(r.date.slice(5, 7), 10) - 1] === monthFilter;
     const matchesDate = !dateFilter || r.date === dateFilter;
-    return matchesSearch && matchesCategory && matchesDate;
+    return matchesSearch && matchesCategory && matchesYear && matchesMonth && matchesDate;
   });
 
   return (
@@ -528,7 +538,7 @@ export const CoachAttendancePage: React.FC = () => {
 
             {/* Filter & Search Bar - Pixel Perfect Alignment & SaaS Styling */}
             <Card header={<h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2"><Filter className="w-4 h-4 text-blue-600" /> Filter & Search Sessions</h3>}>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end text-xs">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Search Topic / Venue</label>
                   <div className="relative flex items-center">
@@ -551,6 +561,35 @@ export const CoachAttendancePage: React.FC = () => {
                     options={[
                       { label: 'All Categories', value: 'ALL' },
                       ...INITIAL_CATEGORIES.map(c => ({ label: c.title, value: c.title }))
+                    ]}
+                    className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <Select
+                    label="Year Filter"
+                    value={yearFilter}
+                    onChange={e => setYearFilter(e.target.value)}
+                    options={[
+                      { label: 'All Years', value: 'ALL' },
+                      ...Array.from({ length: 5 }, (_, i) => ({ label: String(currentYear - i), value: String(currentYear - i) }))
+                    ]}
+                    className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <Select
+                    label="Month Filter"
+                    value={monthFilter}
+                    onChange={e => setMonthFilter(e.target.value)}
+                    options={[
+                      { label: 'All Months', value: 'ALL' },
+                      ...(yearFilter === String(currentYear)
+                        ? ALL_MONTHS.slice(0, currentMonthIdx + 1)
+                        : ALL_MONTHS
+                      ).map(m => ({ label: m, value: m }))
                     ]}
                     className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
                   />
