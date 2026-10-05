@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { Card } from '../../components/ui/Card';
@@ -9,13 +10,19 @@ import { Pagination } from '../../components/ui/Pagination';
 import { DeleteConfirmationModal } from '../../components/ui/DeleteConfirmationModal';
 import { StatusToggle } from '../../components/ui/StatusToggle';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { INITIAL_PROGRAM_TYPES } from '../../mock-data/msrf-data';
+import { QueryState } from '../../components/ui/QueryState';
+import { referenceApi } from '../../api/endpoints';
+import { toProgramType, toApiStatus } from '../../api/mappers';
+import { useApiAction } from '../../api/hooks';
 import { ProgramTypeCMS } from '../../types';
 import { Plus, Trash2, Pencil, Layers } from 'lucide-react';
-import { useNotifications } from '../../context/NotificationContext';
 
 export const ProgramTypesCMSPage: React.FC = () => {
-  const [programTypes, setProgramTypes] = useState<ProgramTypeCMS[]>(INITIAL_PROGRAM_TYPES);
+  const query = useQuery({ queryKey: ['program-types'], queryFn: () => referenceApi.list('program-types') });
+  const programTypes = (query.data ?? []).map(toProgramType);
+  const { run } = useApiAction();
+  // Students' filter dropdowns and forms read these lists too.
+  const invalidate = [['program-types'], ['students'], ['filter-options']];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('Active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
@@ -34,7 +41,6 @@ export const ProgramTypesCMSPage: React.FC = () => {
     description: ''
   });
 
-  const { addToast } = useNotifications();
 
   const filtered = programTypes.filter(pt => {
     const matchesStatus = statusFilter === 'all' || pt.status === statusFilter;
@@ -59,43 +65,38 @@ export const ProgramTypesCMSPage: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSaveProgramType = (e: React.FormEvent) => {
+  const handleSaveProgramType = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) return;
-
-    if (editingType) {
-      setProgramTypes(prev =>
-        prev.map(pt =>
-          pt.id === editingType.id
-            ? { ...pt, title: form.title, description: form.description }
-            : pt
-        )
-      );
-      addToast({ type: 'success', title: 'Program Type Updated', message: form.title });
-    } else {
-      const newType: ProgramTypeCMS = {
-        id: `pt-${Date.now()}`,
-        title: form.title,
-        description: form.description || 'Dynamic student enrollment program type.',
-        status: 'Active',
-        createdAt: new Date().toISOString().slice(0, 10)
-      };
-      setProgramTypes([newType, ...programTypes]);
-      addToast({ type: 'success', title: 'Program Type Added', message: newType.title });
-    }
-
-    setModalOpen(false);
+    const body = { name: form.title.trim(), description: form.description.trim() || null };
+    const ok = editingType
+      ? await run(() => referenceApi.update('program-types', editingType.id, body), {
+          success: { title: 'Program Type Updated', message: body.name },
+          invalidate,
+        })
+      : await run(() => referenceApi.create('program-types', body), {
+          success: { title: 'Program Type Added', message: body.name },
+          invalidate,
+        });
+    if (ok) setModalOpen(false);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
-    setProgramTypes(prev => prev.map(pt => (pt.id === id ? { ...pt, status: newStatus } : pt)));
-    addToast({ type: 'info', title: 'Status Updated', message: `Program type status set to ${newStatus}` });
+    run(() => referenceApi.update('program-types', id, { status: toApiStatus(newStatus) }), {
+      success: { type: 'info', title: 'Status Updated', message: `Program Type status set to ${newStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingType) return;
-    setProgramTypes(prev => prev.filter(pt => pt.id !== deletingType.id));
-    addToast({ type: 'info', title: 'Program Type Removed', message: `"${deletingType.title}" removed.` });
+    const target = deletingType;
+    // The backend refuses (409) when students or coaches still use it; deactivate instead.
+    await run(() => referenceApi.remove('program-types', target.id), {
+      success: { type: 'info', title: 'Program Type Removed', message: `"${target.title}" removed.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingType(null);
   };
 
@@ -130,7 +131,9 @@ export const ProgramTypesCMSPage: React.FC = () => {
         ]}
       />
 
-      {filtered.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filtered.length === 0 ? (
         <EmptyState title="No Program Types Found" description="No enrollment program types match your search." />
       ) : viewMode === 'list' ? (
         <Card className="p-0 overflow-hidden">

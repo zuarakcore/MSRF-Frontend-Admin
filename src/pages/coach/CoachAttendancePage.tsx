@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -6,7 +7,13 @@ import { Badge } from '../../components/ui/Badge';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { useAuth } from '../../context/AuthContext';
-import { INITIAL_STUDENTS, INITIAL_COACHES, INITIAL_CATEGORIES, INITIAL_SESSION_REPORTS } from '../../mock-data/msrf-data';
+import { QueryState } from '../../components/ui/QueryState';
+import { coachPortalApi } from '../../api/endpoints';
+import { emptyToNull, toApiAttendance, todayIso, toSessionReport } from '../../api/mappers';
+import { avatarFor } from '../../api/photos';
+import { useApiAction } from '../../api/hooks';
+import { errorMessage } from '../../api/client';
+import type { SessionIn } from '../../api/types';
 import { 
   CalendarCheck, 
   CheckCircle2, 
@@ -36,10 +43,22 @@ import logoImg from '../../assets/logo.png';
 export const CoachAttendancePage: React.FC = () => {
   const { user } = useAuth();
   const { addToast } = useNotifications();
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = todayIso();
 
-  // Active Coach profile based on logged-in user
-  const loggedInCoach = INITIAL_COACHES.find(c => c.email === user?.email) || INITIAL_COACHES[0];
+  const dashboardQuery = useQuery({ queryKey: ['coach', 'dashboard'], queryFn: coachPortalApi.dashboard });
+  const sessionsQuery = useQuery({ queryKey: ['coach', 'sessions'], queryFn: () => coachPortalApi.sessionsAll() });
+  const { run, pending } = useApiAction();
+  const invalidate = [['coach', 'sessions'], ['coach', 'dashboard'], ['attendance'], ['sessions']];
+
+  // The categories assigned to this coach by the admin; sessions can only use these.
+  const myCategories = dashboardQuery.data?.categories ?? [];
+  const coachName = dashboardQuery.data?.fullName || user?.name || 'Coach';
+  const loggedInCoach = {
+    id: user?.coachId ?? '',
+    fullName: coachName,
+    photo: avatarFor(coachName),
+    specialization: myCategories.map(c => c.name).join(', '),
+  };
 
   // Helper: Check if session date is within 7 days from today
   const isEditableWithin7Days = (dateStr: string): boolean => {
@@ -61,7 +80,7 @@ export const CoachAttendancePage: React.FC = () => {
   const [deleteSessionConfirm, setDeleteSessionConfirm] = useState<DailyTrainingSessionReport | null>(null);
 
   // Reports Store (Session reports list)
-  const [reportsList, setReportsList] = useState<DailyTrainingSessionReport[]>(INITIAL_SESSION_REPORTS);
+  const reportsList: DailyTrainingSessionReport[] = (sessionsQuery.data ?? []).map(toSessionReport);
 
   // List Filters & Search
   const currentYear = new Date().getFullYear();
@@ -80,86 +99,75 @@ export const CoachAttendancePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'setup' | 'session-form' | 'mark-attendance'>('setup');
 
   // FORM STATE: Step 1 Setup
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(['Youth Football Squad (U-13)']);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
-  const availableCoaches = INITIAL_COACHES.filter(c => c.fullName !== loggedInCoach.fullName && c.email !== user?.email);
-  const [selectedCoachIds, setSelectedCoachIds] = useState<string[]>([availableCoaches[0]?.id || 'coach-2']);
+  // Coaches cannot list all coaches (admin-only endpoint), so offer the ones they have
+  // already shared sessions with. The backend validates any co-coach sent.
+  const availableCoaches = Array.from(
+    new Map(
+      reportsList
+        .flatMap(r => r.coachRefs ?? [])
+        .filter(ref => ref.id !== loggedInCoach.id)
+        .map(ref => [ref.id, { id: ref.id, fullName: ref.name, photo: avatarFor(ref.name), specialization: 'Coach', phone: '' }])
+    ).values()
+  );
+  const [selectedCoachIds, setSelectedCoachIds] = useState<string[]>([]);
+  const selectedCategoryIds = myCategories.filter(c => selectedCategories.includes(c.name)).map(c => c.id);
 
   // Check if session date already exists for logged-in coach (Only 1 attendance permitted per day)
   const isDuplicateDate = reportsList.some(r => r.date === selectedDate && r.id !== editingReportId && (r.loggedByCoachName === loggedInCoach.fullName || r.assignedCoaches?.includes(loggedInCoach.fullName)));
 
   // FORM STATE: Step 2 Daily Training Session Form
-  const [venue, setVenue] = useState<string>('Main Stadium Ground Pitch A');
-  const [sessionTime, setSessionTime] = useState<string>('06:00 AM - 08:00 AM');
-  const [dailyTopic, setDailyTopic] = useState<string>('Midfield Transition & Defensive Recovery');
-  const [explanation, setExplanation] = useState<string>('Focus on organized press in the middle third and rapid transition upon turnover.');
+  const [venue, setVenue] = useState<string>('');
+  const [sessionTime, setSessionTime] = useState<string>('');
+  const [dailyTopic, setDailyTopic] = useState<string>('');
+  const [explanation, setExplanation] = useState<string>('');
 
   // Splits Loop State (Dynamic loop of splits)
   const [splits, setSplits] = useState<SessionSplit[]>([
-    {
-      id: 'sp-1',
-      heading: 'Warmup & Dynamic Stretch',
-      timeDoneMins: '15',
-      explanation: 'Dynamic stretching, joint mobility, 4x50m acceleration sprints with agility ladder.'
-    },
-    {
-      id: 'sp-2',
-      heading: 'Rondo 4v2 Overload',
-      timeDoneMins: '20',
-      explanation: 'One-touch ball retention under high pressure. Goal of 15 consecutive passes.'
-    },
-    {
-      id: 'sp-3',
-      heading: 'Tactical Pressing Drill',
-      timeDoneMins: '35',
-      explanation: 'Half-pitch 7v7 pressing patterns and transition defense.'
-    },
-    {
-      id: 'sp-4',
-      heading: 'Cool Down & Core Work',
-      timeDoneMins: '15',
-      explanation: 'Low-intensity cooldown, static stretching and core plank holds.'
-    }
+    { id: 'sp-1', heading: 'Warmup', timeDoneMins: '15', explanation: '' }
   ]);
 
-  const [fullSessionOverview, setFullSessionOverview] = useState<string>('Excellent energy and discipline. Defensive line maintained compact depth throughout the session.');
+  const [fullSessionOverview, setFullSessionOverview] = useState<string>('');
 
-  // Trainees filtered by selected categories with smart fallback
-  const rawFilteredStudents = INITIAL_STUDENTS.filter(s => {
-    if (selectedCategories.length === 0) return true;
-    return selectedCategories.some(cat => {
-      const cLower = cat.toLowerCase();
-      const studentCatLower = (s.category || '').toLowerCase();
-      const studentCourseLower = (s.course || '').toLowerCase();
-      return (
-        studentCatLower.includes(cLower) ||
-        cLower.includes(studentCatLower) ||
-        studentCourseLower.includes(cLower) ||
-        cLower.includes(studentCourseLower) ||
-        (cLower.includes('football') && (studentCatLower.includes('football') || studentCourseLower.includes('football')))
-      );
-    });
+  // Active trainees in the selected categories (backend: GET /coach/session-roster)
+  const rosterQuery = useQuery({
+    queryKey: ['coach', 'roster', selectedCategoryIds],
+    queryFn: () => coachPortalApi.roster(selectedCategoryIds),
+    enabled: selectedCategoryIds.length > 0,
   });
-  const filteredStudents = rawFilteredStudents.length > 0 ? rawFilteredStudents : INITIAL_STUDENTS;
+  const filteredStudents = (rosterQuery.data?.students ?? []).map(s => ({
+    id: s.id,
+    fullName: s.fullName,
+    studentId: s.studentCode,
+    photo: s.photo?.url ?? avatarFor(s.fullName),
+    category: s.category.name,
+  }));
 
   // FORM STATE: Step 3 Student Attendance status map
-  const [studentAttendance, setStudentAttendance] = useState<Record<string, { status: 'Present' | 'Absent' | 'Informed'; remarks: string }>>(() => {
-    const map: Record<string, { status: 'Present' | 'Absent' | 'Informed'; remarks: string }> = {};
-    INITIAL_STUDENTS.forEach(s => {
-      map[s.id] = { status: 'Present', remarks: '' };
+  const [studentAttendance, setStudentAttendance] = useState<Record<string, { status: 'Present' | 'Absent' | 'Informed'; remarks: string }>>({});
+
+  // Trainees default to Present when they first appear in the roster.
+  useEffect(() => {
+    if (!rosterQuery.data) return;
+    setStudentAttendance(prev => {
+      const next = { ...prev };
+      rosterQuery.data.students.forEach(s => {
+        if (!next[s.id]) next[s.id] = { status: 'Present', remarks: '' };
+      });
+      return next;
     });
-    return map;
-  });
+  }, [rosterQuery.data]);
 
   // Selected coaches list + Logged in Coach
   const assignedCoachesList = [
     loggedInCoach,
-    ...INITIAL_COACHES.filter(c => selectedCoachIds.includes(c.id))
+    ...availableCoaches.filter(c => selectedCoachIds.includes(c.id))
   ];
 
   // STEP VALIDATION LOGIC
   const validateStep1 = (): boolean => {
-    if (selectedCategories.length === 0) {
+    if (selectedCategoryIds.length === 0) {
       addToast({ type: 'error', title: 'Category Required', message: 'Please select at least 1 Category to proceed.' });
       return false;
     }
@@ -239,79 +247,81 @@ export const CoachAttendancePage: React.FC = () => {
 
   // Reset Form for New Session
   const handleAddNewSession = () => {
+    if (myCategories.length === 0) {
+      addToast({ type: 'warning', title: 'No categories assigned', message: 'Ask the admin to assign categories to you before logging sessions.' });
+      return;
+    }
     setEditingReportId(null);
-    setSelectedCategories(['Football Excellence']);
+    setSelectedCategories([myCategories[0].name]);
     setSelectedDate(todayStr);
-    setSelectedCoachIds([availableCoaches[0]?.id || 'coach-2']);
-    setVenue('Main Stadium Ground Pitch A');
-    setSessionTime('06:00 AM - 08:00 AM');
-    setDailyTopic('Midfield Transition & Tactical Positioning');
-    setExplanation('Focus on organized pressing in the middle third and quick transition.');
-    setSplits([
-      { id: 'sp-1', heading: 'Warmup & Agility', timeDoneMins: '15', explanation: 'Dynamic warmup and agility sprints.' },
-      { id: 'sp-2', heading: 'Possession Drill', timeDoneMins: '25', explanation: 'One-touch retention drill.' }
-    ]);
-    setFullSessionOverview('Good session energy and focus on tactical discipline.');
-    
-    const initialAtt: Record<string, { status: 'Present' | 'Absent' | 'Informed'; remarks: string }> = {};
-    INITIAL_STUDENTS.forEach(s => {
-      initialAtt[s.id] = { status: 'Present', remarks: '' };
-    });
-    setStudentAttendance(initialAtt);
+    setSelectedCoachIds([]);
+    setVenue('');
+    setSessionTime('');
+    setDailyTopic('');
+    setExplanation('');
+    setSplits([{ id: 'sp-1', heading: 'Warmup', timeDoneMins: '15', explanation: '' }]);
+    setFullSessionOverview('');
+    setStudentAttendance({});
 
     setActiveTab('setup');
     setPageView('form');
   };
 
-  // Populate Form for Editing Session (Within 7 Days)
-  const handleEditSession = (report: DailyTrainingSessionReport) => {
-    if (!isEditableWithin7Days(report.date)) {
+  // The list has summaries; load the full session (splits and attendance) before using it.
+  const withSession = async (report: DailyTrainingSessionReport, then: (full: DailyTrainingSessionReport) => void) => {
+    try {
+      then(toSessionReport(await coachPortalApi.session(report.id)));
+    } catch (error) {
+      addToast({ type: 'error', title: 'Could not load session', message: errorMessage(error) });
+    }
+  };
+
+  // Populate Form for Editing Session (creator only, within 7 days)
+  const handleEditSession = (summary: DailyTrainingSessionReport) => {
+    if (!(summary.canEdit ?? isEditableWithin7Days(summary.date))) {
       addToast({
         type: 'error',
         title: 'Session Locked',
-        message: 'This session is older than 7 days and cannot be edited.'
+        message: 'Only the coach who logged this session can edit it, within 7 days.'
       });
       return;
     }
 
-    setEditingReportId(report.id);
-    setSelectedCategories(report.categories.length > 0 ? report.categories : ['Football Excellence']);
-    setSelectedDate(report.date);
-    setVenue(report.venue);
-    setSessionTime(report.time);
-    setDailyTopic(report.dailyTopic);
-    setExplanation(report.explanation);
-    setSplits(report.splits && report.splits.length > 0 ? report.splits : [
-      { id: 'sp-1', heading: 'Warmup', timeDoneMins: '15', explanation: 'Dynamic stretch' }
-    ]);
-    setFullSessionOverview(report.fullSessionOverview || '');
-    
-    if (report.studentAttendance) {
-      const attMap: Record<string, { status: 'Present' | 'Absent' | 'Informed'; remarks: string }> = {};
-      Object.keys(report.studentAttendance).forEach(key => {
-        attMap[key] = {
-          status: report.studentAttendance[key].status,
-          remarks: report.studentAttendance[key].remarks || ''
-        };
-      });
-      setStudentAttendance(attMap);
-    }
-
-    setActiveTab('setup');
-    setPageView('form');
+    withSession(summary, report => {
+      setEditingReportId(report.id);
+      setSelectedCategories(report.categories);
+      setSelectedDate(report.date);
+      setSelectedCoachIds((report.coachRefs ?? []).filter(c => !c.isLead).map(c => c.id));
+      setVenue(report.venue);
+      setSessionTime(report.time);
+      setDailyTopic(report.dailyTopic);
+      setExplanation(report.explanation);
+      setSplits(report.splits.length > 0 ? report.splits : [{ id: 'sp-1', heading: 'Warmup', timeDoneMins: '15', explanation: '' }]);
+      setFullSessionOverview(report.fullSessionOverview || '');
+      setStudentAttendance(
+        Object.fromEntries(
+          Object.entries(report.studentAttendance).map(([key, value]) => [key, { status: value.status, remarks: value.remarks || '' }])
+        )
+      );
+      setActiveTab('setup');
+      setPageView('form');
+    });
   };
 
   // Open Detail View by clicking row
-  const handleViewReportDetail = (report: DailyTrainingSessionReport) => {
-    setSelectedReportDetail(report);
-    setPageView('detail');
-  };
+  const handleViewReportDetail = (report: DailyTrainingSessionReport) =>
+    withSession(report, full => {
+      setSelectedReportDetail(full);
+      setPageView('detail');
+    });
 
   // Trigger Direct PDF Print from list row
   const handleDirectPrintPDF = (report: DailyTrainingSessionReport, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedReportForPrint(report);
-    setPdfPrintModalOpen(true);
+    withSession(report, full => {
+      setSelectedReportForPrint(full);
+      setPdfPrintModalOpen(true);
+    });
   };
 
   // Toggle category choice
@@ -334,15 +344,16 @@ export const CoachAttendancePage: React.FC = () => {
     }
   };
 
-  const handleConfirmDeleteSession = () => {
+  const handleConfirmDeleteSession = async () => {
     if (!deleteSessionConfirm) return;
-    setReportsList(prev => prev.filter(r => r.id !== deleteSessionConfirm.id));
-    addToast({
-      type: 'success',
-      title: 'Session Report Deleted',
-      message: `Training session report for ${formatDate(deleteSessionConfirm.date)} deleted successfully.`
+    const target = deleteSessionConfirm;
+    const ok = await run(() => coachPortalApi.deleteSession(target.id), {
+      success: { title: 'Session Report Deleted', message: `Training session report for ${formatDate(target.date)} deleted successfully.` },
+      errorTitle: 'Could not delete',
+      invalidate,
     });
     setDeleteSessionConfirm(null);
+    if (ok && selectedReportDetail?.id === target.id) setPageView('list');
   };
 
   // Split Loop Handlers
@@ -355,7 +366,7 @@ export const CoachAttendancePage: React.FC = () => {
         id: newId,
         heading: `Split ${newSplitNum} Topic`,
         timeDoneMins: '15',
-        explanation: 'Detailed tactical drill explanation...'
+        explanation: ''
       }
     ]);
   };
@@ -388,75 +399,46 @@ export const CoachAttendancePage: React.FC = () => {
   };
 
   // Final Submit / Save Session Report
-  const handleSubmitSession = () => {
+  const handleSubmitSession = async () => {
     if (!validateStep1() || !validateStep2()) {
       return;
     }
-
-    const autoCoachAttendance: Record<string, { status: 'Present' | 'Absent' | 'Informed'; remarks?: string }> = {};
-    assignedCoachesList.forEach(c => {
-      autoCoachAttendance[c.id] = { status: 'Present', remarks: 'Auto-marked Present' };
-    });
-
-    if (editingReportId) {
-      // Update existing report
-      setReportsList(prev => prev.map(rep => {
-        if (rep.id === editingReportId) {
-          return {
-            ...rep,
-            date: selectedDate,
-            categories: selectedCategories,
-            assignedCoaches: assignedCoachesList.map(c => c.fullName),
-            attendanceCount: filteredStudents.length,
-            venue,
-            time: sessionTime,
-            dailyTopic,
-            explanation,
-            splits,
-            fullSessionOverview,
-            studentAttendance,
-            coachAttendance: autoCoachAttendance
-          };
-        }
-        return rep;
-      }));
-
-      addToast({
-        type: 'success',
-        title: 'Session Report Updated!',
-        message: `Changes saved for session date ${formatDate(selectedDate)}.`
-      });
-    } else {
-      // Create new report
-      const newReport: DailyTrainingSessionReport = {
-        id: `report-${Date.now()}`,
-        date: selectedDate,
-        categories: selectedCategories,
-        loggedByCoachName: loggedInCoach.fullName,
-        assignedCoaches: assignedCoachesList.map(c => c.fullName),
-        attendanceCount: filteredStudents.length,
-        venue,
-        time: sessionTime,
-        weeklyTopic: '',
-        dailyTopic,
-        explanation,
-        splits,
-        fullSessionOverview,
-        studentAttendance,
-        coachAttendance: autoCoachAttendance,
-        createdAt: new Date().toISOString()
-      };
-
-      setReportsList(prev => [newReport, ...prev]);
-
-      addToast({
-        type: 'success',
-        title: 'New Session Report Added!',
-        message: `Attendance and session plan logged for ${filteredStudents.length} trainees.`
-      });
+    if (rosterQuery.isLoading) {
+      addToast({ type: 'warning', title: 'Still loading trainees', message: 'Wait for the trainee list to load, then save.' });
+      return;
     }
 
-    setPageView('list');
+    const body: SessionIn = {
+      sessionDate: selectedDate,
+      categoryIds: selectedCategoryIds,
+      coCoachIds: selectedCoachIds,
+      venue: venue.trim(),
+      weeklyTopic: null,
+      dailyTopic: dailyTopic.trim(),
+      explanation: explanation.trim(),
+      overview: emptyToNull(fullSessionOverview),
+      splits: splits.map(sp => ({
+        heading: sp.heading.trim() || 'Split',
+        durationMinutes: Math.min(300, Math.max(1, Number(sp.timeDoneMins) || 1)),
+        explanation: emptyToNull(sp.explanation),
+      })),
+      attendance: filteredStudents.map(st => {
+        const rec = studentAttendance[st.id] ?? { status: 'Present', remarks: '' };
+        return { studentId: st.id, status: toApiAttendance(rec.status), remarks: emptyToNull(rec.remarks) };
+      }),
+    };
+
+    const ok = await run(
+      () => (editingReportId ? coachPortalApi.updateSession(editingReportId, body) : coachPortalApi.createSession(body)),
+      {
+        success: editingReportId
+          ? { title: 'Session Report Updated!', message: `Changes saved for session date ${formatDate(selectedDate)}.` }
+          : { title: 'New Session Report Added!', message: `Attendance and session plan logged for ${filteredStudents.length} trainees.` },
+        errorTitle: 'Could not save session',
+        invalidate,
+      }
+    );
+    if (ok) setPageView('list');
   };
 
   // Filtered Reports List for Management Table
@@ -490,7 +472,10 @@ export const CoachAttendancePage: React.FC = () => {
       <div className="space-y-6">
 
         {/* VIEW 1: LISTING & MANAGEMENT TABLE VIEW */}
-        {pageView === 'list' && (
+        {pageView === 'list' && (sessionsQuery.isLoading || sessionsQuery.error) && (
+          <QueryState isLoading={sessionsQuery.isLoading} error={sessionsQuery.error} onRetry={() => sessionsQuery.refetch()}>{null}</QueryState>
+        )}
+        {pageView === 'list' && !sessionsQuery.isLoading && !sessionsQuery.error && (
           <div className="space-y-6">
             {/* Coach Personal Profile & Attendance Status Banner */}
             <Card className="bg-slate-900 text-white border-slate-800 p-4 shadow-lg">
@@ -505,7 +490,7 @@ export const CoachAttendancePage: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-xs text-slate-400 mt-0.5 font-medium">
-                      Specialization: <span className="font-semibold text-slate-200">{loggedInCoach.specialization || 'Sports Mentor'}</span> • Coach Attendance: <span className="font-bold text-emerald-400">100% Present</span>
+                      Categories: <span className="font-semibold text-slate-200">{loggedInCoach.specialization || 'None assigned yet'}</span>
                     </p>
                   </div>
                 </div>
@@ -513,7 +498,7 @@ export const CoachAttendancePage: React.FC = () => {
                   <div className="text-left sm:text-right">
                     <p className="text-[10px] uppercase font-bold text-slate-400">Today Attendance Status</p>
                     <p className="text-xs font-black text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Present (Auto-Logged)
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {dashboardQuery.data?.today.hasSession ? 'Session logged today' : 'No session logged yet today'}
                     </p>
                   </div>
                 </div>
@@ -528,7 +513,7 @@ export const CoachAttendancePage: React.FC = () => {
               </Card>
               <Card className="bg-emerald-50 border-emerald-200">
                 <p className="text-xs uppercase font-extrabold text-emerald-700">Participating Trainees</p>
-                <p className="text-2xl font-black text-emerald-900 mt-1">{INITIAL_STUDENTS.length} Trainees</p>
+                <p className="text-2xl font-black text-emerald-900 mt-1">{dashboardQuery.data?.studentCount ?? 0} Trainees</p>
               </Card>
               <Card className="bg-amber-50 border-amber-200">
                 <p className="text-xs uppercase font-extrabold text-amber-700">7-Day Edit Window</p>
@@ -560,7 +545,7 @@ export const CoachAttendancePage: React.FC = () => {
                     onChange={e => setCategoryFilter(e.target.value)}
                     options={[
                       { label: 'All Categories', value: 'ALL' },
-                      ...INITIAL_CATEGORIES.map(c => ({ label: c.title, value: c.title }))
+                      ...Array.from(new Set([...myCategories.map(c => c.name), ...reportsList.flatMap(r => r.categories)])).map(name => ({ label: name, value: name }))
                     ]}
                     className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
                   />
@@ -627,7 +612,7 @@ export const CoachAttendancePage: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                     {filteredReportsList.map(rep => {
-                      const canEdit = isEditableWithin7Days(rep.date);
+                      const canEdit = rep.canEdit ?? isEditableWithin7Days(rep.date);
                       const coachesList = rep.assignedCoaches && rep.assignedCoaches.length > 0
                         ? rep.assignedCoaches
                         : [rep.loggedByCoachName];
@@ -640,7 +625,7 @@ export const CoachAttendancePage: React.FC = () => {
                         >
                           <td className="py-3.5 px-4 font-bold text-slate-900">
                             {formatDate(rep.date)}
-                            <p className="text-[10px] text-slate-400 font-mono font-normal">{rep.id}</p>
+
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="flex flex-wrap gap-1">
@@ -788,13 +773,13 @@ export const CoachAttendancePage: React.FC = () => {
                       Select Categories (Required *):
                     </label>
                     <div className="flex flex-wrap gap-2.5">
-                      {INITIAL_CATEGORIES.map(cat => {
-                        const isSelected = selectedCategories.includes(cat.title);
+                      {myCategories.map(cat => {
+                        const isSelected = selectedCategories.includes(cat.name);
                         return (
                           <button
                             key={cat.id}
                             type="button"
-                            onClick={() => toggleCategory(cat.title)}
+                            onClick={() => toggleCategory(cat.name)}
                             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
                               isSelected
                                 ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
@@ -802,7 +787,7 @@ export const CoachAttendancePage: React.FC = () => {
                             }`}
                           >
                             {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
-                            {cat.title}
+                            {cat.name}
                           </button>
                         );
                       })}
@@ -863,6 +848,11 @@ export const CoachAttendancePage: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {availableCoaches.length === 0 && (
+                        <p className="text-[11px] text-slate-500 col-span-full">
+                          Coaches you have shared sessions with appear here. Ask the admin if another coach needs to be added to this session.
+                        </p>
+                      )}
                       {availableCoaches.map(c => {
                         const isChecked = selectedCoachIds.includes(c.id);
                         return (
@@ -887,9 +877,6 @@ export const CoachAttendancePage: React.FC = () => {
                                 />
                               </div>
                               <p className="text-[11px] text-blue-700 font-semibold truncate mt-0.5">{c.specialization || 'Sports Coach'}</p>
-                              <p className="text-[10px] text-slate-500 font-mono mt-1 flex items-center gap-1">
-                                📞 {formatPhoneNumber(c.phone)}
-                              </p>
                             </div>
                           </div>
                         );
@@ -914,7 +901,6 @@ export const CoachAttendancePage: React.FC = () => {
                                 {idx === 0 && <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded shrink-0">LEAD</span>}
                               </p>
                               <p className="text-[10px] text-slate-300 truncate">{c.specialization || 'Sports Coach'}</p>
-                              <p className="text-[10px] text-blue-400 font-mono mt-0.5">{formatPhoneNumber(c.phone)}</p>
                             </div>
                           </div>
                         ))}
@@ -969,7 +955,6 @@ export const CoachAttendancePage: React.FC = () => {
                             <div key={c.id} className="flex items-center gap-2 text-xs">
                               <img src={c.photo} alt={c.fullName} className="w-5 h-5 rounded-full object-cover shrink-0" />
                               <span className="font-extrabold text-slate-900 truncate">{c.fullName}</span>
-                              <span className="text-[10px] font-mono text-blue-600 truncate">{formatPhoneNumber(c.phone)}</span>
                             </div>
                           ))}
                         </div>
@@ -1257,7 +1242,7 @@ export const CoachAttendancePage: React.FC = () => {
                     <Button variant="outline" onClick={() => setActiveTab('session-form')} icon={<ArrowLeft className="w-4 h-4" />}>
                       Back to Session Form
                     </Button>
-                    <Button onClick={handleSubmitSession} icon={<CheckCircle2 className="w-4 h-4" />} className="bg-emerald-600 text-white hover:bg-emerald-700 font-extrabold px-6 py-2.5">
+                    <Button onClick={handleSubmitSession} isLoading={pending} icon={<CheckCircle2 className="w-4 h-4" />} className="bg-emerald-600 text-white hover:bg-emerald-700 font-extrabold px-6 py-2.5">
                       {editingReportId ? 'Update Session Attendance Report' : 'Submit Attendance & Session Report'}
                     </Button>
                   </div>
@@ -1275,10 +1260,10 @@ export const CoachAttendancePage: React.FC = () => {
                 <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
                   <FileText className="w-5 h-5 text-amber-500" /> Session Detail — {formatDate(selectedReportDetail.date)}
                 </h3>
-                <p className="text-xs text-slate-500">Log ID: {selectedReportDetail.id}</p>
+                <p className="text-xs text-slate-500">Logged by {selectedReportDetail.loggedByCoachName}</p>
               </div>
               <div className="flex items-center gap-2">
-                {isEditableWithin7Days(selectedReportDetail.date) ? (
+                {(selectedReportDetail.canEdit ?? isEditableWithin7Days(selectedReportDetail.date)) ? (
                   <Button size="sm" onClick={() => handleEditSession(selectedReportDetail)} icon={<Edit className="w-4 h-4" />}>
                     Edit Session
                   </Button>
@@ -1328,10 +1313,13 @@ export const CoachAttendancePage: React.FC = () => {
               </h3>
             }>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {INITIAL_COACHES.filter(c =>
-                  selectedReportDetail.assignedCoaches?.includes(c.fullName) ||
-                  c.fullName === selectedReportDetail.loggedByCoachName
-                ).map((coach, cIdx) => (
+                {(selectedReportDetail.coachRefs ?? []).map(ref => ({
+                  id: ref.id,
+                  fullName: ref.name,
+                  photo: avatarFor(ref.name),
+                  specialization: ref.isLead ? 'Lead Coach' : 'Co-Coach',
+                  phone: '',
+                })).map((coach, cIdx) => (
                   <div key={coach.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-3">
                     <img src={coach.photo} alt={coach.fullName} className="w-10 h-10 rounded-full object-cover border border-slate-300 shrink-0" />
                     <div className="flex-1 min-w-0 text-xs">
@@ -1342,7 +1330,7 @@ export const CoachAttendancePage: React.FC = () => {
                         )}
                       </div>
                       <p className="text-[11px] text-emerald-700 font-bold truncate">{coach.specialization || 'Sports Coach'}</p>
-                      <p className="text-[10px] font-mono text-blue-600 mt-0.5">{formatPhoneNumber(coach.phone)}</p>
+
                     </div>
                   </div>
                 ))}
@@ -1400,12 +1388,12 @@ export const CoachAttendancePage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                    {INITIAL_STUDENTS.slice(0, selectedReportDetail.attendanceCount || 6).map(st => {
-                      const stRec = selectedReportDetail.studentAttendance?.[st.id] || { status: 'Present', remarks: '' };
+                    {(selectedReportDetail.attendanceRows ?? []).map(st => {
+                      const stRec = st;
                       return (
-                        <tr key={st.id} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-3 font-bold text-slate-900">{st.fullName}</td>
-                          <td className="py-2.5 px-3 font-mono text-slate-400">{st.studentId}</td>
+                        <tr key={st.studentId} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3 font-bold text-slate-900">{st.studentName}</td>
+                          <td className="py-2.5 px-3 font-mono text-slate-400">{st.studentCode}</td>
                           <td className="py-2.5 px-3">
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                               stRec.status === 'Present' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
@@ -1517,13 +1505,13 @@ export const CoachAttendancePage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 font-semibold text-slate-800 text-[11px]">
-                  {INITIAL_STUDENTS.slice(0, selectedReportForPrint.attendanceCount || 6).map(st => {
-                    const stRec = selectedReportForPrint.studentAttendance?.[st.id] || { status: 'Present', remarks: '' };
+                  {(selectedReportForPrint.attendanceRows ?? []).map(st => {
+                    const stRec = st;
                     return (
-                      <tr key={st.id}>
-                        <td className="py-1.5 px-3 font-bold">{st.fullName}</td>
-                        <td className="py-1.5 px-3 font-mono text-slate-500">{st.studentId}</td>
-                        <td className="py-1.5 px-3 text-slate-600">{st.category || 'Academy'}</td>
+                      <tr key={st.studentId}>
+                        <td className="py-1.5 px-3 font-bold">{st.studentName}</td>
+                        <td className="py-1.5 px-3 font-mono text-slate-500">{st.studentCode}</td>
+                        <td className="py-1.5 px-3 text-slate-600">{selectedReportForPrint.categories.join(', ')}</td>
                         <td className="py-1.5 px-3 text-center font-bold">
                           <span className={`px-2 py-0.5 rounded text-[10px] ${
                             stRec.status === 'Present' ? 'bg-emerald-100 text-emerald-800' :

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -8,7 +9,12 @@ import { Select } from '../../components/ui/Select';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
 import { PlayerDevelopmentReportPDF } from '../../components/ui/PlayerDevelopmentReportPDF';
-import { INITIAL_COACHES, INITIAL_STUDENTS, INITIAL_SESSION_REPORTS, INITIAL_PERFORMANCE } from '../../mock-data/msrf-data';
+import { PlayerReportDetail } from '../../components/ui/PlayerReportDetail';
+import { QueryState } from '../../components/ui/QueryState';
+import { coachesApi, performanceApi, sessionsApi } from '../../api/endpoints';
+import { todayIso, toCoach, toPerformanceRecord, toPerformanceSummary, toSessionReport } from '../../api/mappers';
+import { avatarFor } from '../../api/photos';
+import { errorMessage } from '../../api/client';
 import { 
   FileText, 
   UserCheck, 
@@ -24,7 +30,7 @@ import logoImg from '../../assets/logo.png';
 
 export const ReportsCenterPage: React.FC = () => {
   const [reportCategory, setReportCategory] = useState<'session' | 'player'>('session');
-  const [selectedReport, setSelectedReport] = useState<DailyTrainingSessionReport | null>(INITIAL_SESSION_REPORTS[0]);
+  const [selectedReport, setSelectedReport] = useState<DailyTrainingSessionReport | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [pdfPrintModalOpen, setPdfPrintModalOpen] = useState(false);
 
@@ -34,54 +40,62 @@ export const ReportsCenterPage: React.FC = () => {
   const [pdfPlayerReportPrint, setPdfPlayerReportPrint] = useState<PerformanceRecord | null>(null);
 
   // Filters
-  const [startDate, setStartDate] = useState('2026-09-01');
-  const [endDate, setEndDate] = useState('2026-09-30');
+  // Default to the current month so far.
+  const [startDate, setStartDate] = useState(() => `${todayIso().slice(0, 8)}01`);
+  const [endDate, setEndDate] = useState(todayIso);
   const [coachFilter, setCoachFilter] = useState('ALL');
 
   const { addToast } = useNotifications();
 
-  // Filtered session reports
-  const filteredReports = INITIAL_SESSION_REPORTS.filter(r => {
-    const matchesCoach = coachFilter === 'ALL' || r.loggedByCoachName === coachFilter;
-    return matchesCoach;
-  });
+  const coachesQuery = useQuery({ queryKey: ['coaches'], queryFn: () => coachesApi.listAll() });
+  const coaches = (coachesQuery.data ?? []).map(toCoach);
+  const rangeQuery = {
+    dateFrom: startDate || undefined,
+    dateTo: endDate || undefined,
+    coachId: coachFilter === 'ALL' ? undefined : coachFilter,
+  };
+  const sessionsQuery = useQuery({ queryKey: ['sessions', rangeQuery], queryFn: () => sessionsApi.listAll(rangeQuery) });
+  const playerQuery = useQuery({ queryKey: ['performance-reports', rangeQuery], queryFn: () => performanceApi.listAll(rangeQuery) });
+  const activeQuery = reportCategory === 'session' ? sessionsQuery : playerQuery;
 
-  // Filtered player development reports
-  const filteredPlayerReports = INITIAL_PERFORMANCE.filter(p => {
-    const matchesCoach = coachFilter === 'ALL' || p.coachName === coachFilter;
-    return matchesCoach;
-  });
+  // Filtered (by the backend) session and player development reports
+  const filteredReports = (sessionsQuery.data ?? []).map(toSessionReport);
+  const filteredPlayerReports = (playerQuery.data ?? []).map(toPerformanceSummary);
 
-  const handlePrintPDF = (report: DailyTrainingSessionReport) => {
-    setSelectedReport(report);
-    setPdfPrintModalOpen(true);
+  // The lists carry summaries; load the full session / report before showing or printing it.
+  const withSession = async (report: DailyTrainingSessionReport, then: () => void) => {
+    try {
+      setSelectedReport(toSessionReport(await sessionsApi.get(report.id)));
+      then();
+    } catch (error) {
+      addToast({ type: 'error', title: 'Could not load session', message: errorMessage(error) });
+    }
+  };
+  const withPlayerReport = async (rec: PerformanceRecord, then: (full: PerformanceRecord) => void) => {
+    try {
+      then(toPerformanceRecord(await performanceApi.get(rec.id)));
+    } catch (error) {
+      addToast({ type: 'error', title: 'Could not load report', message: errorMessage(error) });
+    }
   };
 
-  const handleViewDetails = (report: DailyTrainingSessionReport) => {
-    setSelectedReport(report);
-    setViewModalOpen(true);
-  };
+  const handlePrintPDF = (report: DailyTrainingSessionReport) => withSession(report, () => setPdfPrintModalOpen(true));
+
+  const handleViewDetails = (report: DailyTrainingSessionReport) => withSession(report, () => setViewModalOpen(true));
 
   const getCoachesForReport = (rep: DailyTrainingSessionReport) => {
-    const leadCoach = INITIAL_COACHES.find(c => c.fullName === rep.loggedByCoachName) || {
-      id: 'lead-fallback',
-      fullName: rep.loggedByCoachName,
-      phone: '+91 98470 12345',
-      specialization: 'Head Football Coach',
-      photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'
-    };
-
-    const coCoaches = (rep.assignedCoaches || []).map(cName => {
-      return INITIAL_COACHES.find(c => c.fullName === cName || c.id === cName) || {
-        id: `co-fallback-${cName}`,
-        fullName: cName,
-        phone: '+91 94471 23456',
-        specialization: 'Assistant Coach',
-        photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300'
+    const refs = rep.coachRefs ?? [{ id: rep.loggedByCoachName, name: rep.loggedByCoachName, isLead: true }];
+    const allCoaches = refs.map(ref => {
+      const known = coaches.find(c => c.id === ref.id);
+      return {
+        id: ref.id,
+        fullName: ref.name,
+        phone: known?.phone ?? '—',
+        specialization: known?.specialization || (ref.isLead ? 'Lead Coach' : 'Co-Coach'),
+        photo: known?.photo ?? avatarFor(ref.name),
       };
     });
-
-    return { leadCoach, coCoaches, allCoaches: [leadCoach, ...coCoaches] };
+    return { leadCoach: allCoaches[0], coCoaches: allCoaches.slice(1), allCoaches };
   };
 
   return (
@@ -112,7 +126,7 @@ export const ReportsCenterPage: React.FC = () => {
               </div>
             </div>
             <Badge variant={reportCategory === 'session' ? 'active' : 'neutral'}>
-              {INITIAL_SESSION_REPORTS.length} Reports
+              {filteredReports.length} Reports
             </Badge>
           </div>
 
@@ -136,7 +150,7 @@ export const ReportsCenterPage: React.FC = () => {
               </div>
             </div>
             <Badge variant={reportCategory === 'player' ? 'active' : 'neutral'}>
-              {INITIAL_PERFORMANCE.length} Reports
+              {filteredPlayerReports.length} Reports
             </Badge>
           </div>
         </div>
@@ -169,7 +183,7 @@ export const ReportsCenterPage: React.FC = () => {
                 onChange={e => setCoachFilter(e.target.value)}
                 options={[
                   { label: 'All Coaches', value: 'ALL' },
-                  ...INITIAL_COACHES.map(c => ({ label: c.fullName, value: c.fullName }))
+                  ...coaches.map(c => ({ label: c.fullName, value: c.id }))
                 ]}
                 className="bg-slate-50 border-slate-300 rounded-xl h-10 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
               />
@@ -178,7 +192,9 @@ export const ReportsCenterPage: React.FC = () => {
         </Card>
 
         {/* SESSION REPORTS TABLE & DOWNLOAD SECTION */}
-        {reportCategory === 'session' ? (
+        {activeQuery.isLoading || activeQuery.error ? (
+          <QueryState isLoading={activeQuery.isLoading} error={activeQuery.error} onRetry={() => activeQuery.refetch()}>{null}</QueryState>
+        ) : reportCategory === 'session' ? (
           <Card header={<h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">Submitted Daily Training Session Reports</h3>}>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
@@ -201,7 +217,7 @@ export const ReportsCenterPage: React.FC = () => {
                     >
                       <td className="py-3.5 px-4 font-bold text-slate-900">
                         {formatDate(rep.date)}
-                        <p className="text-[10px] text-slate-400 font-mono font-normal">ID: {rep.id}</p>
+
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="flex flex-wrap gap-1">
@@ -276,15 +292,15 @@ export const ReportsCenterPage: React.FC = () => {
                   {filteredPlayerReports.map(rec => (
                     <tr 
                       key={rec.id} 
-                      onClick={() => { setSelectedPlayerReport(rec); setViewPlayerModalOpen(true); }}
+                      onClick={() => withPlayerReport(rec, full => { setSelectedPlayerReport(full); setViewPlayerModalOpen(true); })}
                       className="hover:bg-blue-50/50 cursor-pointer transition-colors"
                     >
                       <td className="py-3.5 px-4 font-extrabold text-slate-900">
                         {rec.studentName}
-                        <p className="text-[10px] text-slate-400 font-mono font-normal">ID: {rec.studentId}</p>
+
                       </td>
                       <td className="py-3.5 px-4 font-bold text-slate-800">
-                        {rec.position || 'Forward'}
+                        {rec.position || '—'}
                         <span className="ml-1.5 text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
                           {rec.strongFoot || 'Right'} Foot
                         </span>
@@ -309,7 +325,7 @@ export const ReportsCenterPage: React.FC = () => {
                         <div className="flex items-center justify-center gap-2" onClick={e => e.stopPropagation()}>
                           <button
                             type="button"
-                            onClick={() => setSelectedPlayerReport(rec)}
+                            onClick={() => withPlayerReport(rec, setSelectedPlayerReport)}
                             className="p-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
                             title="Print Player Report PDF"
                           >
@@ -343,33 +359,7 @@ export const ReportsCenterPage: React.FC = () => {
           size="xl"
         >
           <div className="space-y-4 text-xs">
-            <div className="bg-amber-400 p-4 rounded-xl text-slate-900 flex justify-between items-center font-black uppercase">
-              <div>
-                <h3 className="text-base">{selectedPlayerReport.studentName}</h3>
-                <p className="text-[10px] text-slate-900/80">
-                  Position: {selectedPlayerReport.position || 'Central Midfielder'} | Coach: {selectedPlayerReport.coachName}
-                </p>
-              </div>
-              <span className="bg-slate-900 text-white px-3 py-1 rounded-lg text-xs">
-                Rating: {selectedPlayerReport.overallRating || 5} / 5 ★
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-slate-800">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="font-extrabold text-slate-900 mb-1">PLAYER STRENGTHS</p>
-                <p className="whitespace-pre-line text-slate-700">{selectedPlayerReport.strengths}</p>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="font-extrabold text-slate-900 mb-1">AREAS FOR IMPROVEMENT</p>
-                <p className="whitespace-pre-line text-slate-700">{selectedPlayerReport.areasForImprovement}</p>
-              </div>
-            </div>
-
-            <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200">
-              <p className="font-extrabold text-blue-900 mb-1">COACH'S COMMENTS / SUMMARY</p>
-              <p className="italic text-blue-900">"{selectedPlayerReport.coachRemarks}" — {selectedPlayerReport.coachName}</p>
-            </div>
+            <PlayerReportDetail record={selectedPlayerReport} />
 
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
               <Button variant="outline" onClick={() => setViewPlayerModalOpen(false)}>Close</Button>
@@ -497,6 +487,55 @@ export const ReportsCenterPage: React.FC = () => {
               <p className="text-slate-900 font-bold mt-1">{selectedReport.fullSessionOverview}</p>
             </div>
 
+            {/* Trainee Attendance Breakdown */}
+            <div className="space-y-3">
+              <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                Trainee Attendance Breakdown ({selectedReport.attendanceRows?.length ?? 0} Players)
+              </h4>
+              {(selectedReport.attendanceRows ?? []).length === 0 ? (
+                <p className="text-xs text-slate-500">No trainee attendance was recorded for this session.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                        <th className="py-2.5 px-3 border-b border-slate-200">#</th>
+                        <th className="py-2.5 px-3 border-b border-slate-200">Player Name</th>
+                        <th className="py-2.5 px-3 border-b border-slate-200">ID</th>
+                        <th className="py-2.5 px-3 border-b border-slate-200">Category</th>
+                        <th className="py-2.5 px-3 border-b border-slate-200 text-center">Status</th>
+                        <th className="py-2.5 px-3 border-b border-slate-200">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                      {(selectedReport.attendanceRows ?? []).map((st, i) => (
+                        <tr key={st.studentId} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3 font-bold text-slate-400">{i + 1}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-900">{st.studentName}</td>
+                          <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px]">{st.studentCode}</td>
+                          <td className="py-2.5 px-3 text-slate-600">{selectedReport.categories.join(', ')}</td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                st.status === 'Present'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : st.status === 'Absent'
+                                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}
+                            >
+                              {st.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500">{st.remarks || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
               <Button variant="outline" onClick={() => setViewModalOpen(false)}>Close</Button>
               <Button onClick={() => { setViewModalOpen(false); setPdfPrintModalOpen(true); }} icon={<FileDown className="w-4 h-4" />}>
@@ -598,7 +637,7 @@ export const ReportsCenterPage: React.FC = () => {
             {/* Trainee Attendance Breakdown */}
             <div className="space-y-3 pt-2">
               <h3 className="font-black text-xs uppercase tracking-wider text-slate-900">
-                Trainee Attendance Breakdown ({INITIAL_STUDENTS.length} Players Registered)
+                Trainee Attendance Breakdown ({selectedReport.attendanceRows?.length ?? 0} Players)
               </h3>
               <div className="border-2 border-slate-200 rounded-lg overflow-hidden">
                 <table className="w-full text-left border-collapse text-xs">
@@ -613,14 +652,14 @@ export const ReportsCenterPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 font-medium text-slate-800">
-                    {INITIAL_STUDENTS.map((st, i) => {
-                      const status = i % 4 === 3 ? 'Absent' : i % 5 === 4 ? 'Informed' : 'Present';
+                    {(selectedReport.attendanceRows ?? []).map((st, i) => {
+                      const status = st.status;
                       return (
-                        <tr key={st.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                        <tr key={st.studentId} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                           <td className="py-2 px-3 font-bold text-slate-500">{i + 1}</td>
-                          <td className="py-2 px-3 font-extrabold text-slate-900">{st.fullName}</td>
-                          <td className="py-2 px-3 font-mono text-slate-500 text-[10px]">{st.studentId}</td>
-                          <td className="py-2 px-3 text-slate-600 font-semibold">{st.category || 'Football Excellence'}</td>
+                          <td className="py-2 px-3 font-extrabold text-slate-900">{st.studentName}</td>
+                          <td className="py-2 px-3 font-mono text-slate-500 text-[10px]">{st.studentCode}</td>
+                          <td className="py-2 px-3 text-slate-600 font-semibold">{selectedReport.categories.join(', ')}</td>
                           <td className="py-2 px-3 text-center">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-block ${
                               status === 'Present' 
@@ -633,7 +672,7 @@ export const ReportsCenterPage: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-2 px-3 text-slate-500 italic text-[11px]">
-                            {status === 'Informed' ? 'Informed coach via phone' : status === 'Absent' ? 'Unexcused' : 'Completed session'}
+                            {st.remarks || '—'}
                           </td>
                         </tr>
                       );

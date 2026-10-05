@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { Card } from '../../components/ui/Card';
@@ -9,13 +10,19 @@ import { Pagination } from '../../components/ui/Pagination';
 import { DeleteConfirmationModal } from '../../components/ui/DeleteConfirmationModal';
 import { StatusToggle } from '../../components/ui/StatusToggle';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { INITIAL_TRAINING_CENTERS } from '../../mock-data/msrf-data';
+import { QueryState } from '../../components/ui/QueryState';
+import { referenceApi } from '../../api/endpoints';
+import { toTrainingCenter, toApiStatus } from '../../api/mappers';
+import { useApiAction } from '../../api/hooks';
 import { TrainingCenterCMS } from '../../types';
 import { Plus, Trash2, Pencil, MapPin, Phone, User } from 'lucide-react';
-import { useNotifications } from '../../context/NotificationContext';
 
 export const TrainingCentersPage: React.FC = () => {
-  const [centers, setCenters] = useState<TrainingCenterCMS[]>(INITIAL_TRAINING_CENTERS);
+  const query = useQuery({ queryKey: ['training-centers'], queryFn: () => referenceApi.list('training-centers') });
+  const centers = (query.data ?? []).map(toTrainingCenter);
+  const { run } = useApiAction();
+  // Students' filter dropdowns and forms read these lists too.
+  const invalidate = [['training-centers'], ['students'], ['filter-options']];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('Active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
@@ -35,7 +42,6 @@ export const TrainingCentersPage: React.FC = () => {
     phone: ''
   });
 
-  const { addToast } = useNotifications();
 
   const filtered = centers.filter(c => {
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
@@ -64,44 +70,38 @@ export const TrainingCentersPage: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSaveCenter = (e: React.FormEvent) => {
+  const handleSaveCenter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
-
-    if (editingCenter) {
-      setCenters(prev =>
-        prev.map(c =>
-          c.id === editingCenter.id
-            ? { ...c, name: form.name, location: form.location, phone: form.phone }
-            : c
-        )
-      );
-      addToast({ type: 'success', title: 'Training Center Updated', message: form.name });
-    } else {
-      const newCenter: TrainingCenterCMS = {
-        id: `tc-${Date.now()}`,
-        name: form.name,
-        location: form.location || 'Kerala, India',
-        phone: form.phone,
-        status: 'Active',
-        createdAt: new Date().toISOString().slice(0, 10)
-      };
-      setCenters([newCenter, ...centers]);
-      addToast({ type: 'success', title: 'Training Center Added', message: newCenter.name });
-    }
-
-    setModalOpen(false);
+    const body = { name: form.name.trim(), location: form.location.trim(), phone: form.phone.trim() || null };
+    const ok = editingCenter
+      ? await run(() => referenceApi.update('training-centers', editingCenter.id, body), {
+          success: { title: 'Training Center Updated', message: body.name },
+          invalidate,
+        })
+      : await run(() => referenceApi.create('training-centers', body), {
+          success: { title: 'Training Center Added', message: body.name },
+          invalidate,
+        });
+    if (ok) setModalOpen(false);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
-    setCenters(prev => prev.map(c => (c.id === id ? { ...c, status: newStatus } : c)));
-    addToast({ type: 'info', title: 'Status Updated', message: `Training center status set to ${newStatus}` });
+    run(() => referenceApi.update('training-centers', id, { status: toApiStatus(newStatus) }), {
+      success: { type: 'info', title: 'Status Updated', message: `Training Center status set to ${newStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingCenter) return;
-    setCenters(prev => prev.filter(c => c.id !== deletingCenter.id));
-    addToast({ type: 'info', title: 'Center Removed', message: `"${deletingCenter.name}" removed.` });
+    const target = deletingCenter;
+    // The backend refuses (409) when students or coaches still use it; deactivate instead.
+    await run(() => referenceApi.remove('training-centers', target.id), {
+      success: { type: 'info', title: 'Training Center Removed', message: `"${target.name}" removed.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingCenter(null);
   };
 
@@ -136,7 +136,9 @@ export const TrainingCentersPage: React.FC = () => {
         ]}
       />
 
-      {filtered.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filtered.length === 0 ? (
         <EmptyState title="No Training Centers Found" description="No center records match your search." />
       ) : viewMode === 'list' ? (
         <Card className="p-0 overflow-hidden">

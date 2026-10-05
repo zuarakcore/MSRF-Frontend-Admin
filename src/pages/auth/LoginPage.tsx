@@ -1,38 +1,32 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, Shield, UserCheck } from 'lucide-react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { UserRole } from '../../types';
+import { errorMessage } from '../../api/client';
+import { authApi } from '../../api/endpoints';
 import logoImg from '../../assets/logo.png';
 
 export const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('admin@msrf.org');
-  const [password, setPassword] = useState('msrf2026admin#');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
-  const [selectedRole, setSelectedRole] = useState<UserRole>('SUPER_ADMIN');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [forgotModal, setForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
 
-  const { login } = useAuth();
+  const { login, isAuthenticated, role } = useAuth();
   const navigate = useNavigate();
 
-  const handleQuickFill = (role: UserRole) => {
-    setSelectedRole(role);
-    if (role === 'SUPER_ADMIN') {
-      setEmail('admin@msrf.org');
-      setPassword('msrf2026admin#');
-    } else {
-      setEmail('rajesh.varma@msrf.org');
-      setPassword('coach2026pass#');
-    }
-  };
+  if (isAuthenticated) {
+    return <Navigate to={role === 'SUPER_ADMIN' ? '/super-admin/dashboard' : '/coach/dashboard'} replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,23 +38,28 @@ export const LoginPage: React.FC = () => {
 
     setLoading(true);
     try {
-      await login(email, password, selectedRole);
-      setLoading(false);
-      if (selectedRole === 'SUPER_ADMIN') {
-        navigate('/super-admin/dashboard');
-      } else {
-        navigate('/coach/dashboard');
-      }
+      const signedInRole = await login(email.trim(), password);
+      navigate(signedInRole === 'SUPER_ADMIN' ? '/super-admin/dashboard' : '/coach/dashboard', { replace: true });
     } catch (err) {
+      setError(errorMessage(err, 'Invalid login credentials. Please try again.'));
+    } finally {
       setLoading(false);
-      setError('Invalid login credentials. Please try again.');
     }
   };
 
-  const handleForgotSubmit = (e: React.FormEvent) => {
+  const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail) return;
-    setForgotSent(true);
+    setForgotLoading(true);
+    setForgotError('');
+    try {
+      await authApi.forgotPassword(forgotEmail.trim());
+      setForgotSent(true);
+    } catch (err) {
+      setForgotError(errorMessage(err));
+    } finally {
+      setForgotLoading(false);
+    }
   };
 
   return (
@@ -79,26 +78,6 @@ export const LoginPage: React.FC = () => {
           <h1 className="text-xl font-black tracking-tight text-white uppercase">MALABAR CHALLENGERS</h1>
           <p className="text-xs text-slate-400 font-medium mt-1">Coaching & Management System</p>
 
-          <div className="mt-4 inline-flex p-1 bg-slate-900 rounded-xl border border-slate-800 text-xs">
-            <button
-              type="button"
-              onClick={() => handleQuickFill('SUPER_ADMIN')}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold transition-all ${
-                selectedRole === 'SUPER_ADMIN' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5" /> Super Admin
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill('COACH')}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold transition-all ${
-                selectedRole === 'COACH' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" /> Coach Portal
-            </button>
-          </div>
         </div>
 
         {/* Form Body */}
@@ -110,12 +89,13 @@ export const LoginPage: React.FC = () => {
           )}
 
           <Input
-            label="Email or Username"
+            label="Email"
             type="email"
             required
             value={email}
             onChange={e => setEmail(e.target.value)}
-            placeholder="admin@msrf.org"
+            placeholder="you@example.com"
+            autoComplete="username"
             icon={<Mail className="w-4 h-4 text-slate-400" />}
           />
 
@@ -138,6 +118,7 @@ export const LoginPage: React.FC = () => {
                 required
                 value={password}
                 onChange={e => setPassword(e.target.value)}
+                autoComplete="current-password"
                 className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-10 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="••••••••"
               />
@@ -152,19 +133,6 @@ export const LoginPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs">
-            <label className="flex items-center gap-2 font-medium text-slate-600 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={e => setRememberMe(e.target.checked)}
-                className="rounded text-blue-600 focus:ring-blue-500"
-              />
-              Remember session
-            </label>
-            <span className="text-slate-400 font-medium">Django JWT Ready</span>
-          </div>
-
           <Button
             type="submit"
             isLoading={loading}
@@ -173,19 +141,6 @@ export const LoginPage: React.FC = () => {
             Sign In to Dashboard
           </Button>
 
-          {/* Quick Credential Pre-fill Hint */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-[11px] text-slate-500">
-            <p className="font-semibold text-slate-700">Demo Testing Quick Fill:</p>
-            <div className="mt-1 flex justify-center gap-3 text-blue-600 font-semibold">
-              <button type="button" onClick={() => handleQuickFill('SUPER_ADMIN')} className="hover:underline">
-                Fill Admin Credentials
-              </button>
-              <span>•</span>
-              <button type="button" onClick={() => handleQuickFill('COACH')} className="hover:underline">
-                Fill Coach Credentials
-              </button>
-            </div>
-          </div>
         </form>
       </div>
 
@@ -195,6 +150,7 @@ export const LoginPage: React.FC = () => {
         onClose={() => {
           setForgotModal(false);
           setForgotSent(false);
+          setForgotError('');
         }}
         title="Reset Password"
       >
@@ -205,7 +161,7 @@ export const LoginPage: React.FC = () => {
             </div>
             <h4 className="text-sm font-bold text-slate-900">Password Reset Email Sent</h4>
             <p className="text-xs text-slate-600">
-              Check <b>{forgotEmail}</b> for instructions to reset your MSRF Coaching System credentials.
+              If <b>{forgotEmail}</b> belongs to an account, a reset link has been sent to it.
             </p>
             <Button onClick={() => setForgotModal(false)} size="sm" className="mt-2">
               Close
@@ -216,6 +172,7 @@ export const LoginPage: React.FC = () => {
             <p className="text-xs text-slate-600">
               Enter your registered email address and we will send you a reset link.
             </p>
+            {forgotError && <p className="text-xs font-semibold text-rose-600">{forgotError}</p>}
             <Input
               label="Email Address"
               type="email"
@@ -228,7 +185,7 @@ export const LoginPage: React.FC = () => {
               <Button type="button" variant="outline" onClick={() => setForgotModal(false)} size="sm">
                 Cancel
               </Button>
-              <Button type="submit" size="sm">
+              <Button type="submit" size="sm" isLoading={forgotLoading}>
                 Send Reset Link
               </Button>
             </div>

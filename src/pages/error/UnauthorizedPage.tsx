@@ -1,11 +1,11 @@
 import React from 'react';
-import { ShieldAlert, ArrowLeft, RefreshCw } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, LogIn } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export const UnauthorizedPage: React.FC = () => {
-  const { role, switchRole } = useAuth();
+  const { role, logout } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -43,14 +43,14 @@ export const UnauthorizedPage: React.FC = () => {
 
           <Button
             variant="primary"
-            onClick={() => {
-              switchRole('SUPER_ADMIN');
-              navigate('/super-admin/dashboard');
+            onClick={async () => {
+              await logout();
+              navigate('/login');
             }}
-            icon={<RefreshCw className="w-4 h-4" />}
+            icon={<LogIn className="w-4 h-4" />}
             className="w-full sm:w-auto"
           >
-            Switch to Super Admin
+            Sign in as another user
           </Button>
         </div>
       </div>

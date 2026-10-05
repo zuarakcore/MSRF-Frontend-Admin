@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { Card } from '../../components/ui/Card';
@@ -6,8 +7,22 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Tabs } from '../../components/ui/Tabs';
 import { Modal } from '../../components/ui/Modal';
-import { INITIAL_STUDENTS, INITIAL_PAYMENTS, INITIAL_INVOICES, INITIAL_PERFORMANCE, DEFAULT_15_CATEGORIES } from '../../mock-data/msrf-data';
-import { PerformanceRecord, Invoice, PaymentSubmission } from '../../types';
+import { DEFAULT_15_CATEGORIES } from '../../mock-data/msrf-data';
+import { PerformanceRecord, Invoice } from '../../types';
+import { QueryState } from '../../components/ui/QueryState';
+import { performanceApi, studentsApi } from '../../api/endpoints';
+import {
+  FEE_STATUS,
+  PAYMENT_MODE,
+  toDocument,
+  toPerformanceRecord,
+  toPerformanceSummary,
+  toReceiptInvoice,
+  toStudent,
+} from '../../api/mappers';
+import { useApiAction } from '../../api/hooks';
+import { errorMessage } from '../../api/client';
+import type { PaymentOut } from '../../api/types';
 import { PlayerDevelopmentReportPDF } from '../../components/ui/PlayerDevelopmentReportPDF';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { 
@@ -41,86 +56,26 @@ export const StudentProfilePage: React.FC = () => {
   const { addToast } = useNotifications();
   const [activeTab, setActiveTab] = useState('overview');
 
-  const student = INITIAL_STUDENTS.find(s => s.id === id) || INITIAL_STUDENTS[0];
-  const payments = INITIAL_PAYMENTS.filter(p => p.studentId === student.id || p.studentName === student.fullName);
-  const performances = INITIAL_PERFORMANCE.filter(p => p.studentId === student.id || p.studentName === student.fullName);
+  const enabled = Boolean(id);
+  const studentQuery = useQuery({ queryKey: ['students', id], queryFn: () => studentsApi.get(id!), enabled });
+  const attendanceQuery = useQuery({ queryKey: ['students', id, 'attendance'], queryFn: () => studentsApi.attendance(id!), enabled });
+  const [feeYear, setFeeYear] = useState(new Date().getFullYear());
+  const feesQuery = useQuery({ queryKey: ['students', id, 'fees', feeYear], queryFn: () => studentsApi.fees(id!, feeYear), enabled });
+  const paymentsQuery = useQuery({ queryKey: ['students', id, 'payments'], queryFn: () => studentsApi.payments(id!), enabled });
+  const reportsQuery = useQuery({ queryKey: ['students', id, 'performance-reports'], queryFn: () => studentsApi.performanceReports(id!), enabled });
+  const docsQuery = useQuery({ queryKey: ['students', id, 'documents'], queryFn: () => studentsApi.documents(id!), enabled });
+  const { run, pending } = useApiAction();
 
-  // Dynamically derive complete list of invoices (paid fee receipts & issued invoices) for student
-  const invoices: Invoice[] = (() => {
-    const directInvoices = INITIAL_INVOICES.filter(
-      i => i.studentId === student.id || i.studentName === student.fullName
-    );
-
-    const paymentInvoices: Invoice[] = payments.map((p, idx) => ({
-      id: `inv-pay-${p.id}`,
-      invoiceNumber: `MSRF-INV-PAID-${p.submissionNo || `2026-${String(idx + 100).padStart(3, '0')}`}`,
-      studentId: student.id,
-      studentName: student.fullName,
-      parentName: student.parentName,
-      parentPhone: student.parentPhone,
-      course: p.course || student.category || 'Football Excellence',
-      issueDate: p.paymentDate || (p.submittedDate ? p.submittedDate.slice(0, 10) : '2026-09-20'),
-      dueDate: p.paymentDate || (p.submittedDate ? p.submittedDate.slice(0, 10) : '2026-09-20'),
-      subtotal: p.amount,
-      discount: 0,
-      taxAmount: 0,
-      totalAmount: p.amount,
-      paidAmount: p.status === 'Verified' ? p.amount : 0,
-      balanceDue: p.status === 'Verified' ? 0 : p.amount,
-      paymentStatus: p.status === 'Verified' ? 'Paid' : 'Pending',
-      items: [
-        {
-          id: `item-pay-${p.id}`,
-          description: `Fee Payment Receipt (${p.course || student.category || 'Sports Academy'})`,
-          period: 'Monthly Fee Payment',
-          amount: p.amount
-        }
-      ]
-    }));
-
-    const combined = [...directInvoices];
-    paymentInvoices.forEach(pInv => {
-      if (!combined.some(c => c.invoiceNumber === pInv.invoiceNumber || c.id === pInv.id)) {
-        combined.push(pInv);
-      }
-    });
-
-    if (combined.length === 0 && student.paidAmount > 0) {
-      combined.push({
-        id: `inv-auto-paid-${student.id}`,
-        invoiceNumber: `MSRF-INV-2026-${student.id.replace(/\D/g, '').padStart(3, '0')}-PAID`,
-        studentId: student.id,
-        studentName: student.fullName,
-        parentName: student.parentName,
-        parentPhone: student.parentPhone,
-        course: student.category || 'Football Excellence',
-        issueDate: student.admissionDate || '2026-09-01',
-        dueDate: student.admissionDate || '2026-09-01',
-        subtotal: student.paidAmount + (student.discountAmount || 0),
-        discount: student.discountAmount || 0,
-        taxAmount: 0,
-        totalAmount: student.paidAmount,
-        paidAmount: student.paidAmount,
-        balanceDue: 0,
-        paymentStatus: 'Paid',
-        items: [
-          {
-            id: `item-auto-1-${student.id}`,
-            description: `Official Fee Payment Receipt (${student.category || 'Sports Academy'})`,
-            period: 'Academic Session 2026',
-            amount: student.paidAmount
-          }
-        ]
-      });
-    }
-
-    return combined;
-  })();
+  const student = studentQuery.data ? toStudent(studentQuery.data) : null;
+  const payments: PaymentOut[] = paymentsQuery.data ?? [];
+  const performances = (reportsQuery.data ?? []).map(toPerformanceSummary);
+  const docs = (docsQuery.data ?? []).map(toDocument);
+  const attendanceItems = [...(attendanceQuery.data?.items ?? [])].sort((a, b) => b.date.localeCompare(a.date));
 
   // Document upload state
-  const [docs, setDocs] = useState(student.documents);
   const [docModal, setDocModal] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState('');
+  const [newDocFile, setNewDocFile] = useState<File | null>(null);
   const [pdfModal, setPdfModal] = useState(false);
 
   // Performance detail view state
@@ -133,104 +88,61 @@ export const StudentProfilePage: React.FC = () => {
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [pdfInvoicePrint, setPdfInvoicePrint] = useState<Invoice | null>(null);
 
-  const handleViewMonthInvoice = (monthName: string, amount: number, paidDate: string) => {
-    const existingInv = invoices.find(i => i.items.some(item => item.period.includes(monthName)));
-    if (existingInv) {
-      setSelectedInvoice(existingInv);
-    } else {
-      const monthInvoice: Invoice = {
-        id: `inv-month-${student.id}-${monthName.replace(/\s+/g, '-')}`,
-        invoiceNumber: `MSRF-INV-${monthName.slice(0, 3).toUpperCase()}-2026-${student.id.replace(/\D/g, '').padStart(3, '0')}`,
-        studentId: student.id,
-        studentName: student.fullName,
-        parentName: student.parentName,
-        parentPhone: student.parentPhone,
-        course: student.category || 'Sports Academy',
-        issueDate: paidDate && paidDate !== '-' ? paidDate : '2026-01-10',
-        dueDate: paidDate && paidDate !== '-' ? paidDate : '2026-01-10',
-        subtotal: amount,
-        discount: 0,
-        taxAmount: 0,
-        totalAmount: amount,
-        paidAmount: amount,
-        balanceDue: 0,
-        paymentStatus: 'Paid',
-        items: [
-          {
-            id: `item-${monthName}`,
-            description: `Monthly Fee Payment (${student.category || 'Academy'})`,
-            period: monthName,
-            amount: amount
-          }
-        ]
-      };
-      setSelectedInvoice(monthInvoice);
+  // Receipts come from the backend (one per payment, listing the months it covered).
+  const openReceipt = (payment: PaymentOut | undefined) => {
+    if (!payment) {
+      addToast({ type: 'info', title: 'Receipt not found', message: 'The payment for this month could not be found.' });
+      return;
     }
+    setSelectedInvoice(toReceiptInvoice(payment, student?.category));
     setInvoiceModalOpen(true);
   };
+  const handleViewMonthInvoice = (paymentId: string) => openReceipt(payments.find(p => p.id === paymentId));
 
-  const handleViewPaymentInvoice = (p: PaymentSubmission) => {
-    const existingInv = invoices.find(i => i.id === `inv-pay-${p.id}`);
-    if (existingInv) {
-      setSelectedInvoice(existingInv);
-    } else {
-      const payInvoice: Invoice = {
-        id: `inv-pay-${p.id}`,
-        invoiceNumber: `MSRF-INV-PAID-${p.submissionNo || `2026-${student.id.slice(-3)}`}`,
-        studentId: student.id,
-        studentName: student.fullName,
-        parentName: student.parentName,
-        parentPhone: student.parentPhone,
-        course: p.course || student.category || 'Football Excellence',
-        issueDate: p.paymentDate || (p.submittedDate ? p.submittedDate.slice(0, 10) : '2026-09-20'),
-        dueDate: p.paymentDate || (p.submittedDate ? p.submittedDate.slice(0, 10) : '2026-09-20'),
-        subtotal: p.amount,
-        discount: 0,
-        taxAmount: 0,
-        totalAmount: p.amount,
-        paidAmount: p.status === 'Verified' ? p.amount : 0,
-        balanceDue: p.status === 'Verified' ? 0 : p.amount,
-        paymentStatus: p.status === 'Verified' ? 'Paid' : 'Pending',
-        items: [
-          {
-            id: `item-pay-${p.id}`,
-            description: `Fee Payment Receipt (${p.course || student.category || 'Sports Academy'})`,
-            period: 'Monthly Fee Payment',
-            amount: p.amount
-          }
-        ]
-      };
-      setSelectedInvoice(payInvoice);
+  // Open a report: the list only has the summary, so load the full 15-skill evaluation.
+  const openReport = async (summary: PerformanceRecord, then: (full: PerformanceRecord) => void) => {
+    try {
+      then(toPerformanceRecord(await performanceApi.get(summary.id)));
+    } catch (error) {
+      addToast({ type: 'error', title: 'Could not load report', message: errorMessage(error) });
     }
-    setInvoiceModalOpen(true);
   };
 
   const handleDeleteDoc = (docId: string, title: string) => {
-    setDocs(prev => prev.filter(d => d.id !== docId));
-    addToast({ type: 'info', title: 'Document Removed', message: `"${title}" has been deleted.` });
+    run(() => studentsApi.removeDocument(id!, docId), {
+      success: { type: 'info', title: 'Document Removed', message: `"${title}" has been deleted.` },
+      errorTitle: 'Could not delete document',
+      invalidate: [['students', id, 'documents']],
+    });
   };
 
   const handleDownloadPDF = () => {
     setPdfModal(true);
   };
 
-  const handleUploadDoc = (e: React.FormEvent) => {
+  const handleUploadDoc = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDocTitle) return;
-    const newDoc = {
-      id: `doc-${Date.now()}`,
-      title: newDocTitle,
-      fileName: `${newDocTitle.toLowerCase().replace(/\s+/g, '_')}.pdf`,
-      fileType: 'PDF' as const,
-      fileSize: '1.4 MB',
-      uploadedDate: new Date().toISOString().slice(0, 10),
-      url: '#'
-    };
-    setDocs([...docs, newDoc]);
+    if (!newDocTitle.trim() || !newDocFile) return;
+    const ok = await run(() => studentsApi.addDocument(id!, newDocTitle.trim(), newDocFile), {
+      success: { title: 'Document Uploaded', message: `${newDocTitle.trim()} added to profile.` },
+      errorTitle: 'Upload failed',
+      invalidate: [['students', id, 'documents']],
+    });
+    if (!ok) return;
     setNewDocTitle('');
+    setNewDocFile(null);
     setDocModal(false);
-    addToast({ type: 'success', title: 'Document Uploaded', message: `${newDoc.title} added to profile.` });
   };
+
+  if (!student) {
+    return (
+      <LayoutShell title="Student Profile" breadcrumb={[{ label: 'Students', path: '/super-admin/students' }, { label: 'Profile' }]}>
+        <QueryState isLoading={studentQuery.isLoading} error={studentQuery.error} onRetry={() => studentQuery.refetch()}>
+          {null}
+        </QueryState>
+      </LayoutShell>
+    );
+  }
 
   return (
     <LayoutShell
@@ -281,16 +193,16 @@ export const StudentProfilePage: React.FC = () => {
               
               <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-slate-300">
                 <span className="flex items-center gap-1 font-semibold text-rose-300">
-                  Blood Group: {student.bloodGroup || 'O+'}
+                  Blood Group: {student.bloodGroup || '—'}
                 </span>
                 <span className="flex items-center gap-1 font-semibold text-blue-300">
-                  Category: {student.category || 'Football Academy'}
+                  Category: {student.category || '—'}
                 </span>
                 <span className="flex items-center gap-1 font-semibold text-indigo-300">
-                  Program: {student.programType || 'Day Scholar Program'}
+                  Program: {student.programType || '—'}
                 </span>
                 <span className="flex items-center gap-1 font-semibold text-emerald-300">
-                  Center: {student.trainingCenter || 'Kozhikode Main Campus'}
+                  Center: {student.trainingCenter || '—'}
                 </span>
                 <span className="flex items-center gap-1 text-slate-300">
                   <Phone className="w-4 h-4 text-slate-400" /> {student.phone}
@@ -333,7 +245,7 @@ export const StudentProfilePage: React.FC = () => {
               </div>
               <div className="grid grid-cols-2">
                 <span className="text-slate-400">Blood Group:</span>
-                <span className="font-bold text-rose-600">{student.bloodGroup || 'O+'}</span>
+                <span className="font-bold text-rose-600">{student.bloodGroup || '—'}</span>
               </div>
               <div className="grid grid-cols-2">
                 <span className="text-slate-400">Gender:</span>
@@ -370,15 +282,15 @@ export const StudentProfilePage: React.FC = () => {
               </div>
               <div className="grid grid-cols-2">
                 <span className="text-slate-400">Category:</span>
-                <span className="font-bold text-blue-600">{student.category || 'Football Academy'}</span>
+                <span className="font-bold text-blue-600">{student.category || '—'}</span>
               </div>
               <div className="grid grid-cols-2">
                 <span className="text-slate-400">Program Type:</span>
-                <span className="font-semibold text-indigo-700">{student.programType || 'Day Scholar Program'}</span>
+                <span className="font-semibold text-indigo-700">{student.programType || '—'}</span>
               </div>
               <div className="grid grid-cols-2">
                 <span className="text-slate-400">Training Center:</span>
-                <span className="font-bold text-slate-900">{student.trainingCenter || 'Kozhikode Main Campus'}</span>
+                <span className="font-bold text-slate-900">{student.trainingCenter || '—'}</span>
               </div>
             </div>
           </Card>
@@ -430,7 +342,7 @@ export const StudentProfilePage: React.FC = () => {
             <Card className="bg-emerald-50 border-emerald-200 text-emerald-900">
               <p className="text-xs uppercase font-bold text-emerald-700">Attendance Rating</p>
               <p className="text-3xl font-black mt-1">{student.attendancePercentage}%</p>
-              <p className="text-xs text-emerald-700 mt-1">Excellent performance record</p>
+              <p className="text-xs text-emerald-700 mt-1">{attendanceQuery.data?.summary.total ?? 0} sessions recorded</p>
             </Card>
             <Card className="bg-blue-50 border-blue-200 text-blue-900">
               <p className="text-xs uppercase font-bold text-blue-700">Days Present</p>
@@ -444,20 +356,22 @@ export const StudentProfilePage: React.FC = () => {
 
           <Card header={<h3 className="font-bold text-slate-900 text-sm">Recent Attendance History</h3>}>
             <div className="space-y-2">
-              {[
-                { date: '2026-09-22', status: 'Present', remarks: 'On time. Completed 20x50m freestyle laps.' },
-                { date: '2026-09-20', status: 'Present', remarks: 'Good stamina.' },
-                { date: '2026-09-18', status: 'Present', remarks: 'Participated in tactical drill.' },
-                { date: '2026-09-15', status: 'Absent', remarks: 'Prior permission requested for medical rest.' },
-                { date: '2026-09-13', status: 'Present', remarks: 'Full session completed.' }
-              ].map((rec, i) => (
-                <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+              {attendanceItems.length === 0 && (
+                <p className="text-xs text-slate-500 text-center py-6">
+                  {attendanceQuery.isLoading ? 'Loading attendance…' : attendanceQuery.error ? errorMessage(attendanceQuery.error) : 'No attendance recorded yet.'}
+                </p>
+              )}
+              {attendanceItems.slice(0, 50).map(rec => (
+                <div key={rec.sessionId} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
                   <div>
                     <span className="font-bold text-slate-900">{formatDate(rec.date)}</span>
-                    <p className="text-slate-500 mt-0.5">{rec.remarks}</p>
+                    <p className="text-slate-500 mt-0.5">
+                      {rec.categories.join(', ')} • Coach {rec.coachName}
+                      {rec.remarks ? ` • ${rec.remarks}` : ''}
+                    </p>
                   </div>
-                  <Badge variant={rec.status === 'Present' ? 'active' : 'suspended'}>
-                    {rec.status}
+                  <Badge variant={rec.status === 'PRESENT' ? 'active' : rec.status === 'INFORMED' ? 'pending' : 'suspended'}>
+                    {rec.status === 'PRESENT' ? 'Present' : rec.status === 'INFORMED' ? 'Informed' : 'Absent'}
                   </Badge>
                 </div>
               ))}
@@ -468,42 +382,29 @@ export const StudentProfilePage: React.FC = () => {
 
       {/* Tab 3: Fees */}
       {activeTab === 'fees' && (() => {
-        const monthlyFee = student.monthlyFee || Math.round((student.totalFee || 24000) / 12) || 2000;
-        const totalCourseFee = student.totalFee || (monthlyFee * 12);
-        const paidMonthsCount = Math.min(12, Math.floor((student.paidAmount || 0) / monthlyFee));
-
-        const monthsList = [
-          { name: 'January 2026', short: 'Jan 2026', code: '2026-01', monthNo: 1 },
-          { name: 'February 2026', short: 'Feb 2026', code: '2026-02', monthNo: 2 },
-          { name: 'March 2026', short: 'Mar 2026', code: '2026-03', monthNo: 3 },
-          { name: 'April 2026', short: 'Apr 2026', code: '2026-04', monthNo: 4 },
-          { name: 'May 2026', short: 'May 2026', code: '2026-05', monthNo: 5 },
-          { name: 'June 2026', short: 'Jun 2026', code: '2026-06', monthNo: 6 },
-          { name: 'July 2026', short: 'Jul 2026', code: '2026-07', monthNo: 7 },
-          { name: 'August 2026', short: 'Aug 2026', code: '2026-08', monthNo: 8 },
-          { name: 'September 2026', short: 'Sep 2026', code: '2026-09', monthNo: 9 },
-          { name: 'October 2026', short: 'Oct 2026', code: '2026-10', monthNo: 10 },
-          { name: 'November 2026', short: 'Nov 2026', code: '2026-11', monthNo: 11 },
-          { name: 'December 2026', short: 'Dec 2026', code: '2026-12', monthNo: 12 },
-        ];
+        const monthlyFee = feesQuery.data?.monthlyFee ?? student.monthlyFee ?? 0;
+        const ledgerMonths = feesQuery.data?.months ?? [];
+        const yearDue = ledgerMonths.reduce((t, m) => t + m.amountDue - m.discount, 0);
+        const paidMonthsCount = ledgerMonths.filter(m => m.status === 'PAID').length;
+        const unpaidMonthsCount = ledgerMonths.length - paidMonthsCount;
 
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <Card>
-                <p className="text-xs uppercase font-bold text-slate-400">Total Course Fee</p>
-                <p className="text-xl font-black text-slate-900 mt-1">{formatCurrency(totalCourseFee)}</p>
+                <p className="text-xs uppercase font-bold text-slate-400">Fees Due To Date</p>
+                <p className="text-xl font-black text-slate-900 mt-1">{formatCurrency(student.totalFee)}</p>
                 <p className="text-[11px] text-slate-500 font-medium mt-0.5">{formatCurrency(monthlyFee)} / month</p>
               </Card>
               <Card>
                 <p className="text-xs uppercase font-bold text-slate-400">Total Paid</p>
                 <p className="text-xl font-black text-emerald-600 mt-1">{formatCurrency(student.paidAmount)}</p>
-                <p className="text-[11px] text-emerald-600 font-medium mt-0.5">{paidMonthsCount} of 12 Months Paid</p>
+                <p className="text-[11px] text-emerald-600 font-medium mt-0.5">{paidMonthsCount} of {ledgerMonths.length} months paid in {feeYear}</p>
               </Card>
               <Card>
                 <p className="text-xs uppercase font-bold text-slate-400">Pending Amount</p>
                 <p className="text-xl font-black text-rose-600 mt-1">{formatCurrency(student.pendingAmount)}</p>
-                <p className="text-[11px] text-rose-500 font-medium mt-0.5">{12 - paidMonthsCount} Months Remaining</p>
+                <p className="text-[11px] text-rose-500 font-medium mt-0.5">{unpaidMonthsCount} unpaid months in {feeYear}</p>
               </Card>
               <Card>
                 <p className="text-xs uppercase font-bold text-slate-400">Fee Status</p>
@@ -520,11 +421,21 @@ export const StudentProfilePage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 w-full">
                   <div>
                     <h3 className="font-bold text-slate-900 text-sm">Month-wise Payment Schedule</h3>
-                    <p className="text-[11px] text-slate-500">Monthly Fee: {formatCurrency(monthlyFee)}/month • Due on 10th of each month</p>
+                    <p className="text-[11px] text-slate-500">Monthly Fee: {formatCurrency(monthlyFee)}/month • {formatCurrency(yearDue)} billed in {feeYear}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <select
+                      value={feeYear}
+                      onChange={e => setFeeYear(Number(e.target.value))}
+                      className="bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold"
+                    >
+                      {[0, 1, 2].map(back => {
+                        const y = new Date().getFullYear() - back;
+                        return <option key={y} value={y}>{y}</option>;
+                      })}
+                    </select>
                     <span className="text-xs bg-emerald-50 text-emerald-700 font-bold px-3 py-1 rounded-lg border border-emerald-200">
-                      {paidMonthsCount} / 12 Paid
+                      {paidMonthsCount} / {ledgerMonths.length} Paid
                     </span>
                   </div>
                 </div>
@@ -543,37 +454,49 @@ export const StudentProfilePage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                    {monthsList.map((m, idx) => {
-                      const isPaid = idx < paidMonthsCount;
-                      // September 2026 is month index 8
-                      const isPastUnpaid = !isPaid && idx < 8;
-                      const status = isPaid ? 'Paid' : isPastUnpaid ? 'Overdue' : 'Pending';
-                      const dueDate = `${m.code}-10`;
-                      const paidDate = isPaid ? `${m.code}-08` : '-';
-
+                    {ledgerMonths.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-slate-400">
+                          {feesQuery.isLoading ? 'Loading fee ledger…' : feesQuery.error ? errorMessage(feesQuery.error) : `No fees billed in ${feeYear}.`}
+                        </td>
+                      </tr>
+                    )}
+                    {ledgerMonths.map(m => {
+                      const status = FEE_STATUS[m.status];
+                      const lastPayment = m.payments[m.payments.length - 1];
                       return (
-                        <tr key={m.code} className="hover:bg-slate-50/80 transition-colors">
+                        <tr key={m.ledgerEntryId} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3 px-3 font-bold text-slate-900">
-                            Month {m.monthNo} ({m.name})
+                            {m.label}
+                            {m.discount > 0 && (
+                              <p className="text-[10px] font-medium text-emerald-700">
+                                Discount {formatCurrency(m.discount)}{m.discountReason ? ` — ${m.discountReason}` : ''}
+                              </p>
+                            )}
                           </td>
-                          <td className="py-3 px-3 font-bold text-slate-800">{formatCurrency(monthlyFee)}</td>
-                          <td className="py-3 px-3 text-slate-500 font-mono">{dueDate}</td>
-                          <td className="py-3 px-3 font-mono text-emerald-700">{paidDate}</td>
+                          <td className="py-3 px-3 font-bold text-slate-800">
+                            {formatCurrency(m.amountDue)}
+                            {m.outstanding > 0 && m.amountPaid > 0 && (
+                              <p className="text-[10px] font-medium text-rose-600">{formatCurrency(m.outstanding)} outstanding</p>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-slate-500 font-mono">{m.dueDate}</td>
+                          <td className="py-3 px-3 font-mono text-emerald-700">{lastPayment?.paidOn ?? '-'}</td>
                           <td className="py-3 px-3">
-                            <Badge variant={isPaid ? 'paid' : isPastUnpaid ? 'overdue' : 'pending'}>
-                              {status}
+                            <Badge variant={m.status === 'PAID' ? 'paid' : m.status === 'OVERDUE' ? 'overdue' : m.amountPaid > 0 ? 'partially-paid' : 'pending'}>
+                              {m.status !== 'PAID' && m.amountPaid > 0 ? 'Partially Paid' : status}
                             </Badge>
                           </td>
                           <td className="py-3 px-3 text-right">
-                            {isPaid ? (
+                            {lastPayment ? (
                               <Button
                                 size="sm"
                                 variant="outline"
                                 icon={<FileText className="w-3 h-3 text-blue-600" />}
-                                onClick={() => handleViewMonthInvoice(m.name, monthlyFee, paidDate)}
+                                onClick={() => handleViewMonthInvoice(lastPayment.paymentId)}
                                 className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 font-bold text-[11px] py-1 px-2.5"
                               >
-                                Invoice
+                                Receipt
                               </Button>
                             ) : (
                               <span className="text-slate-300 font-mono text-[11px]">—</span>
@@ -592,31 +515,36 @@ export const StudentProfilePage: React.FC = () => {
 
       {/* Tab 4: Payments */}
       {activeTab === 'payments' && (
-        <Card header={<h3 className="font-bold text-slate-900 text-sm">Submitted Payments</h3>}>
+        <Card header={<h3 className="font-bold text-slate-900 text-sm">Payments & Receipts</h3>}>
           {payments.length === 0 ? (
-            <p className="text-xs text-slate-500 text-center py-6">No online payment submissions recorded for this student.</p>
+            <p className="text-xs text-slate-500 text-center py-6">
+              {paymentsQuery.isLoading ? 'Loading payments…' : paymentsQuery.error ? errorMessage(paymentsQuery.error) : 'No payments recorded for this student.'}
+            </p>
           ) : (
             <div className="space-y-3">
               {payments.map(p => (
                 <div key={p.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
                   <div>
-                    <p className="font-bold text-slate-900">{p.submissionNo} • {formatCurrency(p.amount)}</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Transaction ID: {p.transactionId}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Submitted: {p.submittedDate}</p>
+                    <p className="font-bold text-slate-900">{p.receiptNumber} • {formatCurrency(p.amount)}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {PAYMENT_MODE[p.mode]}{p.reference ? ` • Ref ${p.reference}` : ''} • {p.allocations.map(a => a.label).join(', ')}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Paid: {formatDate(p.paidOn)}{p.source === 'SUBMISSION' ? ' • from parent submission' : ''}{p.recordedBy ? ` • recorded by ${p.recordedBy}` : ''}
+                    </p>
+                    {p.status === 'VOIDED' && <p className="text-[10px] text-rose-600 mt-1">Voided: {p.voidReason}</p>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={p.status === 'Verified' ? 'verified' : p.status === 'Rejected' ? 'rejected' : 'pending-verification'}>
-                      {p.status}
-                    </Badge>
-                    {(p.status === 'Verified' || student.paidAmount > 0) && (
+                    <Badge variant={p.status === 'VALID' ? 'verified' : 'rejected'}>{p.status === 'VALID' ? 'Valid' : 'Voided'}</Badge>
+                    {p.status === 'VALID' && (
                       <Button
                         size="sm"
                         variant="outline"
                         icon={<FileText className="w-3.5 h-3.5 text-blue-600" />}
-                        onClick={() => handleViewPaymentInvoice(p)}
+                        onClick={() => openReceipt(p)}
                         className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 font-bold text-[11px] py-1 px-2.5"
                       >
-                        Invoice
+                        Receipt
                       </Button>
                     )}
                   </div>
@@ -667,16 +595,16 @@ export const StudentProfilePage: React.FC = () => {
                     {performances.map(rec => (
                       <tr 
                         key={rec.id} 
-                        onClick={() => { setSelectedPerfRecord(rec); setPerfDetailModalOpen(true); }}
+                        onClick={() => openReport(rec, full => { setSelectedPerfRecord(full); setPerfDetailModalOpen(true); })}
                         className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
                         title="Click to view complete 15-skill evaluation report"
                       >
                         <td className="py-3.5 px-4 font-extrabold text-slate-900">
                           {rec.monthYear || rec.reportPeriod || 'Monthly Evaluation'}
-                          <p className="text-[10px] text-slate-400 font-mono font-normal">Report ID: {rec.id}</p>
+
                         </td>
                         <td className="py-3.5 px-4 font-bold text-slate-800">
-                          {rec.position || 'Central Midfielder'}
+                          {rec.position || '—'}
                           <span className="ml-2 text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200 font-extrabold">
                             {rec.strongFoot || 'Right'} Foot
                           </span>
@@ -701,7 +629,7 @@ export const StudentProfilePage: React.FC = () => {
                           <div className="flex items-center justify-center gap-2" onClick={e => e.stopPropagation()}>
                             <button
                               type="button"
-                              onClick={() => { setSelectedPerfRecord(rec); setPerfDetailModalOpen(true); }}
+                              onClick={() => openReport(rec, full => { setSelectedPerfRecord(full); setPerfDetailModalOpen(true); })}
                               className="p-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1 font-bold text-[11px]"
                               title="View Full Report Details"
                             >
@@ -710,7 +638,7 @@ export const StudentProfilePage: React.FC = () => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setPdfPerfPrintRecord(rec)}
+                              onClick={() => openReport(rec, setPdfPerfPrintRecord)}
                               className="p-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
                               title="Print / Export PDF"
                             >
@@ -741,6 +669,11 @@ export const StudentProfilePage: React.FC = () => {
           }
         >
           <div className="space-y-3">
+            {docs.length === 0 && (
+              <p className="text-xs text-slate-500 text-center py-6">
+                {docsQuery.isLoading ? 'Loading documents…' : docsQuery.error ? errorMessage(docsQuery.error) : 'No documents uploaded yet.'}
+              </p>
+            )}
             {docs.map(doc => (
               <div key={doc.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-3">
@@ -753,9 +686,14 @@ export const StudentProfilePage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" icon={<Download className="w-4 h-4 text-blue-600" />} onClick={() => addToast({ type: 'info', title: 'Download Triggered', message: `Downloading ${doc.fileName}` })}>
-                    Download
-                  </Button>
+                  <a
+                    href={doc.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    <Download className="w-4 h-4 text-blue-600" /> Download
+                  </a>
                   <Button variant="ghost" size="sm" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-4 h-4" />} onClick={() => handleDeleteDoc(doc.id, doc.title)} title="Delete Document" />
                 </div>
               </div>
@@ -778,12 +716,19 @@ export const StudentProfilePage: React.FC = () => {
               className="w-full border border-slate-300 rounded-lg p-2 text-sm"
             />
           </div>
-          <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center text-xs text-slate-500">
-            Click or drag PDF / Image file here to simulate upload
+          <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-xs text-slate-500">
+            <input
+              type="file"
+              required
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              onChange={e => setNewDocFile(e.target.files?.[0] ?? null)}
+              className="w-full text-xs text-slate-600"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">PDF, DOC, DOCX, JPEG or PNG, up to 10 MB.</p>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setDocModal(false)}>Cancel</Button>
-            <Button type="submit">Save Document</Button>
+            <Button type="submit" isLoading={pending}>Save Document</Button>
           </div>
         </form>
       </Modal>
@@ -817,15 +762,15 @@ export const StudentProfilePage: React.FC = () => {
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
-                <p className="font-bold text-rose-600 text-sm">{student.bloodGroup || 'O+'}</p>
+                <p className="font-bold text-rose-600 text-sm">{student.bloodGroup || '—'}</p>
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-slate-400">Academy Category</p>
-                <p className="font-bold text-blue-600">{student.category || 'Football Academy'}</p>
+                <p className="font-bold text-blue-600">{student.category || '—'}</p>
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-slate-400">Program Type</p>
-                <p className="font-semibold text-indigo-700">{student.programType || 'Day Scholar Program'}</p>
+                <p className="font-semibold text-indigo-700">{student.programType || '—'}</p>
               </div>
             </div>
           </div>
@@ -837,7 +782,7 @@ export const StudentProfilePage: React.FC = () => {
               <div className="flex justify-between"><span className="text-slate-500">Gender:</span><span className="font-semibold">{student.gender}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Date of Birth:</span><span className="font-semibold">{formatDate(student.dateOfBirth)}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Phone:</span><span className="font-mono">{student.phone}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Center:</span><span className="font-semibold">{student.trainingCenter || 'Kozhikode Main Campus'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Center:</span><span className="font-semibold">{student.trainingCenter || '—'}</span></div>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
@@ -871,15 +816,15 @@ export const StudentProfilePage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
-                  <p className="font-bold text-rose-600 text-sm">{student.bloodGroup || 'O+'}</p>
+                  <p className="font-bold text-rose-600 text-sm">{student.bloodGroup || '—'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Academy Category</p>
-                  <p className="font-bold text-blue-600">{student.category || 'Football Academy'}</p>
+                  <p className="font-bold text-blue-600">{student.category || '—'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Program Type</p>
-                  <p className="font-semibold text-indigo-700">{student.programType || 'Day Scholar Program'}</p>
+                  <p className="font-semibold text-indigo-700">{student.programType || '—'}</p>
                 </div>
               </div>
             </div>
@@ -891,7 +836,7 @@ export const StudentProfilePage: React.FC = () => {
                 <div className="flex justify-between"><span className="text-slate-500">Gender:</span><span className="font-semibold">{student.gender}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Date of Birth:</span><span className="font-semibold">{formatDate(student.dateOfBirth)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Phone:</span><span className="font-mono">{student.phone}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Center:</span><span className="font-semibold">{student.trainingCenter || 'Kozhikode Main Campus'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Center:</span><span className="font-semibold">{student.trainingCenter || '—'}</span></div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
@@ -926,7 +871,7 @@ export const StudentProfilePage: React.FC = () => {
               <div>
                 <h3 className="text-base tracking-tight">{selectedPerfRecord.studentName}</h3>
                 <p className="text-[11px] text-slate-900/80 font-bold mt-0.5">
-                  Position: {selectedPerfRecord.position || 'Central Midfielder'} ({selectedPerfRecord.strongFoot || 'Right'} Foot) | Coach: {selectedPerfRecord.coachName}
+                  Position: {selectedPerfRecord.position || '—'} ({selectedPerfRecord.strongFoot || 'Right'} Foot) | Coach: {selectedPerfRecord.coachName}
                 </p>
                 <p className="text-[10px] text-slate-900/70 font-mono mt-0.5">
                   Period: {selectedPerfRecord.reportPeriod || selectedPerfRecord.monthYear} • Date: {formatDate(selectedPerfRecord.recordedDate)}

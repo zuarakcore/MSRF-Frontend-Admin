@@ -5,6 +5,8 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Lock, Save, Key } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
+import { authApi } from '../../api/endpoints';
+import { errorMessage, tokenStore } from '../../api/client';
 
 export const SettingsPage: React.FC = () => {
   const { addToast } = useNotifications();
@@ -23,14 +25,22 @@ export const SettingsPage: React.FC = () => {
       addToast({ type: 'error', title: 'Password Mismatch', message: 'New password and confirm password do not match.' });
       return;
     }
-    if (newPassword.length < 6) {
-      addToast({ type: 'error', title: 'Weak Password', message: 'New password must be at least 6 characters long.' });
+    if (newPassword.length < 10) {
+      addToast({ type: 'error', title: 'Weak Password', message: 'New password must be at least 10 characters long.' });
       return;
     }
 
     setIsLoading(true);
-    await new Promise(res => setTimeout(res, 600));
-    setIsLoading(false);
+    try {
+      // Other sessions are signed out; this one gets a fresh token.
+      const result = await authApi.changePassword(currentPassword, newPassword);
+      tokenStore.set(result.accessToken);
+    } catch (err) {
+      addToast({ type: 'error', title: 'Password Not Changed', message: errorMessage(err) });
+      return;
+    } finally {
+      setIsLoading(false);
+    }
 
     setCurrentPassword('');
     setNewPassword('');
@@ -39,7 +49,7 @@ export const SettingsPage: React.FC = () => {
     addToast({
       type: 'success',
       title: 'Password Updated',
-      message: 'Super Admin security credentials updated successfully.'
+      message: 'Your password was changed. Other devices have been signed out.'
     });
   };
 
@@ -74,7 +84,7 @@ export const SettingsPage: React.FC = () => {
                 required
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
-                placeholder="Enter new password (min. 6 chars)"
+                placeholder="Enter new password (min. 10 chars)"
                 icon={<Lock className="w-4 h-4 text-slate-400" />}
               />
 

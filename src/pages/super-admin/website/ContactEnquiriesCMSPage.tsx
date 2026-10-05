@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../../components/layout/LayoutShell';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { Card } from '../../../components/ui/Card';
@@ -9,13 +10,19 @@ import { Select } from '../../../components/ui/Select';
 import { Pagination } from '../../../components/ui/Pagination';
 import { DeleteConfirmationModal } from '../../../components/ui/DeleteConfirmationModal';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { INITIAL_ENQUIRIES } from '../../../mock-data/msrf-data';
+import { QueryState } from '../../../components/ui/QueryState';
+import { cmsApi } from '../../../api/endpoints';
+import { toApiEnquiryStatus, toEnquiry } from '../../../api/mappers';
+import { useApiAction } from '../../../api/hooks';
 import { ContactEnquiryCMS } from '../../../types';
 import { Pencil, Trash2, Mail, Phone, Calendar, MessageSquare, Tag } from 'lucide-react';
-import { useNotifications } from '../../../context/NotificationContext';
 
 export const ContactEnquiriesCMSPage: React.FC = () => {
-  const [enquiries, setEnquiries] = useState<ContactEnquiryCMS[]>(INITIAL_ENQUIRIES);
+  const query = useQuery({ queryKey: ['enquiries'], queryFn: () => cmsApi.enquiriesAll() });
+  const enquiries = (query.data ?? []).map(toEnquiry);
+  const { run } = useApiAction();
+  // Enquiry counts on the programmes page change with these too.
+  const invalidate = [['enquiries'], ['programmes']];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -38,7 +45,6 @@ export const ContactEnquiriesCMSPage: React.FC = () => {
     status: 'New' as 'New' | 'Contacted' | 'Resolved'
   });
 
-  const { addToast } = useNotifications();
 
   const filtered = enquiries.filter(e => {
     const matchesStatus = statusFilter === 'all' || e.status === statusFilter;
@@ -66,47 +72,48 @@ export const ContactEnquiriesCMSPage: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEnq) return;
-
-    setEnquiries(prev =>
-      prev.map(enq =>
-        enq.id === editingEnq.id
-          ? {
-              ...enq,
-              name: form.name,
-              email: form.email,
-              phone: form.phone,
-              programmeOrSubject: form.programmeOrSubject,
-              message: form.message,
-              status: form.status
-            }
-          : enq
-      )
+    const target = editingEnq;
+    // Only contact details and status are editable; the message is what the parent sent.
+    const ok = await run(
+      () =>
+        cmsApi.updateEnquiry(target.id, {
+          parentName: form.name.trim(),
+          email: form.email.trim() || null,
+          phone: form.phone.trim(),
+          status: toApiEnquiryStatus(form.status),
+        }),
+      { success: { title: 'Enquiry Record Updated', message: form.name }, invalidate }
     );
-
+    if (!ok) return;
     setModalOpen(false);
-    if (detailEnq && detailEnq.id === editingEnq.id) {
-      setDetailEnq(prev => prev ? { ...prev, ...form } : null);
+    if (detailEnq && detailEnq.id === target.id) {
+      setDetailEnq(prev => (prev ? { ...prev, ...form } : null));
     }
-    addToast({ type: 'success', title: 'Enquiry Record Updated', message: form.name });
   };
 
   const handleStatusChange = (id: string, newStatus: 'New' | 'Contacted' | 'Resolved') => {
-    setEnquiries(prev => prev.map(e => (e.id === id ? { ...e, status: newStatus } : e)));
     if (detailEnq && detailEnq.id === id) {
-      setDetailEnq(prev => prev ? { ...prev, status: newStatus } : null);
+      setDetailEnq(prev => (prev ? { ...prev, status: newStatus } : null));
     }
-    addToast({ type: 'info', title: 'Status Updated', message: `Enquiry status set to ${newStatus}` });
+    run(() => cmsApi.updateEnquiry(id, { status: toApiEnquiryStatus(newStatus) }), {
+      success: { type: 'info', title: 'Status Updated', message: `Enquiry status set to ${newStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingEnq) return;
-    setEnquiries(prev => prev.filter(e => e.id !== deletingEnq.id));
-    addToast({ type: 'info', title: 'Enquiry Removed', message: `Enquiry from ${deletingEnq.name} deleted.` });
+    const target = deletingEnq;
+    const ok = await run(() => cmsApi.deleteEnquiry(target.id), {
+      success: { type: 'info', title: 'Enquiry Removed', message: `Enquiry from ${target.name} deleted.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingEnq(null);
-    if (detailEnq && detailEnq.id === deletingEnq.id) setDetailEnq(null);
+    if (ok && detailEnq && detailEnq.id === target.id) setDetailEnq(null);
   };
 
   return (
@@ -134,7 +141,9 @@ export const ContactEnquiriesCMSPage: React.FC = () => {
         ]}
       />
 
-      {filtered.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filtered.length === 0 ? (
         <EmptyState title="No Enquiries Found" description="No contact form submissions match your search query." />
       ) : (
         <Card className="p-0 overflow-hidden">
@@ -271,7 +280,7 @@ export const ContactEnquiriesCMSPage: React.FC = () => {
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <MessageSquare className="w-3.5 h-3.5 text-blue-600" /> Message / Detailed Query
               </span>
-              <p className="text-xs text-slate-700 leading-relaxed font-medium bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <p className="text-xs text-slate-700 leading-relaxed font-medium bg-slate-50 p-3 rounded-lg border border-slate-100 whitespace-pre-line">
                 "{detailEnq.message}"
               </p>
             </div>

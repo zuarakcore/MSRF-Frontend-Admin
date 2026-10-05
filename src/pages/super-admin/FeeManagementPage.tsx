@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { Card } from '../../components/ui/Card';
@@ -7,8 +8,12 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { INITIAL_STUDENTS, INITIAL_CATEGORIES } from '../../mock-data/msrf-data';
-import { Student } from '../../types';
+import { QueryState } from '../../components/ui/QueryState';
+import { AllocationPicker, allocationTotal } from '../../components/fees/AllocationPicker';
+import { feesApi, referenceApi } from '../../api/endpoints';
+import { FEE_STATUS, emptyToNull, todayIso, toApiFeeStatus } from '../../api/mappers';
+import { useApiAction } from '../../api/hooks';
+import type { Allocation, PaymentMode } from '../../api/types';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { FileText, Printer, Download, Tag, CheckCircle2, FileDown, Calendar, Trophy } from 'lucide-react';
 import { PrintPortal } from '../../components/ui/PrintPortal';
@@ -20,12 +25,31 @@ const ALL_MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-export interface ComputedStudent extends Student {
+/** One row of the fee ledger for the selected period (backend GET /fees/ledger). */
+export interface ComputedStudent {
+  id: string;
+  studentId: string;
+  fullName: string;
+  parentName: string;
+  parentPhone: string;
+  category: string;
   currentFee: number;
+  totalFee: number;
+  paidAmount: number;
+  discountAmount: number;
+  pendingAmount: number;
+  feeStatus: 'Paid' | 'Pending' | 'Overdue';
+  remarks: string;
 }
 
+const PAYMENT_MODES: { label: string; value: PaymentMode }[] = [
+  { label: 'Cash (Front Desk)', value: 'CASH' },
+  { label: 'Bank Transfer (NEFT/RTGS/IMPS)', value: 'BANK_TRANSFER' },
+  { label: 'UPI / GPay / PhonePe', value: 'UPI' },
+  { label: 'Cheque / DD', value: 'CHEQUE' },
+];
+
 export const FeeManagementPage: React.FC = () => {
-  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
   const [search, setSearch] = useState('');
 
   // Current calendar period calculation
@@ -40,29 +64,23 @@ export const FeeManagementPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
-  // Ledger overrides for recorded payments per student and month-year
-  const [ledgerOverrides, setLedgerOverrides] = useState<Record<string, {
-    paidAmount: number;
-    discountAmount: number;
-    feeStatus: 'Paid' | 'Pending';
-    remarks?: string;
-  }>>({});
-
   const [invoiceModalStudent, setInvoiceModalStudent] = useState<ComputedStudent | null>(null);
   const [reportModal, setReportModal] = useState(false);
 
   const [payModalStudent, setPayModalStudent] = useState<ComputedStudent | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const handleAllocations = useCallback((next: Allocation[]) => setAllocations(next), []);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [paymentMode, setPaymentMode] = useState<string>('Cash');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('CASH');
+  const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentRemarks, setPaymentRemarks] = useState<string>('');
   const [discountRemarks, setDiscountRemarks] = useState<string>('');
 
   const { addToast } = useNotifications();
 
   // Year options: Strictly NO future years (only current year and past 5 years)
+  // The backend ledger is per year, so a year is always selected.
   const yearOptions = [
-    { label: 'All Years', value: 'ALL' },
     ...Array.from({ length: 6 }, (_, i) => {
       const yr = currentYear - i;
       return { label: String(yr), value: String(yr) };
@@ -97,146 +115,95 @@ export const FeeManagementPage: React.FC = () => {
   }, [yearFilter, monthFilter, currentYear, currentMonthIndex, currentMonthName]);
 
   // Category options
+  const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: () => referenceApi.list('categories') });
   const categoryOptions = [
     { label: 'All Categories', value: 'ALL' },
-    ...INITIAL_CATEGORIES.map(c => ({ label: c.title, value: c.title }))
+    ...(categoriesQuery.data ?? []).map(c => ({ label: c.name, value: c.id }))
   ];
 
-  // Derive per-student ledger info for the active Year & Month
-  const computedStudents = React.useMemo(() => {
-    return students.map(s => {
-      const isMonthlyView = monthFilter !== 'ALL';
-      const targetFee = isMonthlyView ? (s.monthlyFee || Math.round(s.totalFee / 12)) : s.totalFee;
+  const ledgerQuery = {
+    year: Number(yearFilter),
+    month: monthFilter === 'ALL' ? undefined : ALL_MONTHS.indexOf(monthFilter) + 1,
+    categoryId: categoryFilter === 'ALL' ? undefined : categoryFilter,
+    status: toApiFeeStatus(statusFilter),
+    search: search.trim() || undefined,
+  };
+  const ledger = useQuery({ queryKey: ['fees', 'ledger', ledgerQuery], queryFn: () => feesApi.ledgerAll(ledgerQuery) });
+  const summary = useQuery({ queryKey: ['fees', 'summary', ledgerQuery], queryFn: () => feesApi.summary(ledgerQuery) });
+  const { run, pending } = useApiAction();
 
-      const recordKey = `${s.id}-${yearFilter}-${monthFilter}`;
-      const override = ledgerOverrides[recordKey];
-
-      let effectivePaid: number;
-      let effectiveDiscount: number;
-      let effectivePending: number;
-      let effectiveStatus: 'Paid' | 'Pending' | 'Overdue';
-      let effectiveRemarks: string;
-
-      if (override) {
-        effectivePaid = override.paidAmount;
-        effectiveDiscount = override.discountAmount;
-        effectivePending = Math.max(0, targetFee - effectivePaid - effectiveDiscount);
-        effectiveStatus = override.feeStatus;
-        effectiveRemarks = override.remarks || '';
-      } else if (isMonthlyView) {
-        if (yearFilter === String(currentYear) && monthFilter === currentMonthName) {
-          // Current month default state
-          if (s.feeStatus === 'Paid') {
-            effectivePaid = targetFee;
-            effectiveDiscount = s.discountAmount || 0;
-            effectivePending = 0;
-            effectiveStatus = 'Paid';
-          } else {
-            effectivePaid = s.paidAmount > 0 ? Math.min(targetFee, Math.round(targetFee * 0.5)) : 0;
-            effectiveDiscount = s.discountAmount || 0;
-            effectivePending = Math.max(0, targetFee - effectivePaid - effectiveDiscount);
-            effectiveStatus = effectivePending === 0 ? 'Paid' : 'Pending';
-          }
-        } else {
-          // Past months: older months mostly cleared, with periodic pending
-          const mIdx = ALL_MONTHS.indexOf(monthFilter);
-          const isPending = (s.id.charCodeAt(s.id.length - 1) + mIdx) % 7 === 0;
-          if (isPending) {
-            effectivePaid = 0;
-            effectiveDiscount = 0;
-            effectivePending = targetFee;
-            effectiveStatus = 'Pending';
-          } else {
-            effectivePaid = targetFee;
-            effectiveDiscount = 0;
-            effectivePending = 0;
-            effectiveStatus = 'Paid';
-          }
-        }
-        effectiveRemarks = s.remarks || (effectiveStatus === 'Paid' ? `Fee cleared for ${monthFilter} ${yearFilter}` : `Pending installment for ${monthFilter} ${yearFilter}`);
-      } else {
-        effectivePaid = s.paidAmount;
-        effectiveDiscount = s.discountAmount || 0;
-        effectivePending = s.pendingAmount;
-        effectiveStatus = s.feeStatus;
-        effectiveRemarks = s.remarks || '';
-      }
-
-      return {
-        ...s,
-        currentFee: targetFee,
-        paidAmount: effectivePaid,
-        discountAmount: effectiveDiscount,
-        pendingAmount: effectivePending,
-        feeStatus: effectiveStatus,
-        remarks: effectiveRemarks
-      };
-    });
-  }, [students, yearFilter, monthFilter, ledgerOverrides, currentYear, currentMonthName]);
-
-  const filteredStudents = computedStudents.filter(s => {
-    const matchesSearch =
-      s.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      s.studentId.toLowerCase().includes(search.toLowerCase()) ||
-      (s.category && s.category.toLowerCase().includes(search.toLowerCase())) ||
-      (s.parentName && s.parentName.toLowerCase().includes(search.toLowerCase()));
-
-    const matchesCategory = categoryFilter === 'ALL' || (s.category || 'Football Academy') === categoryFilter;
-    const matchesStatus = statusFilter === 'ALL' || s.feeStatus === statusFilter;
-
-    // Check admission date relative to selected year/month
-    let matchesPeriod = true;
-    if (s.admissionDate && yearFilter !== 'ALL') {
-      const admYear = parseInt(s.admissionDate.slice(0, 4), 10);
-      const targetYear = parseInt(yearFilter, 10);
-      if (admYear > targetYear) {
-        matchesPeriod = false;
-      } else if (admYear === targetYear && monthFilter !== 'ALL') {
-        const admMonth = parseInt(s.admissionDate.slice(5, 7), 10);
-        const selMonthIdx = ALL_MONTHS.indexOf(monthFilter) + 1;
-        if (admMonth > selMonthIdx) {
-          matchesPeriod = false;
-        }
-      }
-    }
-
-    return matchesSearch && matchesCategory && matchesStatus && matchesPeriod;
-  });
+  // Rows for the selected period, already filtered by the backend.
+  const filteredStudents: ComputedStudent[] = (ledger.data ?? []).map(row => ({
+    id: row.student.id,
+    studentId: row.student.studentCode,
+    fullName: row.student.fullName,
+    parentName: row.student.parentName,
+    parentPhone: row.student.parentPhone,
+    category: row.student.category.name,
+    currentFee: row.amountDue,
+    totalFee: row.amountDue,
+    paidAmount: row.amountPaid,
+    discountAmount: row.discount,
+    pendingAmount: row.outstanding,
+    feeStatus: FEE_STATUS[row.status],
+    remarks: row.lastPaymentOn ? `Last payment ${formatDate(row.lastPaymentOn)}` : row.months > 1 ? `${row.months} months billed` : '',
+  }));
 
   // Financial summary metrics
-  const totalExpected = filteredStudents.reduce((sum, s) => sum + s.currentFee, 0);
-  const totalCollected = filteredStudents.reduce((sum, s) => sum + s.paidAmount, 0);
-  const totalOutstanding = filteredStudents.reduce((sum, s) => sum + s.pendingAmount, 0);
-  const pendingCount = filteredStudents.filter(s => s.pendingAmount > 0).length;
+  const totalExpected = summary.data?.expected ?? 0;
+  const totalCollected = summary.data?.collected ?? 0;
+  const totalOutstanding = summary.data?.outstanding ?? 0;
+  const pendingCount = (summary.data?.pendingCount ?? 0) + (summary.data?.overdueCount ?? 0);
 
-  const handleMakeFeePaid = (e: React.FormEvent) => {
+  const openPayModal = (st: ComputedStudent) => {
+    setPayModalStudent(st);
+    setAllocations([]);
+    setDiscountAmount(0);
+    setDiscountRemarks('');
+    setPaymentMode('CASH');
+    setPaymentReference('');
+    setPaymentRemarks('');
+  };
+
+  // Records a payment against the chosen months; the backend issues a receipt.
+  const handleMakeFeePaid = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payModalStudent) return;
-
-    const recordKey = `${payModalStudent.id}-${yearFilter}-${monthFilter}`;
-    const newDiscount = (payModalStudent.discountAmount || 0) + Number(discountAmount);
-    const newPaid = payModalStudent.paidAmount + Number(paymentAmount);
-    const targetFee = payModalStudent.monthlyFee || Math.round(payModalStudent.totalFee / 12);
-    const newPending = Math.max(0, targetFee - newPaid - newDiscount);
-    const newStatus: 'Paid' | 'Pending' = newPending === 0 ? 'Paid' : 'Pending';
-    const finalRemarks = paymentRemarks || (discountAmount > 0 ? `Paid ₹${paymentAmount} with ₹${discountAmount} discount (${discountRemarks || 'Discount applied'})` : `Payment of ₹${paymentAmount} recorded via ${paymentMode}`);
-
-    setLedgerOverrides(prev => ({
-      ...prev,
-      [recordKey]: {
-        paidAmount: newPaid,
-        discountAmount: newDiscount,
-        feeStatus: newStatus,
-        remarks: finalRemarks
+    const target = payModalStudent;
+    const discount = Number(discountAmount) || 0;
+    if (allocations.length === 0) {
+      addToast({ type: 'warning', title: 'Nothing to record', message: 'Enter the amount paid against at least one month.' });
+      return;
+    }
+    if (discount > 0 && discountRemarks.trim().length < 3) {
+      addToast({ type: 'warning', title: 'Discount reason needed', message: 'Say why the discount was given (at least 3 characters).' });
+      return;
+    }
+    // The discount goes on the selected month, or the oldest month being paid.
+    const first = [...allocations].sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month))[0];
+    const discountMonth = ledgerQuery.month ? { year: ledgerQuery.year, month: ledgerQuery.month } : first;
+    const total = allocationTotal(allocations);
+    const ok = await run(
+      () =>
+        feesApi.recordPayment({
+          studentId: target.id,
+          paidOn: todayIso(),
+          mode: paymentMode,
+          reference: emptyToNull(paymentReference),
+          remarks: emptyToNull(paymentRemarks),
+          allocations,
+          discount: discount > 0 ? { ...discountMonth, amount: discount, reason: discountRemarks.trim() } : null,
+        }),
+      {
+        success: {
+          title: 'Payment Recorded',
+          message: `₹${total.toLocaleString('en-IN')}${discount > 0 ? ` with ₹${discount} discount` : ''} recorded for ${target.fullName}. A receipt was issued.`,
+        },
+        errorTitle: 'Could not record payment',
+        invalidate: [['fees'], ['students'], ['payments'], ['dashboard']],
       }
-    }));
-
-    setPayModalStudent(null);
-    addToast({
-      type: 'success',
-      title: 'Payment & Discount Recorded',
-      message: `Payment of ₹${paymentAmount}${discountAmount > 0 ? ` with ₹${discountAmount} discount` : ''} recorded for ${payModalStudent.fullName} for ${monthFilter} ${yearFilter}.`
-    });
+    );
+    if (ok) setPayModalStudent(null);
   };
 
   const handlePrint = () => {
@@ -316,13 +283,17 @@ export const FeeManagementPage: React.FC = () => {
             options: [
               { label: 'All Statuses', value: 'ALL' },
               { label: 'Paid', value: 'Paid' },
-              { label: 'Pending', value: 'Pending' }
+              { label: 'Pending', value: 'Pending' },
+              { label: 'Overdue', value: 'Overdue' }
             ]
           }
         ]}
       />
 
       {/* Main Fee Ledger Table */}
+      {ledger.isLoading || ledger.error ? (
+        <QueryState isLoading={ledger.isLoading} error={ledger.error} onRetry={() => ledger.refetch()}>{null}</QueryState>
+      ) : (
       <Card header={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -368,7 +339,7 @@ export const FeeManagementPage: React.FC = () => {
                     <td className="py-3.5 px-3 font-semibold text-blue-600">
                       <div className="flex items-center gap-1.5">
                         <Tag className="w-3.5 h-3.5 text-blue-500" />
-                        <span>{st.category || 'Football Academy'}</span>
+                        <span>{st.category}</span>
                       </div>
                     </td>
                     <td className="py-3.5 px-3 font-bold text-slate-900">{formatCurrency(st.currentFee)}</td>
@@ -381,7 +352,7 @@ export const FeeManagementPage: React.FC = () => {
                       {st.remarks || '—'}
                     </td>
                     <td className="py-3.5 px-3">
-                      <Badge variant={st.feeStatus === 'Paid' ? 'paid' : 'pending'}>
+                      <Badge variant={st.feeStatus === 'Paid' ? 'paid' : st.feeStatus === 'Overdue' ? 'overdue' : 'pending'}>
                         {st.feeStatus}
                       </Badge>
                     </td>
@@ -392,14 +363,7 @@ export const FeeManagementPage: React.FC = () => {
                             size="sm"
                             variant="ghost"
                             className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2"
-                            onClick={() => {
-                              setPayModalStudent(st);
-                              setPaymentAmount(st.pendingAmount);
-                              setDiscountAmount(0);
-                              setDiscountRemarks('');
-                              setPaymentMode('Cash');
-                              setPaymentRemarks('');
-                            }}
+                            onClick={() => openPayModal(st)}
                             icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
                             title="Mark Fee Paid / Apply Discount"
                           />
@@ -421,6 +385,7 @@ export const FeeManagementPage: React.FC = () => {
           </table>
         </div>
       </Card>
+      )}
 
       {/* Record Manual Payment & Discount Modal */}
       <Modal
@@ -430,13 +395,12 @@ export const FeeManagementPage: React.FC = () => {
         size="md"
       >
         <form onSubmit={handleMakeFeePaid} className="space-y-4">
-          <Input
-            label="Payment Amount (₹)"
-            type="number"
-            required
-            value={paymentAmount}
-            onChange={e => setPaymentAmount(Number(e.target.value))}
-          />
+          {payModalStudent && (
+            <div>
+              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1">Months Being Paid</label>
+              <AllocationPicker studentId={payModalStudent.id} value={allocations} onChange={handleAllocations} />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
@@ -454,17 +418,20 @@ export const FeeManagementPage: React.FC = () => {
             />
           </div>
 
-          <Select
-            label="Payment Method / Mode"
-            options={[
-              { label: 'Cash (Front Desk)', value: 'Cash' },
-              { label: 'Bank Transfer (NEFT/RTGS/IMPS)', value: 'Bank Transfer' },
-              { label: 'UPI / GPay / PhonePe', value: 'UPI' },
-              { label: 'Cheque / DD', value: 'Cheque' }
-            ]}
-            value={paymentMode}
-            onChange={e => setPaymentMode(e.target.value)}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select
+              label="Payment Method / Mode"
+              options={PAYMENT_MODES}
+              value={paymentMode}
+              onChange={e => setPaymentMode(e.target.value as PaymentMode)}
+            />
+            <Input
+              label="Reference / Txn ID"
+              placeholder="UTR, cheque no., etc."
+              value={paymentReference}
+              onChange={e => setPaymentReference(e.target.value)}
+            />
+          </div>
           <div>
             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1">Payment Remarks / Note</label>
             <textarea
@@ -476,42 +443,27 @@ export const FeeManagementPage: React.FC = () => {
             />
           </div>
 
-          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs flex justify-between items-center">
-            <span className="text-slate-600 font-semibold">Ledger Period:</span>
-            <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-              {monthFilter !== 'ALL' ? monthFilter : 'Annual'} {yearFilter !== 'ALL' ? yearFilter : currentYear}
-            </span>
-          </div>
-
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1.5">
             <div className="flex justify-between text-slate-600">
-              <span>{monthFilter !== 'ALL' ? 'Monthly' : 'Total'} Fee:</span>
-              <span className="font-bold text-slate-900">{formatCurrency(payModalStudent?.currentFee || payModalStudent?.totalFee || 0)}</span>
+              <span>Outstanding ({monthFilter !== 'ALL' ? `${monthFilter} ${yearFilter}` : `year ${yearFilter}`}):</span>
+              <span className="font-bold text-slate-900">{formatCurrency(payModalStudent?.pendingAmount || 0)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>Already Paid Amount:</span>
-              <span className="font-bold text-emerald-700">{formatCurrency(payModalStudent?.paidAmount || 0)}</span>
+              <span>Payment Being Recorded:</span>
+              <span className="font-bold text-emerald-700">{formatCurrency(allocationTotal(allocations))}</span>
             </div>
-            {((payModalStudent?.discountAmount || 0) > 0 || discountAmount > 0) && (
+            {discountAmount > 0 && (
               <div className="flex justify-between text-amber-700 font-semibold">
-                <span>Total Discount Applied:</span>
-                <span>{formatCurrency((payModalStudent?.discountAmount || 0) + discountAmount)}</span>
+                <span>Discount Applied:</span>
+                <span>{formatCurrency(discountAmount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-rose-700 font-bold pt-1.5 border-emerald-200 border-t">
-              <span>Remaining Balance After Payment:</span>
-              <span>
-                {formatCurrency(
-                  Math.max(0, (payModalStudent?.pendingAmount || 0) - paymentAmount - discountAmount)
-                )}
-              </span>
-            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <Button type="button" variant="outline" onClick={() => setPayModalStudent(null)}>Cancel</Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-              Confirm Payment & Mark Paid
+            <Button type="submit" isLoading={pending} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+              Record Payment & Issue Receipt
             </Button>
           </div>
         </form>
@@ -537,7 +489,6 @@ export const FeeManagementPage: React.FC = () => {
                   <p className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">BILL TO:</p>
                   <p className="font-black text-slate-900 text-base">{invoiceModalStudent.fullName}</p>
                   {invoiceModalStudent.parentName && <p className="text-slate-700 font-medium">Parent: {invoiceModalStudent.parentName}</p>}
-                  <p className="text-slate-600">Kozhikode, Kerala 673011</p>
                   <p className="text-slate-600 font-mono">Phone: {invoiceModalStudent.parentPhone}</p>
                 </div>
                 <div className="text-right space-y-1.5">
@@ -622,7 +573,6 @@ export const FeeManagementPage: React.FC = () => {
                     <p className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">BILL TO:</p>
                     <p className="font-black text-slate-900 text-base">{invoiceModalStudent.fullName}</p>
                     {invoiceModalStudent.parentName && <p className="text-slate-700 font-medium">Parent: {invoiceModalStudent.parentName}</p>}
-                    <p className="text-slate-600">Kozhikode, Kerala 673011</p>
                     <p className="text-slate-600 font-mono">Phone: {invoiceModalStudent.parentPhone}</p>
                   </div>
                   <div className="text-right space-y-1.5">
@@ -741,7 +691,7 @@ export const FeeManagementPage: React.FC = () => {
                 {filteredStudents.map(s => (
                   <tr key={s.id}>
                     <td className="py-2.5 px-3 font-bold text-slate-900">{s.fullName}</td>
-                    <td className="py-2.5 px-3 text-blue-600 font-semibold">{s.category || 'Football Academy'}</td>
+                    <td className="py-2.5 px-3 text-blue-600 font-semibold">{s.category}</td>
                     <td className="py-2.5 px-3 font-bold">{formatCurrency(s.currentFee)}</td>
                     <td className="py-2.5 px-3 font-bold text-emerald-700">{formatCurrency(s.paidAmount)}</td>
                     <td className="py-2.5 px-3 font-bold text-rose-600">{formatCurrency(s.pendingAmount)}</td>
@@ -802,7 +752,7 @@ export const FeeManagementPage: React.FC = () => {
                   {filteredStudents.map(s => (
                     <tr key={s.id}>
                       <td className="py-2.5 px-3 font-bold text-slate-900">{s.fullName}</td>
-                      <td className="py-2.5 px-3 text-blue-600 font-semibold">{s.category || 'Football Academy'}</td>
+                      <td className="py-2.5 px-3 text-blue-600 font-semibold">{s.category}</td>
                       <td className="py-2.5 px-3 font-bold">{formatCurrency(s.totalFee)}</td>
                       <td className="py-2.5 px-3 font-bold text-emerald-700">{formatCurrency(s.paidAmount)}</td>
                       <td className="py-2.5 px-3 font-bold text-rose-600">{formatCurrency(s.pendingAmount)}</td>

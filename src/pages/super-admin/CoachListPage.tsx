@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { Button } from '../../components/ui/Button';
@@ -14,8 +15,14 @@ import { StatusToggle } from '../../components/ui/StatusToggle';
 import { ImageUpload } from '../../components/ui/ImageUpload';
 import { FileUpload } from '../../components/ui/FileUpload';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { INITIAL_COACHES } from '../../mock-data/msrf-data';
-import { Coach, SportsCourse } from '../../types';
+import { QueryState } from '../../components/ui/QueryState';
+import { coachesApi, openCoachContract, referenceApi } from '../../api/endpoints';
+import { emptyToNull, toApiGender, toApiStatus, toCoach } from '../../api/mappers';
+import { dataUrlToFile, photoField } from '../../api/photos';
+import { useApiAction } from '../../api/hooks';
+import { errorMessage } from '../../api/client';
+import type { BloodGroup } from '../../api/types';
+import { Coach } from '../../types';
 import { Eye, Pencil, Trash2, UserPlus, Key, FileText, FileDown, Phone } from 'lucide-react';
 import { formatDate, formatPhoneNumber } from '../../utils/format';
 import { PrintPortal } from '../../components/ui/PrintPortal';
@@ -24,7 +31,14 @@ import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../context/NotificationContext';
 
 export const CoachListPage: React.FC = () => {
-  const [coaches, setCoaches] = useState<Coach[]>(INITIAL_COACHES);
+  const query = useQuery({ queryKey: ['coaches'], queryFn: () => coachesApi.listAll() });
+  const coaches = (query.data ?? []).map(toCoach);
+  const categoriesQuery = useQuery({
+    queryKey: ['categories', 'active'],
+    queryFn: () => referenceApi.list('categories', { status: 'ACTIVE' }),
+  });
+  const { run, pending } = useApiAction();
+  const invalidate = [['coaches'], ['dashboard']];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
@@ -52,7 +66,9 @@ export const CoachListPage: React.FC = () => {
     address: '',
     photo: '',
     contractUrl: '',
-    bio: ''
+    contractFileName: '',
+    bio: '',
+    categoryIds: [] as string[]
   });
 
   const navigate = useNavigate();
@@ -80,30 +96,55 @@ export const CoachListPage: React.FC = () => {
       address: '',
       photo: '',
       contractUrl: '',
-      bio: ''
+      contractFileName: '',
+      bio: '',
+      categoryIds: []
     });
     setAddModal(true);
   };
 
-  const handleOpenEdit = (c: Coach) => {
-    setEditingCoach(c);
-    setFormData({
-      fullName: c.fullName,
-      email: c.email,
-      phone: c.phone,
-      gender: (c as any).gender || 'Male',
-      bloodGroup: c.bloodGroup || 'O+',
-      experienceYears: c.experienceYears,
-      joinedDate: c.joinedDate || new Date().toISOString().slice(0, 10),
-      address: (c as any).address || '',
-      photo: c.photo,
-      contractUrl: c.contractUrl || '',
-      bio: c.bio
-    });
-    setAddModal(true);
+  // The list omits bio, gender, blood group and address; load the full profile first.
+  const withDetail = async (c: Coach, then: (full: Coach) => void) => {
+    try {
+      then(toCoach(await coachesApi.get(c.id)));
+    } catch (error) {
+      addToast({ type: 'error', title: 'Could not load coach', message: errorMessage(error) });
+    }
   };
 
-  const handleSaveCoach = (e: React.FormEvent) => {
+  const handleOpenContract = async (c: Coach) => {
+    try {
+      if (!(await openCoachContract(c.id))) {
+        addToast({ type: 'info', title: 'No contract uploaded', message: `Upload one from ${c.fullName}'s profile or edit form.` });
+      }
+    } catch (error) {
+      addToast({ type: 'error', title: 'Could not open contract', message: errorMessage(error) });
+    }
+  };
+
+  const handleOpenEdit = (listCoach: Coach) =>
+    withDetail(listCoach, c => {
+      setEditingCoach(c);
+      setFormData({
+        fullName: c.fullName,
+        email: c.email,
+        phone: c.phone,
+        gender: c.gender === 'Female' ? 'Female' : 'Male',
+        bloodGroup: c.bloodGroup || 'O+',
+        experienceYears: c.experienceYears,
+        joinedDate: c.joinedDate || new Date().toISOString().slice(0, 10),
+        address: c.address || '',
+        // Keep the URL only for a real photo, not the initials placeholder.
+        photo: c.photo.startsWith('data:image/svg') ? '' : c.photo,
+        contractUrl: '',
+        contractFileName: '',
+        bio: c.bio,
+        categoryIds: c.categoryIds ?? []
+      });
+      setAddModal(true);
+    });
+
+  const handleSaveCoach = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.fullName) return;
 
@@ -112,68 +153,59 @@ export const CoachListPage: React.FC = () => {
       return;
     }
 
-    const defaultContract = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
-
-    if (editingCoach) {
-      setCoaches(prev =>
-        prev.map(c =>
-          c.id === editingCoach.id
-            ? {
-                ...c,
-                fullName: formData.fullName,
-                email: formData.email,
-                phone: formData.phone,
-                gender: formData.gender as any,
-                bloodGroup: formData.bloodGroup,
-                experienceYears: Number(formData.experienceYears),
-                joinedDate: formData.joinedDate,
-                address: formData.address as any,
-                photo: formData.photo || c.photo,
-                contractUrl: formData.contractUrl || c.contractUrl || defaultContract,
-                bio: formData.bio
-              }
-            : c
-        )
-      );
-      addToast({ type: 'success', title: 'Coach Updated', message: formData.fullName });
-    } else {
-      const generatedPass = `MSRF#${Math.floor(1000 + Math.random() * 9000)}`;
-      const newCoach: Coach = {
-        id: `coach-${Date.now()}`,
-        fullName: formData.fullName,
-        email: formData.email || 'coach@msrf.org',
-        phone: formData.phone || '9847000000',
-        photo: formData.photo || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
-        bloodGroup: formData.bloodGroup,
-        experienceYears: Number(formData.experienceYears),
-        assignedStudentsCount: 0,
-        capacity: 25,
-        joinedDate: formData.joinedDate || new Date().toISOString().slice(0, 10),
-        status: 'Active',
-        bio: formData.bio || 'Certified MSRF Senior Sports Coach.',
-        monthlyRating: 4.8,
-        attendanceAvg: 95,
-        tempPassword: generatedPass,
-        contractUrl: formData.contractUrl || defaultContract,
-        documents: []
-      };
-
-      setCoaches([newCoach, ...coaches]);
-      addToast({ type: 'success', title: 'Coach Onboarded & Credentials Mailed', message: `Login details sent to ${newCoach.email}` });
-    }
-
-    setAddModal(false);
+    const target = editingCoach;
+    const previousPhoto = target && !target.photo.startsWith('data:image/svg') ? target.photo : undefined;
+    const ok = await run(
+      async () => {
+        const photo = await photoField(formData.photo, previousPhoto, 'COACH_PHOTO');
+        const body = {
+          fullName: formData.fullName.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+          gender: toApiGender(formData.gender),
+          bloodGroup: formData.bloodGroup as BloodGroup,
+          experienceYears: Number(formData.experienceYears) || 0,
+          joinedDate: formData.joinedDate,
+          address: emptyToNull(formData.address),
+          bio: emptyToNull(formData.bio),
+          categoryIds: formData.categoryIds,
+          ...photo,
+        };
+        const saved = target ? await coachesApi.update(target.id, body) : await coachesApi.create(body);
+        // A newly picked contract file is stored as the coach's CONTRACT document.
+        if (formData.contractUrl.startsWith('data:')) {
+          const file = dataUrlToFile(formData.contractUrl, 'contract', formData.contractFileName || undefined);
+          await coachesApi.addDocument(saved.id, 'Employment Contract', file, 'CONTRACT');
+        }
+      },
+      {
+        success: target
+          ? { title: 'Coach Updated', message: formData.fullName }
+          : { title: 'Coach Onboarded & Credentials Mailed', message: `Login details sent to ${formData.email}` },
+        errorTitle: target ? 'Could not update coach' : 'Could not add coach',
+        invalidate,
+      }
+    );
+    if (ok) setAddModal(false);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
-    setCoaches(prev => prev.map(c => (c.id === id ? { ...c, status: newStatus } : c)));
-    addToast({ type: 'info', title: 'Status Updated', message: `Coach status set to ${newStatus}` });
+    // Deactivating signs the coach out everywhere immediately.
+    run(() => coachesApi.update(id, { status: toApiStatus(newStatus) }), {
+      success: { type: 'info', title: 'Status Updated', message: `Coach status set to ${newStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingCoach) return;
-    setCoaches(prev => prev.filter(c => c.id !== deletingCoach.id));
-    addToast({ type: 'info', title: 'Coach Removed', message: `Coach "${deletingCoach.fullName}" removed.` });
+    const target = deletingCoach;
+    // Coaches with sessions or reports cannot be deleted (409); deactivate them instead.
+    await run(() => coachesApi.remove(target.id), {
+      success: { type: 'info', title: 'Coach Removed', message: `Coach "${target.fullName}" removed.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingCoach(null);
   };
 
@@ -208,7 +240,9 @@ export const CoachListPage: React.FC = () => {
         ]}
       />
 
-      {filteredCoaches.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filteredCoaches.length === 0 ? (
         <EmptyState title="No Coaches Found" description="No coach records match your search criteria." />
       ) : viewMode === 'list' ? (
         <Card className="p-0 overflow-hidden">
@@ -248,14 +282,13 @@ export const CoachListPage: React.FC = () => {
                       </p>
                     </td>
                     <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
-                      <a
-                        href={c.contractUrl || '#'}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => handleOpenContract(c)}
                         className="inline-flex items-center gap-1.5 text-blue-600 font-semibold hover:underline bg-blue-50 px-2.5 py-1 rounded border border-blue-200"
                       >
                         <FileText className="w-3.5 h-3.5 text-blue-600" /> Contract PDF
-                      </a>
+                      </button>
                     </td>
                     <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                       <StatusToggle
@@ -265,7 +298,7 @@ export const CoachListPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="ghost" icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} onClick={() => setPdfCoachRecord(c)} title="View & Print Coach PDF Report" />
+                        <Button size="sm" variant="ghost" icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} onClick={() => withDetail(c, setPdfCoachRecord)} title="View & Print Coach PDF Report" />
                         <Button size="sm" variant="ghost" icon={<Key className="w-3.5 h-3.5 text-amber-500" />} onClick={() => setCredentialsCoach(c)} title="View & Copy Login Credentials" />
                         <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(c)} title="Edit Coach" />
                         <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingCoach(c)} title="Delete Coach" />
@@ -316,16 +349,15 @@ export const CoachListPage: React.FC = () => {
                 <Button size="sm" variant="outline" onClick={() => navigate(`/super-admin/coaches/${c.id}`)} icon={<Eye className="w-3.5 h-3.5" />}>
                   Profile
                 </Button>
-                <a
-                  href={c.contractUrl || '#'}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => handleOpenContract(c)}
                   className="inline-flex items-center gap-1 text-[11px] text-blue-600 font-semibold hover:underline bg-blue-50 px-2 py-1 rounded"
                 >
                   <FileText className="w-3 h-3 text-blue-600" /> Contract
-                </a>
+                </button>
                 <div className="flex items-center gap-1">
-                  <Button size="sm" variant="ghost" icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} onClick={() => setPdfCoachRecord(c)} title="Coach PDF Report" />
+                  <Button size="sm" variant="ghost" icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} onClick={() => withDetail(c, setPdfCoachRecord)} title="Coach PDF Report" />
                   <Button size="sm" variant="ghost" icon={<Key className="w-3.5 h-3.5 text-amber-500" />} onClick={() => setCredentialsCoach(c)} title="Credentials" />
                   <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(c)} />
                   <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingCoach(c)} />
@@ -447,10 +479,45 @@ export const CoachListPage: React.FC = () => {
           <FileUpload
             label="Coach Contract Document File"
             value={formData.contractUrl}
-            onChange={(url) => setFormData({ ...formData, contractUrl: url })}
+            onChange={(url, fileName) => setFormData({ ...formData, contractUrl: url, contractFileName: fileName || '' })}
             accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
             placeholder="Click to upload coach contract file (PDF, Word, or Image)"
           />
+
+          <div>
+            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Assigned Categories</label>
+            <p className="text-[11px] text-slate-500 mb-1.5">The coach sees and takes attendance for students in these categories.</p>
+            <div className="flex flex-wrap gap-2">
+              {(categoriesQuery.data ?? []).map(cat => {
+                const checked = formData.categoryIds.includes(cat.id);
+                return (
+                  <label
+                    key={cat.id}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer ${
+                      checked ? 'bg-blue-50 border-blue-400 text-blue-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setFormData({
+                          ...formData,
+                          categoryIds: checked
+                            ? formData.categoryIds.filter(id => id !== cat.id)
+                            : [...formData.categoryIds, cat.id]
+                        })
+                      }
+                    />
+                    {cat.name}
+                  </label>
+                );
+              })}
+              {categoriesQuery.data?.length === 0 && (
+                <span className="text-[11px] text-slate-400">No active categories. Add them under Website → Categories.</span>
+              )}
+            </div>
+          </div>
 
           <ImageUpload
             label="Coach Profile Photograph"
@@ -470,7 +537,7 @@ export const CoachListPage: React.FC = () => {
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <Button type="button" variant="outline" onClick={() => setAddModal(false)}>Cancel</Button>
-            <Button type="submit">{editingCoach ? "Update Coach" : "Onboard Coach & Send Credentials"}</Button>
+            <Button type="submit" isLoading={pending}>{editingCoach ? "Update Coach" : "Onboard Coach & Send Credentials"}</Button>
           </div>
         </form>
       </Modal>
@@ -493,7 +560,7 @@ export const CoachListPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
-                  <p className="font-bold text-rose-600 text-sm">{pdfCoachRecord.bloodGroup || 'O+'}</p>
+                  <p className="font-bold text-rose-600 text-sm">{pdfCoachRecord.bloodGroup || '—'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Experience</p>

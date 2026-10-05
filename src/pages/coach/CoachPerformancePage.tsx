@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -6,21 +7,52 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { useAuth } from '../../context/AuthContext';
-import { INITIAL_STUDENTS, INITIAL_COACHES, INITIAL_PERFORMANCE, DEFAULT_15_CATEGORIES } from '../../mock-data/msrf-data';
+import { QueryState } from '../../components/ui/QueryState';
+import { coachPortalApi, performanceApi } from '../../api/endpoints';
+import { emptyToNull, todayIso, toApiFoot, toCoachStudent, toPerformanceRecord, toPerformanceSummary } from '../../api/mappers';
+import { useApiAction } from '../../api/hooks';
+import { errorMessage } from '../../api/client';
+import type { Skill } from '../../api/types';
 import { PerformanceRecord, RatingStar } from '../../types';
 import { Award, Plus, FileDown, Edit, Search, UserCheck, Star, ArrowLeft, Check, CheckCircle2, Trash2, Lock } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import { PlayerDevelopmentReportPDF } from '../../components/ui/PlayerDevelopmentReportPDF';
+import { PlayerReportDetail } from '../../components/ui/PlayerReportDetail';
 import { formatDate } from '../../utils/format';
 
 export const CoachPerformancePage: React.FC = () => {
   const { user } = useAuth();
   const { addToast } = useNotifications();
 
-  const coach = INITIAL_COACHES.find(c => c.email === user?.email) || INITIAL_COACHES[0];
-  const myStudents = INITIAL_STUDENTS.filter(s => s.coachId === coach.id || s.coachName === coach.fullName);
+  const studentsQuery = useQuery({ queryKey: ['coach', 'students'], queryFn: () => coachPortalApi.studentsAll() });
+  const reportsQuery = useQuery({ queryKey: ['coach', 'performance-reports'], queryFn: () => coachPortalApi.reportsAll() });
+  const configQuery = useQuery({ queryKey: ['performance-reports', 'config'], queryFn: performanceApi.config, staleTime: Infinity });
+  const { run, pending } = useApiAction();
+  const invalidate = [['coach', 'performance-reports'], ['coach', 'dashboard'], ['performance-reports']];
 
-  const [records, setRecords] = useState<PerformanceRecord[]>(INITIAL_PERFORMANCE);
+  const myStudents = (studentsQuery.data ?? []).map(toCoachStudent);
+  const records = (reportsQuery.data ?? []).map(toPerformanceSummary);
+  const skills = configQuery.data?.skills ?? [];
+  const skillKey = (label: string) => skills.find(s => s.label === label)?.key;
+  const blankSkills = () => skills.map(s => ({ category: s.label, rating: 3, comments: '' }));
+  const ageFrom = (dob: string) => {
+    if (!dob) return '';
+    const birth = new Date(`${dob}T00:00:00`);
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    if (now < new Date(now.getFullYear(), birth.getMonth(), birth.getDate())) age -= 1;
+    return String(age);
+  };
+  const defaultPeriod = () => `Monthly Evaluation - ${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
+
+  // Lists carry summaries; open the full report (with all 15 skills) before viewing, editing or printing.
+  const withReport = async (rec: PerformanceRecord, then: (full: PerformanceRecord) => void) => {
+    try {
+      then(toPerformanceRecord(await coachPortalApi.report(rec.id)));
+    } catch (error) {
+      addToast({ type: 'error', title: 'Could not load report', message: errorMessage(error) });
+    }
+  };
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit'>('list');
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [pdfPrintRecord, setPdfPrintRecord] = useState<PerformanceRecord | null>(null);
@@ -31,7 +63,9 @@ export const CoachPerformancePage: React.FC = () => {
   const [deleteConfirmRecord, setDeleteConfirmRecord] = useState<PerformanceRecord | null>(null);
 
   // 7-Day Edit & Delete Restriction Helper
-  const isEditableWithin7Days = (recordedDate?: string): boolean => {
+  const isEditableWithin7Days = (recordedDate?: string, canEdit?: boolean): boolean => {
+    // The backend decides (author only, within 7 days of creation).
+    if (canEdit !== undefined) return canEdit;
     if (!recordedDate) return true;
     const recDate = new Date(recordedDate);
     const today = new Date();
@@ -42,91 +76,86 @@ export const CoachPerformancePage: React.FC = () => {
     return diffDays >= 0 && diffDays <= 7;
   };
 
-  const handleConfirmDeleteRecord = () => {
+  const handleConfirmDeleteRecord = async () => {
     if (!deleteConfirmRecord) return;
-    setRecords(prev => prev.filter(r => r.id !== deleteConfirmRecord.id));
-    addToast({
-      type: 'success',
-      title: 'Report Deleted',
-      message: `Performance rating report for ${deleteConfirmRecord.studentName} deleted successfully.`
+    const target = deleteConfirmRecord;
+    await run(() => coachPortalApi.deleteReport(target.id), {
+      success: { title: 'Report Deleted', message: `Performance rating report for ${target.studentName} deleted successfully.` },
+      errorTitle: 'Could not delete',
+      invalidate,
     });
     setDeleteConfirmRecord(null);
   };
 
   // Spacious Form State matching Image 2
   const [formData, setFormData] = useState({
-    studentId: myStudents[0]?.id || INITIAL_STUDENTS[0].id,
-    reportPeriod: 'Monthly Evaluation - Sep 2026',
-    recordedDate: new Date().toISOString().slice(0, 10),
-    position: 'Central Midfielder',
-    dob: '2012-05-14',
-    age: '14',
+    studentId: '',
+    reportPeriod: defaultPeriod(),
+    recordedDate: todayIso(),
+    position: '',
+    dob: '',
+    age: '',
     strongFoot: 'Right' as 'Right' | 'Left' | 'Both',
-    strengths: '1. Outstanding ball control & first touch.\n2. Excellent tactical positioning and field vision.\n3. High work rate during high-press situations.',
-    areasForImprovement: '1. Fine-tune weak-foot passing under pressure.\n2. Explosive sprint acceleration in final third.',
-    developmentGoals: ['Improve weak foot', 'Improve first touch', 'Improve tactical awareness'],
-    customGoal: 'Achieve sub-58s 100m sprint and high pass completion rate in match play.',
-    coachRemarks: 'Demonstrates great dedication, high tactical discipline, and strong team leadership during match play.',
-    overallRating: 5 as RatingStar,
-    skillAssessments: DEFAULT_15_CATEGORIES.map(cat => ({
-      category: cat,
-      rating: 4,
-      comments: 'Consistently high technical execution'
-    }))
+    strengths: '',
+    areasForImprovement: '',
+    developmentGoals: [] as string[],
+    customGoal: '',
+    coachRemarks: '',
+    overallRating: 3 as RatingStar,
+    skillAssessments: [] as { category: string; rating: number; comments: string }[]
   });
 
   const handleOpenCreatePage = () => {
+    if (skills.length === 0 || myStudents.length === 0) {
+      addToast({
+        type: 'warning',
+        title: skills.length === 0 ? 'Still loading' : 'No trainees assigned',
+        message: skills.length === 0 ? 'The skill list is still loading. Try again in a moment.' : 'Ask the admin to assign categories to you first.',
+      });
+      return;
+    }
     setEditingRecordId(null);
-    const targetStudent = myStudents[0] || INITIAL_STUDENTS[0];
+    const targetStudent = myStudents[0];
     setFormData({
-      studentId: targetStudent.id,
-      reportPeriod: 'Monthly Evaluation - Sep 2026',
-      recordedDate: new Date().toISOString().slice(0, 10),
-      position: 'Central Midfielder',
-      dob: '2012-05-14',
-      age: '14',
+      studentId: targetStudent?.id ?? '',
+      reportPeriod: defaultPeriod(),
+      recordedDate: todayIso(),
+      position: '',
+      dob: targetStudent?.dateOfBirth ?? '',
+      age: ageFrom(targetStudent?.dateOfBirth ?? ''),
       strongFoot: 'Right',
-      strengths: '1. Great work ethic.\n2. High tactical discipline.',
-      areasForImprovement: '1. Weak foot precision.',
-      developmentGoals: ['Improve weak foot', 'Improve first touch'],
+      strengths: '',
+      areasForImprovement: '',
+      developmentGoals: [],
       customGoal: '',
-      coachRemarks: 'Showing continuous tactical improvement in match play.',
-      overallRating: 5,
-      skillAssessments: DEFAULT_15_CATEGORIES.map(cat => ({
-        category: cat,
-        rating: 4,
-        comments: 'Consistently solid execution'
-      }))
+      coachRemarks: '',
+      overallRating: 3,
+      skillAssessments: blankSkills()
     });
     setViewMode('create');
   };
 
-  const handleOpenEditPage = (rec: PerformanceRecord) => {
-    setEditingRecordId(rec.id);
-    setFormData({
-      studentId: rec.studentId,
-      reportPeriod: rec.reportPeriod || rec.monthYear || 'Monthly Evaluation - Sep 2026',
-      recordedDate: rec.recordedDate,
-      position: rec.position || 'Central Midfielder',
-      dob: rec.dob || '2012-05-14',
-      age: rec.age || '14',
-      strongFoot: rec.strongFoot || 'Right',
-      strengths: rec.strengths,
-      areasForImprovement: rec.areasForImprovement,
-      developmentGoals: rec.developmentGoals || ['Improve weak foot', 'Improve first touch'],
-      customGoal: rec.customGoal || '',
-      coachRemarks: rec.coachRemarks,
-      overallRating: rec.overallRating || rec.rating || 4,
-      skillAssessments: rec.skillAssessments && rec.skillAssessments.length > 0
-        ? rec.skillAssessments.map(sa => ({ category: sa.category, rating: sa.rating, comments: sa.comments || '' }))
-        : DEFAULT_15_CATEGORIES.map(cat => ({
-            category: cat,
-            rating: rec.overallRating || rec.rating || 4,
-            comments: 'Good progress'
-          }))
+  const handleOpenEditPage = (summary: PerformanceRecord) =>
+    withReport(summary, rec => {
+      setEditingRecordId(rec.id);
+      setFormData({
+        studentId: rec.studentId,
+        reportPeriod: rec.reportPeriod || rec.monthYear,
+        recordedDate: rec.recordedDate,
+        position: rec.position || '',
+        dob: rec.dob || '',
+        age: rec.age || '',
+        strongFoot: rec.strongFoot || 'Right',
+        strengths: rec.strengths,
+        areasForImprovement: rec.areasForImprovement,
+        developmentGoals: rec.developmentGoals || [],
+        customGoal: rec.customGoal || '',
+        coachRemarks: rec.coachRemarks,
+        overallRating: rec.overallRating,
+        skillAssessments: (rec.skillAssessments ?? []).map(sa => ({ category: sa.category, rating: sa.rating, comments: sa.comments || '' }))
+      });
+      setViewMode('edit');
     });
-    setViewMode('edit');
-  };
 
   const handleCategoryRatingChange = (idx: number, rating: number) => {
     const updated = [...formData.skillAssessments];
@@ -154,91 +183,56 @@ export const CoachPerformancePage: React.FC = () => {
     }
   };
 
-  const handleSaveReport = (e: React.FormEvent) => {
+  const handleSaveReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    const targetStudent = INITIAL_STUDENTS.find(s => s.id === formData.studentId) || myStudents[0] || INITIAL_STUDENTS[0];
-
-    if (editingRecordId) {
-      setRecords(prev => prev.map(r => {
-        if (r.id === editingRecordId) {
-          return {
-            ...r,
-            studentId: targetStudent.id,
-            studentName: targetStudent.fullName,
-            reportPeriod: formData.reportPeriod,
-            recordedDate: formData.recordedDate,
-            position: formData.position,
-            dob: formData.dob,
-            age: formData.age,
-            strongFoot: formData.strongFoot,
-            strengths: formData.strengths,
-            areasForImprovement: formData.areasForImprovement,
-            developmentGoals: formData.developmentGoals,
-            customGoal: formData.customGoal,
-            coachRemarks: formData.coachRemarks,
-            overallRating: formData.overallRating,
-            rating: formData.overallRating,
-            skillAssessments: formData.skillAssessments
-          };
-        }
-        return r;
-      }));
-
-      addToast({
-        type: 'success',
-        title: 'Player Development Report Updated',
-        message: `Evaluation report saved for ${targetStudent.fullName}.`
-      });
-    } else {
-      const newRecord: PerformanceRecord = {
-        id: `perf-${Date.now()}`,
-        studentId: targetStudent.id,
-        studentName: targetStudent.fullName,
-        coachId: coach.id,
-        coachName: coach.fullName,
-        monthYear: formData.reportPeriod,
-        reportPeriod: formData.reportPeriod,
-        recordedDate: formData.recordedDate,
-        position: formData.position,
-        dob: formData.dob,
-        age: formData.age,
-        strongFoot: formData.strongFoot,
-        strengths: formData.strengths,
-        areasForImprovement: formData.areasForImprovement,
-        developmentGoals: formData.developmentGoals,
-        customGoal: formData.customGoal,
-        coachRemarks: formData.coachRemarks,
-        overallRating: formData.overallRating,
-        rating: formData.overallRating,
-        skillAssessments: formData.skillAssessments
-      };
-
-      setRecords([newRecord, ...records]);
-      addToast({
-        type: 'success',
-        title: 'Player Development Report Created',
-        message: `Evaluation report logged for ${targetStudent.fullName}.`
-      });
+    const targetStudent = myStudents.find(s => s.id === formData.studentId);
+    if (!targetStudent) {
+      addToast({ type: 'warning', title: 'Select a player', message: 'Choose one of your trainees for this report.' });
+      return;
     }
-
-    setViewMode('list');
+    if (!formData.strengths.trim() || !formData.areasForImprovement.trim() || !formData.coachRemarks.trim()) {
+      addToast({ type: 'warning', title: 'Missing details', message: 'Fill in strengths, areas for improvement and coach remarks.' });
+      return;
+    }
+    const standardGoals = configQuery.data?.standardGoals ?? [];
+    const body = {
+      studentId: targetStudent.id,
+      reportPeriod: formData.reportPeriod.trim(),
+      recordedDate: formData.recordedDate,
+      position: emptyToNull(formData.position),
+      strongFoot: toApiFoot(formData.strongFoot),
+      skills: formData.skillAssessments
+        .map(sa => ({ skill: skillKey(sa.category) as Skill, rating: sa.rating, comment: emptyToNull(sa.comments) }))
+        .filter(s => s.skill),
+      strengths: formData.strengths.trim(),
+      areasForImprovement: formData.areasForImprovement.trim(),
+      // Only the standard goals are accepted; anything else belongs in the custom goal.
+      developmentGoals: formData.developmentGoals.filter(g => standardGoals.includes(g)),
+      customGoal: emptyToNull(formData.customGoal),
+      coachRemarks: formData.coachRemarks.trim(),
+      overallRating: formData.overallRating,
+    };
+    const ok = await run(
+      () => (editingRecordId ? coachPortalApi.updateReport(editingRecordId, body) : coachPortalApi.createReport(body)),
+      {
+        success: editingRecordId
+          ? { title: 'Player Development Report Updated', message: `Evaluation report saved for ${targetStudent.fullName}.` }
+          : { title: 'Player Development Report Created', message: `Evaluation report logged for ${targetStudent.fullName}.` },
+        errorTitle: 'Could not save report',
+        invalidate,
+      }
+    );
+    if (ok) setViewMode('list');
   };
 
-  const myRecords = records.filter(r => r.coachId === coach.id || r.coachName === coach.fullName);
+  // The backend already returns only this coach's reports.
+  const myRecords = records;
   const filteredRecords = myRecords.filter(r =>
     r.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (r.position && r.position.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const standardGoalsList = [
-    'Improve weak foot',
-    'Improve first touch',
-    'Improve passing accuracy',
-    'Improve tactical awareness',
-    'Improve finishing',
-    'Improve fitness',
-    'Improve communication'
-  ];
+  const standardGoalsList = configQuery.data?.standardGoals ?? [];
 
   // ==========================================
   // RENDER DEDICATED CREATE / EDIT FORM PAGE
@@ -253,7 +247,7 @@ export const CoachPerformancePage: React.FC = () => {
             <Button variant="outline" size="sm" onClick={() => setViewMode('list')} icon={<ArrowLeft className="w-4 h-4" />}>
               Back to Reports
             </Button>
-            <Button size="sm" onClick={handleSaveReport} className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold">
+            <Button size="sm" onClick={handleSaveReport} isLoading={pending} className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold">
               Save Player Development Report
             </Button>
           </div>
@@ -266,14 +260,13 @@ export const CoachPerformancePage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <Select
                 label="Select Player"
-                options={INITIAL_STUDENTS.map(s => ({ label: `${s.fullName} (${s.studentId})`, value: s.id }))}
+                options={myStudents.map(s => ({ label: `${s.fullName} (${s.studentId})`, value: s.id }))}
                 value={formData.studentId}
+                disabled={viewMode === 'edit'}
                 onChange={e => {
-                  const targetStudent = INITIAL_STUDENTS.find(s => s.id === e.target.value);
-                  const dob = targetStudent?.dateOfBirth || '2012-05-14';
-                  const birthYear = new Date(dob).getFullYear();
-                  const age = (new Date().getFullYear() - birthYear).toString();
-                  setFormData({ ...formData, studentId: e.target.value, dob, age });
+                  const targetStudent = myStudents.find(s => s.id === e.target.value);
+                  const dob = targetStudent?.dateOfBirth || '';
+                  setFormData({ ...formData, studentId: e.target.value, dob, age: ageFrom(dob) });
                 }}
               />
               <Input
@@ -580,6 +573,10 @@ export const CoachPerformancePage: React.FC = () => {
           </div>
         </Card>
 
+        {(reportsQuery.isLoading || reportsQuery.error) && (
+          <QueryState isLoading={reportsQuery.isLoading} error={reportsQuery.error} onRetry={() => reportsQuery.refetch()}>{null}</QueryState>
+        )}
+
         {/* Reports Table List */}
         <Card header={
           <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">
@@ -599,11 +596,11 @@ export const CoachPerformancePage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {filteredRecords.map(rec => {
-                  const isEditable = isEditableWithin7Days(rec.recordedDate);
+                  const isEditable = isEditableWithin7Days(rec.recordedDate, rec.canEdit);
                   return (
                     <tr
                       key={rec.id}
-                      onClick={() => setViewDetailRecord(rec)}
+                      onClick={() => withReport(rec, setViewDetailRecord)}
                       className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
                     >
                       <td className="py-3.5 px-4 font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">
@@ -611,7 +608,7 @@ export const CoachPerformancePage: React.FC = () => {
                         <p className="text-[10px] text-slate-400 font-mono font-normal">ID: {rec.studentId}</p>
                       </td>
                       <td className="py-3.5 px-4 font-bold text-slate-800">
-                        {rec.position || 'Attacking Mid'}
+                        {rec.position || '—'}
                         <span className="ml-1.5 text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
                           {rec.strongFoot || 'Right'} Foot
                         </span>
@@ -632,7 +629,7 @@ export const CoachPerformancePage: React.FC = () => {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setPdfPrintRecord(rec);
+                              withReport(rec, setPdfPrintRecord);
                             }}
                             className="p-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
                             title="Print PDF Report"
@@ -696,32 +693,8 @@ export const CoachPerformancePage: React.FC = () => {
       {/* VIEW PREVIEW MODAL */}
       {viewDetailRecord && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 space-y-4 text-xs shadow-2xl">
-            <div className="bg-amber-400 p-4 rounded-xl text-slate-900 flex justify-between items-center font-black uppercase">
-              <div>
-                <h3 className="text-base">{viewDetailRecord.studentName}</h3>
-                <p className="text-[10px] text-slate-900/80">Position: {viewDetailRecord.position || 'Forward'} | Strong Foot: {viewDetailRecord.strongFoot || 'Right'}</p>
-              </div>
-              <span className="bg-slate-900 text-white px-3 py-1 rounded-lg text-xs">
-                Rating: {viewDetailRecord.overallRating || 5} / 5 ★
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-slate-800">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="font-extrabold text-slate-900 mb-1">PLAYER STRENGTHS</p>
-                <p className="whitespace-pre-line text-slate-700">{viewDetailRecord.strengths}</p>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="font-extrabold text-slate-900 mb-1">AREAS FOR IMPROVEMENT</p>
-                <p className="whitespace-pre-line text-slate-700">{viewDetailRecord.areasForImprovement}</p>
-              </div>
-            </div>
-
-            <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200">
-              <p className="font-extrabold text-blue-900 mb-1">COACH'S COMMENTS / SUMMARY</p>
-              <p className="italic text-blue-900">"{viewDetailRecord.coachRemarks}" — {viewDetailRecord.coachName}</p>
-            </div>
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 text-xs shadow-2xl">
+            <PlayerReportDetail record={viewDetailRecord} />
 
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
               <Button variant="outline" onClick={() => setViewDetailRecord(null)}>Close</Button>

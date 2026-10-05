@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { Card } from '../../components/ui/Card';
@@ -13,13 +14,22 @@ import { DeleteConfirmationModal } from '../../components/ui/DeleteConfirmationM
 import { StatusToggle } from '../../components/ui/StatusToggle';
 import { ImageUpload } from '../../components/ui/ImageUpload';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { INITIAL_GALLERY } from '../../mock-data/msrf-data';
-import { GalleryItemCMS, GalleryCategory } from '../../types';
-import { Plus, Trash2, Pencil, Eye } from 'lucide-react';
+import { QueryState } from '../../components/ui/QueryState';
+import { cmsApi } from '../../api/endpoints';
+import { toApiStatus, toGalleryItem } from '../../api/mappers';
+import { dataUrlToFile } from '../../api/photos';
+import { useApiAction } from '../../api/hooks';
 import { useNotifications } from '../../context/NotificationContext';
+import { GalleryItemCMS } from '../../types';
+import { Plus, Trash2, Pencil, Eye } from 'lucide-react';
 
 export const GalleryManagementPage: React.FC = () => {
-  const [items, setItems] = useState<GalleryItemCMS[]>(INITIAL_GALLERY);
+  const query = useQuery({ queryKey: ['gallery-items'], queryFn: () => cmsApi.galleryAll() });
+  const items = (query.data ?? []).map(toGalleryItem);
+  const categoriesQuery = useQuery({ queryKey: ['gallery-items', 'categories'], queryFn: cmsApi.galleryCategories });
+  const { run, pending } = useApiAction();
+  const invalidate = [['gallery-items']];
+  const { addToast } = useNotifications();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('Active');
@@ -38,6 +48,13 @@ export const GalleryManagementPage: React.FC = () => {
   const [categoriesList, setCategoriesList] = useState<string[]>([
     'Argentina', 'Training', 'Matches', 'Events', 'Infrastructure'
   ]);
+
+  // Add categories already used by saved photos to the dropdown.
+  useEffect(() => {
+    if (!categoriesQuery.data) return;
+    setCategoriesList(prev => [...prev, ...categoriesQuery.data.filter(c => !prev.includes(c))]);
+  }, [categoriesQuery.data]);
+
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [customCategoryText, setCustomCategoryText] = useState('');
 
@@ -48,7 +65,6 @@ export const GalleryManagementPage: React.FC = () => {
     caption: ''
   });
 
-  const { addToast } = useNotifications();
 
   const filtered = items.filter(i => {
     const matchesCategory = categoryFilter === 'all' || i.category === categoryFilter;
@@ -87,7 +103,7 @@ export const GalleryManagementPage: React.FC = () => {
     setUploadModal(true);
   };
 
-  const handleSavePhoto = (e: React.FormEvent) => {
+  const handleSavePhoto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title) return;
 
@@ -101,45 +117,44 @@ export const GalleryManagementPage: React.FC = () => {
       }
     }
 
-    const imgUrlToUse =
-      form.imageUrl ||
-      'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&q=80&w=800';
-
-    if (editingItem) {
-      setItems(prev =>
-        prev.map(i =>
-          i.id === editingItem.id
-            ? { ...i, title: form.title, category: finalCategory as any, imageUrl: imgUrlToUse, caption: form.caption || form.title }
-            : i
-        )
-      );
-      addToast({ type: 'success', title: 'Gallery Photo Updated', message: form.title });
-    } else {
-      const newItem: GalleryItemCMS = {
-        id: `gal-${Date.now()}`,
-        title: form.title,
-        category: finalCategory as any,
-        imageUrl: imgUrlToUse,
-        uploadedDate: new Date().toISOString().slice(0, 10),
-        caption: form.caption || form.title,
-        status: 'Active'
-      };
-      setItems([newItem, ...items]);
-      addToast({ type: 'success', title: 'Gallery Photo Published', message: form.title });
+    const target = editingItem;
+    const newImage = form.imageUrl.startsWith('data:') ? dataUrlToFile(form.imageUrl, 'gallery') : null;
+    if (!target && !newImage) {
+      addToast({ type: 'error', title: 'Photo required', message: 'Upload an image to publish it to the gallery.' });
+      return;
     }
-
-    setUploadModal(false);
+    const caption = form.caption.trim() || form.title.trim();
+    const ok = await run(
+      async () => {
+        if (!target) {
+          return cmsApi.createGalleryItem({ title: form.title.trim(), category: finalCategory, caption, image: newImage! });
+        }
+        await cmsApi.updateGalleryItem(target.id, { title: form.title.trim(), category: finalCategory, caption });
+        if (newImage) await cmsApi.replaceGalleryImage(target.id, newImage);
+      },
+      {
+        success: { title: target ? 'Gallery Photo Updated' : 'Gallery Photo Published', message: form.title },
+        invalidate,
+      }
+    );
+    if (ok) setUploadModal(false);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
-    setItems(prev => prev.map(i => (i.id === id ? { ...i, status: newStatus } : i)));
-    addToast({ type: 'info', title: 'Status Updated', message: `Gallery item set to ${newStatus}` });
+    run(() => cmsApi.updateGalleryItem(id, { status: toApiStatus(newStatus) }), {
+      success: { type: 'info', title: 'Status Updated', message: `Gallery item set to ${newStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingItem) return;
-    setItems(prev => prev.filter(i => i.id !== deletingItem.id));
-    addToast({ type: 'info', title: 'Photo Deleted', message: `"${deletingItem.title}" removed.` });
+    const target = deletingItem;
+    await run(() => cmsApi.deleteGalleryItem(target.id), {
+      success: { type: 'info', title: 'Photo Deleted', message: `"${target.title}" removed.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingItem(null);
   };
 
@@ -188,7 +203,9 @@ export const GalleryManagementPage: React.FC = () => {
         ]}
       />
 
-      {filtered.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filtered.length === 0 ? (
         <EmptyState title="No Photos Found" description="No gallery photos match your search settings." />
       ) : viewMode === 'list' ? (
         <Card className="p-0 overflow-hidden">
@@ -359,7 +376,7 @@ export const GalleryManagementPage: React.FC = () => {
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <Button type="button" variant="outline" onClick={() => setUploadModal(false)}>Cancel</Button>
-            <Button type="submit">{editingItem ? "Update Photo" : "Publish to Gallery"}</Button>
+            <Button type="submit" isLoading={pending}>{editingItem ? "Update Photo" : "Publish to Gallery"}</Button>
           </div>
         </form>
       </Modal>

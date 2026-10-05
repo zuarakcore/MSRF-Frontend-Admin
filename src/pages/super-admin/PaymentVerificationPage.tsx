@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -6,14 +7,23 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { FilterBar } from '../../components/ui/FilterBar';
-import { INITIAL_PAYMENTS, INITIAL_STUDENTS } from '../../mock-data/msrf-data';
+import { QueryState } from '../../components/ui/QueryState';
+import { VerifySubmissionModal } from '../../components/fees/VerifySubmissionModal';
+import { submissionsApi } from '../../api/endpoints';
+import { toSubmission } from '../../api/mappers';
+import { useApiAction } from '../../api/hooks';
+import type { Allocation } from '../../api/types';
 import { PaymentSubmission } from '../../types';
 import { formatCurrency } from '../../utils/format';
 import { CheckCircle2, XCircle, Eye, Image as ImageIcon, AlertTriangle, Pencil, Save } from 'lucide-react';
-import { useNotifications } from '../../context/NotificationContext';
 
 export const PaymentVerificationPage: React.FC = () => {
-  const [payments, setPayments] = useState<PaymentSubmission[]>(INITIAL_PAYMENTS);
+  const query = useQuery({ queryKey: ['payment-submissions'], queryFn: submissionsApi.listAll });
+  const payments = (query.data ?? []).map(toSubmission);
+  const { run } = useApiAction();
+  // Verifying records a payment, so fee screens and the dashboard change too.
+  const invalidate = [['payment-submissions'], ['fees'], ['payments'], ['students'], ['dashboard'], ['notifications']];
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('Pending Verification');
   
@@ -29,7 +39,6 @@ export const PaymentVerificationPage: React.FC = () => {
   const [rejectModal, setRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const { addToast } = useNotifications();
 
   const filteredPayments = payments.filter(p => {
     // Hide verified payments from payment verification module
@@ -45,63 +54,33 @@ export const PaymentVerificationPage: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const handleVerify = (id: string) => {
-    const sub = payments.find(p => p.id === id);
-    setPayments(prev =>
-      prev.map(p => (p.id === id ? { ...p, status: 'Verified', verifiedBy: 'Super Admin', verifiedAt: 'Just now' } : p))
-    );
+  // Verifying needs the student and the fee months the money covers; the modal collects both.
+  const handleVerify = (id: string) => setVerifyingId(id);
 
-    if (sub) {
-      // Backend phone number matching simulation
-      const matchedStudent = INITIAL_STUDENTS.find(s => {
-        const pPhone = sub.parentPhone || '';
-        const sPhone = s.parentPhone || s.phone || '';
-        const cleanSubPhone = pPhone.replace(/\D/g, '');
-        const cleanStudentPhone = sPhone.replace(/\D/g, '');
-
-        if (cleanSubPhone && cleanStudentPhone && (cleanStudentPhone.includes(cleanSubPhone) || cleanSubPhone.includes(cleanStudentPhone))) {
-          return true;
-        }
-        return s.studentId === sub.studentId || s.fullName.toLowerCase() === sub.studentName.toLowerCase();
-      });
-
-      if (matchedStudent) {
-        matchedStudent.paidAmount += sub.amount;
-        matchedStudent.pendingAmount = Math.max(0, matchedStudent.totalFee - matchedStudent.paidAmount);
-        matchedStudent.feeStatus = matchedStudent.pendingAmount === 0 ? 'Paid' : 'Pending';
-        matchedStudent.remarks = `Auto Verified payment ${sub.submissionNo} (₹${sub.amount})`;
-        
-        addToast({
-          type: 'success',
-          title: 'Payment Verified & Marked Fee Paid',
-          message: `Phone number matched (${matchedStudent.parentPhone}). Fee ledger for ${matchedStudent.fullName} automatically updated.`
-        });
-      } else {
-        addToast({
-          type: 'success',
-          title: 'Payment Verified',
-          message: `Submission ${sub.submissionNo} verified.`
-        });
-      }
-    }
+  const confirmVerify = (submissionId: string, studentId: string, allocations: Allocation[]) => {
+    const sub = payments.find(p => p.id === submissionId);
+    return run(() => submissionsApi.verify(submissionId, { studentId, allocations }), {
+      success: {
+        title: 'Payment Verified',
+        message: `${sub?.submissionNo ?? 'Submission'} recorded against the student's fee ledger and a receipt was issued.`,
+      },
+      errorTitle: 'Could not verify',
+      invalidate,
+    });
   };
 
-  const handleConfirmReject = (e: React.FormEvent) => {
+  const handleConfirmReject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSub || !rejectionReason.trim()) return;
-
-    setPayments(prev =>
-      prev.map(p =>
-        p.id === selectedSub.id
-          ? { ...p, status: 'Rejected', rejectionReason }
-          : p
-      )
-    );
-
+    const ok = await run(() => submissionsApi.reject(selectedSub.id, rejectionReason.trim()), {
+      success: { type: 'info', title: 'Payment Submission Rejected', message: `${selectedSub.submissionNo} marked as rejected.` },
+      errorTitle: 'Could not reject',
+      invalidate,
+    });
+    if (!ok) return;
     setRejectModal(false);
     setDetailModal(false);
     setRejectionReason('');
-    addToast({ type: 'warning', title: 'Payment Submission Rejected', message: 'Rejection notice issued to parent.' });
   };
 
   // Inline edit student name from list view or detail modal
@@ -110,16 +89,18 @@ export const PaymentVerificationPage: React.FC = () => {
     setEditedStudentName(p.studentName);
   };
 
-  const handleSaveStudentName = (id: string) => {
-    if (!editedStudentName.trim()) return;
-    setPayments(prev =>
-      prev.map(p => (p.id === id ? { ...p, studentName: editedStudentName.trim() } : p))
-    );
+  const handleSaveStudentName = async (id: string) => {
+    const name = editedStudentName.trim();
+    if (!name) return;
+    const ok = await run(() => submissionsApi.update(id, { studentName: name }), {
+      success: { title: 'Student Name Updated', message: `Updated to "${name}"` },
+      invalidate: [['payment-submissions']],
+    });
+    if (!ok) return;
     if (selectedSub && selectedSub.id === id) {
-      setSelectedSub(prev => prev ? { ...prev, studentName: editedStudentName.trim() } : null);
+      setSelectedSub(prev => (prev ? { ...prev, studentName: name } : null));
     }
     setEditingStudentId(null);
-    addToast({ type: 'success', title: 'Student Name Updated', message: `Updated to "${editedStudentName.trim()}"` });
   };
 
   return (
@@ -168,6 +149,9 @@ export const PaymentVerificationPage: React.FC = () => {
         ]}
       />
 
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : (
       <Card header={<h3 className="font-bold text-slate-900 text-sm">Payment Verification Queue</h3>}>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
@@ -175,8 +159,8 @@ export const PaymentVerificationPage: React.FC = () => {
               <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider bg-slate-50">
                 <th className="py-3 px-3">Sub #</th>
                 <th className="py-3 px-3">Student Name</th>
-                <th className="py-3 px-3">Parent Name</th>
-                <th className="py-3 px-3">Course</th>
+                <th className="py-3 px-3">Parent Mobile</th>
+                <th className="py-3 px-3">Method</th>
                 <th className="py-3 px-3">Amount</th>
                 <th className="py-3 px-3">Txn ID / Ref</th>
                 <th className="py-3 px-3">Submitted</th>
@@ -231,7 +215,7 @@ export const PaymentVerificationPage: React.FC = () => {
                   </td>
 
                   <td className="py-3.5 px-3 text-slate-600 font-medium">{p.parentName}</td>
-                  <td className="py-3.5 px-3 font-semibold text-slate-800">{p.course}</td>
+                  <td className="py-3.5 px-3 font-semibold text-slate-800">{p.category}</td>
                   <td className="py-3.5 px-3 font-bold text-emerald-700">{formatCurrency(p.amount)}</td>
                   <td className="py-3.5 px-3 font-mono text-slate-700">{p.transactionId}</td>
                   <td className="py-3.5 px-3 text-slate-500">{p.submittedDate}</td>
@@ -292,8 +276,12 @@ export const PaymentVerificationPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+          {filteredPayments.length === 0 && (
+            <p className="py-8 text-center text-xs text-slate-500">No submissions match these filters.</p>
+          )}
         </div>
       </Card>
+      )}
 
       {/* Payment Submission Detail Modal (Includes editing student name) */}
       <Modal
@@ -359,12 +347,12 @@ export const PaymentVerificationPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3 pt-2 text-slate-700">
                 <div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Parent Name</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Parent Mobile</p>
                   <p className="font-semibold text-slate-900">{selectedSub.parentName}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Course Enrolled</p>
-                  <p className="font-semibold text-slate-900">{selectedSub.course}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Payment Method / Paid On</p>
+                  <p className="font-semibold text-slate-900">{selectedSub.category} • {selectedSub.paymentDate}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Payment Amount</p>
@@ -380,13 +368,28 @@ export const PaymentVerificationPage: React.FC = () => {
             <div>
               <p className="font-bold text-slate-700 mb-1.5 uppercase text-[10px] tracking-wider">Payment Receipt / Screenshot</p>
               <div className="rounded-xl overflow-hidden border border-slate-300 bg-slate-900">
-                <img
-                  src={selectedSub.screenshotUrl}
-                  alt="Payment Screenshot"
-                  className="w-full h-auto max-h-72 object-contain mx-auto"
-                />
+                {selectedSub.screenshotUrl ? (
+                  <a href={selectedSub.screenshotUrl} target="_blank" rel="noopener noreferrer">
+                    <img
+                      src={selectedSub.screenshotUrl}
+                      alt="Payment Screenshot"
+                      className="w-full h-auto max-h-72 object-contain mx-auto"
+                    />
+                  </a>
+                ) : (
+                  <p className="p-6 text-center text-slate-300 text-xs">No screenshot — cash payment.</p>
+                )}
               </div>
             </div>
+
+            {selectedSub.rejectionReason && (
+              <p className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">
+                <b>Rejection reason:</b> {selectedSub.rejectionReason}
+              </p>
+            )}
+            {selectedSub.status === 'Verified' && selectedSub.verifiedBy && (
+              <p className="text-slate-500">Verified by {selectedSub.verifiedBy} on {selectedSub.verifiedAt}.</p>
+            )}
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-100">
               {selectedSub.status === 'Pending Verification' ? (
@@ -422,6 +425,8 @@ export const PaymentVerificationPage: React.FC = () => {
         )}
       </Modal>
 
+      <VerifySubmissionModal submissionId={verifyingId} onClose={() => setVerifyingId(null)} onVerify={confirmVerify} />
+
       {/* Reject Modal with Reason */}
       <Modal
         isOpen={rejectModal}
@@ -439,6 +444,8 @@ export const PaymentVerificationPage: React.FC = () => {
             <textarea
               rows={3}
               required
+              minLength={5}
+              maxLength={300}
               value={rejectionReason}
               onChange={e => setRejectionReason(e.target.value)}
               placeholder="e.g. Invalid bank transaction reference or screenshot illegible..."

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -9,9 +10,12 @@ import { Pagination } from '../../components/ui/Pagination';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
-import { INITIAL_STUDENTS, INITIAL_COACHES, INITIAL_CATEGORIES, INITIAL_SESSION_REPORTS } from '../../mock-data/msrf-data';
+import { QueryState } from '../../components/ui/QueryState';
+import { attendanceApi, coachesApi, referenceApi } from '../../api/endpoints';
+import { useApiAction } from '../../api/hooks';
+import type { AttendanceStatus } from '../../api/types';
 import { CalendarCheck, Download, UserCheck, Tag, FileDown, Printer, Users, Calendar, Layers, CheckCircle2 } from 'lucide-react';
-import { formatDate, formatPhoneNumber, exportToCSV } from '../../utils/format';
+import { formatDate, formatPhoneNumber } from '../../utils/format';
 
 interface AttendanceEntry {
   id: string;
@@ -31,7 +35,7 @@ interface CoachAttendanceEntry {
   phone: string;
   category: string;
   trainingCenter: string;
-  status: 'Present';
+  status: 'Present' | 'Absent' | 'Informed';
   markedBy: string;
   remarks: string;
   date: string;
@@ -48,6 +52,12 @@ interface StudentMonthlySummary {
   attendanceRate: number;
   status: 'Good' | 'Needs Attention' | 'Critical';
 }
+
+const STATUS_LABEL: Record<AttendanceStatus, 'Present' | 'Absent' | 'Informed'> = {
+  PRESENT: 'Present',
+  ABSENT: 'Absent',
+  INFORMED: 'Informed',
+};
 
 const ALL_MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -144,123 +154,61 @@ export const AttendanceManagementPage: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // Resolve session dates for the current filter settings
-  const resolvedSessionDates = useMemo(() => {
-    if (dateFilter !== 'ALL') {
-      return [dateFilter];
-    }
+  // The backend filters by year / month / date; search, category and status filter locally.
+  const periodQuery = {
+    year: yearFilter === 'ALL' ? undefined : Number(yearFilter),
+    month: monthFilter === 'ALL' ? undefined : ALL_MONTHS.indexOf(monthFilter) + 1,
+    date: dateFilter === 'ALL' ? undefined : dateFilter,
+  };
+  const traineeQuery = useQuery({
+    queryKey: ['attendance', 'students', periodQuery],
+    queryFn: () => attendanceApi.studentsAll(periodQuery),
+  });
+  const coachQuery = useQuery({
+    queryKey: ['attendance', 'coaches', periodQuery],
+    queryFn: () => attendanceApi.coachesAll(periodQuery),
+  });
+  const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: () => referenceApi.list('categories') });
+  const activeCoachesQuery = useQuery({ queryKey: ['coaches', 'active'], queryFn: () => coachesApi.listAll({ status: 'ACTIVE' }) });
+  const { run } = useApiAction();
+  const activeQuery = activeTab === 'trainees' ? traineeQuery : coachQuery;
 
-    // Date is 'ALL': find all session dates matching Year & Month
-    const knownDates = Array.from(new Set(INITIAL_SESSION_REPORTS.map(r => r.date)));
-    if (!knownDates.includes(todayStr) && (yearFilter === 'ALL' || todayStr.startsWith(yearFilter))) {
-      knownDates.push(todayStr);
-    }
+  const allTraineeLogs = useMemo<AttendanceEntry[]>(
+    () =>
+      (traineeQuery.data ?? []).map(item => ({
+        id: item.id,
+        studentId: item.student.studentCode,
+        studentName: item.student.fullName,
+        category: item.category.name,
+        status: STATUS_LABEL[item.status],
+        markedByCoach: item.markedBy.name,
+        markedAtTime: item.remarks ?? '—',
+        date: item.date,
+      })),
+    [traineeQuery.data]
+  );
 
-    const matched = knownDates.filter(d => {
-      if (yearFilter !== 'ALL' && !d.startsWith(yearFilter)) return false;
-      if (monthFilter !== 'ALL') {
-        const mIdx = parseInt(d.slice(5, 7), 10) - 1;
-        if (ALL_MONTHS[mIdx] !== monthFilter) return false;
-      }
-      return true;
-    }).sort((a, b) => b.localeCompare(a));
+  const allCoachLogs = useMemo<CoachAttendanceEntry[]>(
+    () =>
+      (coachQuery.data ?? []).map(item => ({
+        id: `${item.sessionId}-${item.coach.id}`,
+        coachId: item.coach.id,
+        coachName: item.coach.name,
+        phone: item.phone,
+        category: item.categories.join(', '),
+        trainingCenter: item.venue,
+        status: STATUS_LABEL[item.status],
+        markedBy: item.role === 'CREATOR' ? 'Lead coach (logged the session)' : 'Co-coach',
+        remarks: item.remarks ?? '',
+        date: item.date,
+      })),
+    [coachQuery.data]
+  );
 
-    if (matched.length > 0) return matched;
-
-    // Deterministic fallback session dates for past/custom months
-    if (yearFilter !== 'ALL' && monthFilter !== 'ALL') {
-      const mIdx = ALL_MONTHS.indexOf(monthFilter) + 1;
-      const mStr = String(mIdx).padStart(2, '0');
-      const maxDays = (yearFilter === String(currentYear) && monthFilter === currentMonthName)
-        ? Math.min(28, parseInt(todayStr.slice(8, 10), 10))
-        : 28;
-      const generated: string[] = [];
-      [4, 11, 18, 25].forEach(day => {
-        if (day <= maxDays) {
-          generated.push(`${yearFilter}-${mStr}-${String(day).padStart(2, '0')}`);
-        }
-      });
-      if (generated.length === 0) generated.push(`${yearFilter}-${mStr}-01`);
-      return generated.sort((a, b) => b.localeCompare(a));
-    }
-
-    return [todayStr];
-  }, [dateFilter, yearFilter, monthFilter, todayStr, currentYear, currentMonthName]);
-
-  // Generate Trainee attendance logs for all resolved dates
-  const allTraineeLogs = useMemo<AttendanceEntry[]>(() => {
-    const list: AttendanceEntry[] = [];
-    resolvedSessionDates.forEach(dateStr => {
-      const report = INITIAL_SESSION_REPORTS.find(r => r.date === dateStr);
-      INITIAL_STUDENTS.forEach((s, idx) => {
-        const coachObj = INITIAL_COACHES[idx % INITIAL_COACHES.length];
-        const override = report?.studentAttendance?.[s.id] || report?.studentAttendance?.[`st-${idx + 1}`];
-        let status: 'Present' | 'Absent' | 'Informed';
-        if (override) {
-          status = override.status;
-        } else {
-          const dateNum = parseInt(dateStr.replace(/\D/g, ''), 10) || 1;
-          const hash = (s.fullName.length * 7 + dateNum + idx) % 15;
-          status = hash === 0 ? 'Absent' : hash === 1 ? 'Informed' : 'Present';
-        }
-
-        list.push({
-          id: `att-${s.id}-${dateStr}`,
-          studentId: s.studentId,
-          studentName: s.fullName,
-          category: s.category || 'Football Excellence',
-          status,
-          markedByCoach: report?.loggedByCoachName || (coachObj ? coachObj.fullName : 'Rajesh Varma'),
-          markedAtTime: report?.time?.split(' - ')?.[0] || `${String(6 + (idx % 2) * 10).padStart(2, '0')}:${String((idx * 7) % 60).padStart(2, '0')} AM`,
-          date: dateStr
-        });
-      });
-    });
-    return list;
-  }, [resolvedSessionDates]);
-
-  // Generate Coach attendance logs for all resolved dates
-  const allCoachLogs = useMemo<CoachAttendanceEntry[]>(() => {
-    const list: CoachAttendanceEntry[] = [];
-    resolvedSessionDates.forEach(dateStr => {
-      const sessionReportsForDate = INITIAL_SESSION_REPORTS.filter(r => r.date === dateStr);
-      INITIAL_COACHES.forEach((c) => {
-        const loggedReport = sessionReportsForDate.find(r => r.loggedByCoachName === c.fullName);
-        const coCoachReport = sessionReportsForDate.find(r => r.assignedCoaches?.includes(c.fullName));
-        const activeReport = loggedReport || coCoachReport;
-
-        if (activeReport) {
-          const isLead = activeReport.loggedByCoachName === c.fullName;
-          list.push({
-            id: `coach-att-${c.id}-${dateStr}`,
-            coachId: c.id,
-            coachName: c.fullName,
-            phone: c.phone,
-            category: activeReport.categories?.[0] || 'Football Excellence',
-            trainingCenter: activeReport.venue || 'Kozhikode Main Campus',
-            status: 'Present',
-            markedBy: isLead ? `Marked by ${c.fullName} (Lead Coach)` : `Marked by ${activeReport.loggedByCoachName}`,
-            remarks: isLead ? `Logged Daily Session (${activeReport.dailyTopic})` : `Daily Training Session (Co-Coach)`,
-            date: dateStr
-          });
-        } else {
-          list.push({
-            id: `coach-att-${c.id}-${dateStr}`,
-            coachId: c.id,
-            coachName: c.fullName,
-            phone: c.phone,
-            category: 'Football Excellence',
-            trainingCenter: 'Kozhikode Main Campus',
-            status: 'Present',
-            markedBy: 'Auto-Logged / Present',
-            remarks: 'Daily Training Session Conducted',
-            date: dateStr
-          });
-        }
-      });
-    });
-    return list;
-  }, [resolvedSessionDates]);
+  const resolvedSessionDates = useMemo(
+    () => [...new Set([...allTraineeLogs, ...allCoachLogs].map(l => l.date))],
+    [allTraineeLogs, allCoachLogs]
+  );
 
   // Filtered Trainee Logs
   const filteredTraineeLogs = useMemo(() => {
@@ -285,7 +233,8 @@ export const AttendanceManagementPage: React.FC = () => {
         log.phone.toLowerCase().includes(search.toLowerCase()) ||
         log.trainingCenter.toLowerCase().includes(search.toLowerCase()) ||
         log.date.includes(search);
-      const matchesCategory = categoryFilter === 'ALL' || log.category === categoryFilter;
+      // A session can cover several categories.
+      const matchesCategory = categoryFilter === 'ALL' || log.category.split(', ').includes(categoryFilter);
       const matchesStatus = statusFilter === 'ALL' || log.status === statusFilter;
 
       return matchesSearch && matchesCategory && matchesStatus;
@@ -339,39 +288,25 @@ export const AttendanceManagementPage: React.FC = () => {
   const traineeAttendanceRate = Math.round((traineePresentCount / (filteredTraineeLogs.length || 1)) * 100);
 
   // Stats for Coaches
-  const coachPresentCount = filteredCoachLogs.length;
-  const coachAttendanceRate = 100;
+  const coachPresentCount = filteredCoachLogs.filter(l => l.status === 'Present').length;
+  const coachAttendanceRate = Math.round((coachPresentCount / (filteredCoachLogs.length || 1)) * 100);
 
   // Active Period display label
   const periodLabel = dateFilter !== 'ALL'
     ? formatDate(dateFilter)
     : `${monthFilter !== 'ALL' ? monthFilter : 'All Months'} ${yearFilter !== 'ALL' ? yearFilter : 'All Years'}`;
 
+  // Server-side CSV for the selected period (and category / status for trainees).
   const handleExportCSV = () => {
-    if (activeTab === 'trainees') {
-      const data = filteredTraineeLogs.map(l => ({
-        'Session Date': l.date,
-        'Student ID': l.studentId,
-        'Student Name': l.studentName,
-        Category: l.category,
-        Status: l.status,
-        'Marked By Coach': l.markedByCoach,
-        'Marked Time': l.markedAtTime
-      }));
-      exportToCSV(`msrf_trainee_attendance_${dateFilter !== 'ALL' ? dateFilter : `${monthFilter}_${yearFilter}`}`, data);
-    } else {
-      const data = filteredCoachLogs.map(l => ({
-        'Session Date': l.date,
-        'Coach ID': l.coachId,
-        'Coach Name': l.coachName,
-        Phone: l.phone,
-        'Training Center': l.trainingCenter,
-        Status: l.status,
-        'Marked By': l.markedBy,
-        Remarks: l.remarks
-      }));
-      exportToCSV(`msrf_coach_attendance_${dateFilter !== 'ALL' ? dateFilter : `${monthFilter}_${yearFilter}`}`, data);
-    }
+    const categoryId = categoriesQuery.data?.find(c => c.name === categoryFilter)?.id;
+    const status = statusFilter === 'ALL' ? undefined : (statusFilter.toUpperCase() as AttendanceStatus);
+    run(
+      () =>
+        activeTab === 'trainees'
+          ? attendanceApi.exportStudents({ ...periodQuery, categoryId, status, search: search.trim() || undefined })
+          : attendanceApi.exportCoaches({ ...periodQuery, search: search.trim() || undefined }),
+      { errorTitle: 'Export failed' }
+    );
   };
 
   const handlePrint = () => {
@@ -454,15 +389,15 @@ export const AttendanceManagementPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card className="bg-emerald-50 border-emerald-200">
             <p className="text-xs uppercase font-bold text-emerald-700">Total Coaches</p>
-            <p className="text-2xl font-black text-emerald-900 mt-1">{INITIAL_COACHES.length}</p>
+            <p className="text-2xl font-black text-emerald-900 mt-1">{activeCoachesQuery.data?.length ?? '—'}</p>
           </Card>
           <Card className="bg-blue-50 border-blue-200">
             <p className="text-xs uppercase font-bold text-blue-700">Session Logs Recorded</p>
-            <p className="text-2xl font-black text-blue-900 mt-1">{coachPresentCount}</p>
+            <p className="text-2xl font-black text-blue-900 mt-1">{filteredCoachLogs.length}</p>
           </Card>
           <Card className="bg-emerald-50 border-emerald-200">
             <p className="text-xs uppercase font-bold text-emerald-700">Coach Attendance Rate</p>
-            <p className="text-2xl font-black text-emerald-900 mt-1">100%</p>
+            <p className="text-2xl font-black text-emerald-900 mt-1">{coachAttendanceRate}%</p>
           </Card>
         </div>
       )}
@@ -550,7 +485,7 @@ export const AttendanceManagementPage: React.FC = () => {
             onChange: (val) => { setCategoryFilter(val); setCurrentPage(1); },
             options: [
               { label: 'All Categories', value: 'ALL' },
-              ...INITIAL_CATEGORIES.map(c => ({ label: c.title, value: c.title }))
+              ...(categoriesQuery.data ?? []).map(c => ({ label: c.name, value: c.name }))
             ]
           },
           {
@@ -567,6 +502,10 @@ export const AttendanceManagementPage: React.FC = () => {
           }
         ]}
       />
+
+      {(activeQuery.isLoading || activeQuery.error) && (
+        <QueryState isLoading={activeQuery.isLoading} error={activeQuery.error} onRetry={() => activeQuery.refetch()}>{null}</QueryState>
+      )}
 
       {/* Attendance Table Card Header with View Switcher */}
       <Card header={
@@ -674,7 +613,7 @@ export const AttendanceManagementPage: React.FC = () => {
                     <th className="py-3 px-3">Category</th>
                     <th className="py-3 px-3">Attendance Status</th>
                     <th className="py-3 px-3">Marked By Coach</th>
-                    <th className="py-3 px-3">Marked Time</th>
+                    <th className="py-3 px-3">Remarks</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -843,7 +782,7 @@ export const AttendanceManagementPage: React.FC = () => {
                       <th className="py-2.5 px-3">Category</th>
                       <th className="py-2.5 px-3">Status</th>
                       <th className="py-2.5 px-3">Marked By Coach</th>
-                      <th className="py-2.5 px-3">Marked Time</th>
+                      <th className="py-2.5 px-3">Remarks</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
@@ -866,7 +805,7 @@ export const AttendanceManagementPage: React.FC = () => {
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
                   <p className="text-[10px] text-emerald-700 uppercase font-bold">Total Registered Coaches</p>
-                  <p className="text-base font-black text-emerald-900 mt-0.5">{INITIAL_COACHES.length}</p>
+                  <p className="text-base font-black text-emerald-900 mt-0.5">{activeCoachesQuery.data?.length ?? '—'}</p>
                 </div>
                 <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
                   <p className="text-[10px] text-blue-700 uppercase font-bold">Sessions Logged</p>
@@ -933,7 +872,7 @@ export const AttendanceManagementPage: React.FC = () => {
                     <th className="py-2 px-3">Category</th>
                     <th className="py-2 px-3">Status</th>
                     <th className="py-2 px-3">Marked By Coach</th>
-                    <th className="py-2 px-3">Marked Time</th>
+                    <th className="py-2 px-3">Remarks</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 font-medium">
