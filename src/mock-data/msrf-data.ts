@@ -1168,5 +1168,130 @@ export const INITIAL_SESSION_REPORTS: DailyTrainingSessionReport[] = [
       'coach-1': { status: 'Present' }
     },
     createdAt: '2026-09-24T18:00:00Z'
+  },
+  {
+    id: 'report-2026-003',
+    date: '2026-10-05',
+    categories: ['Junior Football Academy (U-15)', 'Senior Pro Division (U-18)'],
+    loggedByCoachName: 'Rajesh Varma',
+    assignedCoaches: ['Alex D\'Souza', 'Priya Nambiar'],
+    attendanceCount: 42,
+    venue: 'Kozhikode Main Campus Ground 1',
+    time: '06:00 AM - 08:00 AM',
+    weeklyTopic: 'High Press Trigger & Counter-Attacking Transitions',
+    dailyTopic: 'Zonal Defending in 4-3-3 & Rapid Wing Switch',
+    explanation: 'Focused pressing cues and wide transition movements under game intensity.',
+    splits: [
+      { id: 'sp-1', heading: 'Dynamic Warmup & Agility', timeDoneMins: '15', explanation: 'Ladder drills and sprint decelerations.' },
+      { id: 'sp-2', heading: '4v4+3 Possession Box', timeDoneMins: '25', explanation: 'Compact retention under high press.' },
+      { id: 'sp-3', heading: 'Tactical 11v11 Game Phase', timeDoneMins: '35', explanation: 'Defensive block and quick counter release.' }
+    ],
+    fullSessionOverview: 'Excellent tactical discipline shown by all trainees during defensive shape.',
+    studentAttendance: {
+      'st-1': { status: 'Present' },
+      'st-2': { status: 'Present' }
+    },
+    coachAttendance: {
+      'coach-1': { status: 'Present' },
+      'coach-2': { status: 'Present' },
+      'coach-3': { status: 'Present' }
+    },
+    createdAt: '2026-10-05T08:00:00Z'
+  },
+  {
+    id: 'report-2026-004',
+    date: '2026-10-04',
+    categories: ['Youth Football Squad (U-13)', 'Grassroots Football (U-10)'],
+    loggedByCoachName: 'Priya Nambiar',
+    assignedCoaches: ['Rajesh Varma'],
+    attendanceCount: 38,
+    venue: 'Pitch B Synthetic Turf',
+    time: '04:00 PM - 06:00 PM',
+    weeklyTopic: 'Passing Precision & Body Orientation',
+    dailyTopic: 'Triangular Passing & Receiving on Half-Turn',
+    explanation: 'Drills emphasizing body posture before receiving and forward passing lines.',
+    splits: [
+      { id: 'sp-1', heading: 'Ball Mastery', timeDoneMins: '15', explanation: 'Cone weaving and sole rolls.' },
+      { id: 'sp-2', heading: 'Passing Grids', timeDoneMins: '25', explanation: 'Give-and-go with overlap.' }
+    ],
+    fullSessionOverview: 'Great enthusiasm from junior squads with noticeable improvements in passing weight.',
+    studentAttendance: {
+      'st-1': { status: 'Present' }
+    },
+    coachAttendance: {
+      'coach-2': { status: 'Present' },
+      'coach-1': { status: 'Present' }
+    },
+    createdAt: '2026-10-04T18:00:00Z'
+  },
+  {
+    id: 'report-2026-005',
+    date: '2026-10-02',
+    categories: ['Football Excellence', 'Goalkeeping Academy'],
+    loggedByCoachName: 'Alex D\'Souza',
+    assignedCoaches: ['Rajesh Varma'],
+    attendanceCount: 40,
+    venue: 'Main Stadium Ground Pitch A',
+    time: '06:00 AM - 08:00 AM',
+    weeklyTopic: 'Goalkeeper Distribution & Box Defense',
+    dailyTopic: 'Dealing with High Crosses and Fast Breakout Distribution',
+    explanation: 'Goalkeeping aerial claims followed by long kicks to wingers in space.',
+    splits: [
+      { id: 'sp-1', heading: 'Aerial Handling Drill', timeDoneMins: '25', explanation: 'Claiming high balls over opponents.' },
+      { id: 'sp-2', heading: 'Breakout Passing', timeDoneMins: '30', explanation: 'Drop kicks and side-volley throws.' }
+    ],
+    fullSessionOverview: 'Solid handling displayed by goalkeepers, with quick outfield movement.',
+    studentAttendance: {},
+    coachAttendance: {
+      'coach-3': { status: 'Present' },
+      'coach-1': { status: 'Present' }
+    },
+    createdAt: '2026-10-02T08:00:00Z'
+  },
+  {
+    id: 'report-2026-006',
+    date: '2026-09-28',
+    categories: ['Junior Football Academy (U-15)'],
+    loggedByCoachName: 'Rajesh Varma',
+    assignedCoaches: ['Priya Nambiar'],
+    attendanceCount: 35,
+    venue: 'Calicut Stadium Annex',
+    time: '06:30 AM - 08:30 AM',
+    weeklyTopic: 'Defensive Line Cohesion',
+    dailyTopic: 'Offside Trap & Compact Back Four Movement',
+    explanation: 'Synchronized step-up drills and recovery runs.',
+    splits: [
+      { id: 'sp-1', heading: 'Line Drills', timeDoneMins: '20', explanation: 'Four-line coordination.' }
+    ],
+    fullSessionOverview: 'Back line demonstrated tight coordination and good verbal communication.',
+    studentAttendance: {},
+    coachAttendance: {
+      'coach-1': { status: 'Present' },
+      'coach-2': { status: 'Present' }
+    },
+    createdAt: '2026-09-28T08:30:00Z'
+  },
+  {
+    id: 'report-2026-007',
+    date: '2026-08-28',
+    categories: ['Senior Pro Division (U-18)'],
+    loggedByCoachName: 'Alex D\'Souza',
+    assignedCoaches: ['Rajesh Varma'],
+    attendanceCount: 30,
+    venue: 'Main Stadium Ground Pitch A',
+    time: '06:00 AM - 08:00 AM',
+    weeklyTopic: 'Pre-Season Conditioning & Aerobic Power',
+    dailyTopic: 'Interval Sprint Endurance & Core Stability',
+    explanation: 'High volume lactate threshold endurance training.',
+    splits: [
+      { id: 'sp-1', heading: 'Beep Test Intervals', timeDoneMins: '30', explanation: 'Max aerobic speed testing.' }
+    ],
+    fullSessionOverview: 'Strong physical performance with high endurance ratings achieved.',
+    studentAttendance: {},
+    coachAttendance: {
+      'coach-3': { status: 'Present' },
+      'coach-1': { status: 'Present' }
+    },
+    createdAt: '2026-08-28T08:00:00Z'
   }
 ];
