@@ -1,11 +1,14 @@
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
-import { INITIAL_STUDENTS, INITIAL_COACHES, INITIAL_SESSION_REPORTS, INITIAL_PERFORMANCE } from '../../mock-data/msrf-data';
+import { QueryState } from '../../components/ui/QueryState';
+import { coachPortalApi } from '../../api/endpoints';
+import { ATTENDANCE_LABEL, todayIso } from '../../api/mappers';
 import { Users, CalendarCheck, UserCheck, Award, Plus, ArrowRight, FileText, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../utils/format';
@@ -13,23 +16,34 @@ import { formatDate } from '../../utils/format';
 export const CoachDashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
+  const dashboardQuery = useQuery({ queryKey: ['coach', 'dashboard'], queryFn: coachPortalApi.dashboard });
+  const data = dashboardQuery.data;
 
-  // Find coach assigned to active user or default to Rajesh Varma
-  const coach = INITIAL_COACHES.find(c => c.email === user?.email) || INITIAL_COACHES[0];
-  const myStudents = INITIAL_STUDENTS.filter(s => s.coachId === coach.id || s.coachName === coach.fullName);
-  const myPerformance = INITIAL_PERFORMANCE.filter(p => p.coachId === coach.id || p.coachName === coach.fullName);
-  const mySessions = INITIAL_SESSION_REPORTS.filter(r => r.loggedByCoachName === coach.fullName || (r.assignedCoaches && r.assignedCoaches.includes(coach.fullName)));
+  if (!data) {
+    return (
+      <LayoutShell title="Coach Dashboard" breadcrumb={[{ label: 'Coach' }, { label: 'Dashboard' }]}>
+        <QueryState isLoading={dashboardQuery.isLoading} error={dashboardQuery.error} onRetry={() => dashboardQuery.refetch()}>
+          {null}
+        </QueryState>
+      </LayoutShell>
+    );
+  }
 
-  // Coach attendance logs derived from sessions or today
-  const coachAttendanceLogs = mySessions.length > 0 ? mySessions.map(s => ({
-    date: s.date,
-    session: s.dailyTopic,
-    status: 'Present',
-    markedTime: 'Auto-Logged'
-  })) : [
-    { date: today, session: 'Tactical Training Session', status: 'Present', markedTime: 'Auto-Logged' }
-  ];
+  const coach = {
+    fullName: data.fullName || user?.name || 'Coach',
+    specialization: data.categories.map(c => c.name).join(', ') || 'No categories assigned yet',
+  };
+  // This coach's own status on their recent sessions (lead or co-coach).
+  const coachAttendanceLogs = data.recentSessions.map(s => {
+    const me = s.coaches.find(c => c.coach.id === user?.coachId);
+    return {
+      date: s.sessionDate,
+      session: `${s.dailyTopic} • ${s.categories.map(c => c.name).join(', ')}`,
+      status: me ? ATTENDANCE_LABEL[me.status] : 'Present',
+      markedTime: s.createdBy.id === user?.coachId ? 'Logged by you' : `Logged by ${s.createdBy.name}`,
+    };
+  });
 
   return (
     <LayoutShell
@@ -52,24 +66,24 @@ export const CoachDashboard: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <StatCard
             title="Trainee Attendance Rate"
-            value={`${coach.attendanceAvg}%`}
-            subtitle="Monthly Average"
+            value={data.attendanceRateThisMonth === null ? '—' : `${data.attendanceRateThisMonth}%`}
+            subtitle={`This month • ${data.studentCount} trainees`}
             icon={<CalendarCheck className="w-5 h-5 text-emerald-600" />}
             badgeVariant="emerald"
             linkTo="/coach/attendance"
           />
           <StatCard
             title="Player Development Reports"
-            value={myPerformance.length}
+            value={data.reportsCount}
             subtitle="15-Skill Evaluations"
             icon={<Award className="w-5 h-5 text-amber-500" />}
             badgeVariant="amber"
             linkTo="/coach/performance"
           />
           <StatCard
-            title="Coach Today Attendance"
-            value="Present"
-            subtitle={`Logged: ${formatDate(today)}`}
+            title="Today's Session"
+            value={data.today.hasSession ? 'Logged' : 'Not logged'}
+            subtitle={formatDate(today)}
             icon={<UserCheck className="w-5 h-5 text-indigo-600" />}
             badgeVariant="emerald"
             linkTo="/coach/attendance"
@@ -118,10 +132,13 @@ export const CoachDashboard: React.FC = () => {
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                 <UserCheck className="w-4 h-4 text-emerald-600" /> Coach Attendance Log
               </h3>
-              <Badge variant="active">Auto-Logged</Badge>
+              <Badge variant="active">Recent Sessions</Badge>
             </div>
           }>
             <div className="space-y-3 text-xs">
+              {coachAttendanceLogs.length === 0 && (
+                <p className="text-center text-slate-400 py-4">No sessions logged yet. Use Daily Attendance to log today's session.</p>
+              )}
               {coachAttendanceLogs.map((log, idx) => (
                 <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
                   <div>

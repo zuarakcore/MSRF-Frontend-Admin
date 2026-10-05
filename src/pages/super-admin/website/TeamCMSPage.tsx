@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../../components/layout/LayoutShell';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { Card } from '../../../components/ui/Card';
@@ -12,13 +13,20 @@ import { DeleteConfirmationModal } from '../../../components/ui/DeleteConfirmati
 import { StatusToggle } from '../../../components/ui/StatusToggle';
 import { ImageUpload } from '../../../components/ui/ImageUpload';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { INITIAL_TEAM_CMS } from '../../../mock-data/msrf-data';
+import { QueryState } from '../../../components/ui/QueryState';
+import { cmsApi } from '../../../api/endpoints';
+import { toApiStatus, toTeamMember } from '../../../api/mappers';
+import { photoField } from '../../../api/photos';
+import { useApiAction } from '../../../api/hooks';
 import { TeamCMS } from '../../../types';
 import { Plus, Trash2, Pencil } from 'lucide-react';
-import { useNotifications } from '../../../context/NotificationContext';
 
 export const TeamCMSPage: React.FC = () => {
-  const [team, setTeam] = useState<TeamCMS[]>(INITIAL_TEAM_CMS);
+  const query = useQuery({ queryKey: ['team-members'], queryFn: () => cmsApi.team() });
+  const team = (query.data ?? []).map(toTeamMember);
+  const designationsQuery = useQuery({ queryKey: ['team-members', 'designations'], queryFn: cmsApi.designations });
+  const { run, pending } = useApiAction();
+  const invalidate = [['team-members']];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
@@ -45,6 +53,12 @@ export const TeamCMSPage: React.FC = () => {
   ];
 
   const [designationsList, setDesignationsList] = useState<string[]>(DEFAULT_DESIGNATIONS);
+
+  // Add designations already used by saved members to the dropdown.
+  useEffect(() => {
+    if (!designationsQuery.data) return;
+    setDesignationsList(prev => [...prev, ...designationsQuery.data.filter(d => !prev.includes(d))]);
+  }, [designationsQuery.data]);
   const [isCustomDesignation, setIsCustomDesignation] = useState(false);
   const [customDesignationText, setCustomDesignationText] = useState('');
 
@@ -55,7 +69,6 @@ export const TeamCMSPage: React.FC = () => {
     photo: ''
   });
 
-  const { addToast } = useNotifications();
 
   const filtered = team.filter(t => {
     const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
@@ -94,7 +107,7 @@ export const TeamCMSPage: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSaveTeam = (e: React.FormEvent) => {
+  const handleSaveTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name) return;
 
@@ -109,41 +122,41 @@ export const TeamCMSPage: React.FC = () => {
       }
     }
 
-    if (editingMember) {
-      setTeam(prev =>
-        prev.map(t =>
-          t.id === editingMember.id
-            ? { ...t, name: form.name, designation: finalDesignation, biography: form.biography, photo: form.photo, initials: form.name[0] }
-            : t
-        )
-      );
-      addToast({ type: 'success', title: 'Board Member Updated', message: form.name });
-    } else {
-      const newTeam: TeamCMS = {
-        id: `team-${Date.now()}`,
-        name: form.name,
-        designation: finalDesignation,
-        initials: form.name[0],
-        biography: form.biography,
-        photo: form.photo || undefined,
-        status: 'Active'
-      };
-      setTeam([...team, newTeam]);
-      addToast({ type: 'success', title: 'Board Member Added', message: newTeam.name });
-    }
-
-    setModalOpen(false);
+    const target = editingMember;
+    const ok = await run(
+      async () => {
+        const photo = await photoField(form.photo, target?.photo, 'TEAM_PHOTO');
+        const body = {
+          name: form.name.trim(),
+          designation: finalDesignation,
+          biography: form.biography.trim() || null,
+          ...photo,
+        };
+        return target ? cmsApi.updateMember(target.id, body) : cmsApi.createMember(body);
+      },
+      {
+        success: { title: target ? 'Board Member Updated' : 'Board Member Added', message: form.name },
+        invalidate,
+      }
+    );
+    if (ok) setModalOpen(false);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
-    setTeam(prev => prev.map(t => (t.id === id ? { ...t, status: newStatus } : t)));
-    addToast({ type: 'info', title: 'Status Updated', message: `Team member set to ${newStatus}` });
+    run(() => cmsApi.updateMember(id, { status: toApiStatus(newStatus) }), {
+      success: { type: 'info', title: 'Status Updated', message: `Team member set to ${newStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingMember) return;
-    setTeam(prev => prev.filter(t => t.id !== deletingMember.id));
-    addToast({ type: 'info', title: 'Member Removed', message: `"${deletingMember.name}" removed.` });
+    const target = deletingMember;
+    await run(() => cmsApi.deleteMember(target.id), {
+      success: { type: 'info', title: 'Member Removed', message: `"${target.name}" removed.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingMember(null);
   };
 
@@ -178,7 +191,9 @@ export const TeamCMSPage: React.FC = () => {
         ]}
       />
 
-      {filtered.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filtered.length === 0 ? (
         <EmptyState title="No Board Members Found" description="No leadership records match your search query." />
       ) : viewMode === 'list' ? (
         <Card className="p-0 overflow-hidden">
@@ -357,7 +372,7 @@ export const TeamCMSPage: React.FC = () => {
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit">{editingMember ? "Update Member" : "Save Board Member"}</Button>
+            <Button type="submit" isLoading={pending}>{editingMember ? "Update Member" : "Save Board Member"}</Button>
           </div>
         </form>
       </Modal>

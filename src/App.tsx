@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './api/queryClient';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 
@@ -40,9 +42,17 @@ import { CoachPerformancePage } from './pages/coach/CoachPerformancePage';
 import { UnauthorizedPage } from './pages/error/UnauthorizedPage';
 import { UserRole } from './types';
 
+// Shown while the stored session is checked on page load.
+const SessionLoading: React.FC = () => (
+  <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 // Role Guard Wrapper Component
 const RoleGuard: React.FC<{ children: React.ReactNode; allowedRole: UserRole }> = ({ children, allowedRole }) => {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, isLoading, role } = useAuth();
+  if (isLoading) return <SessionLoading />;
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -54,7 +64,8 @@ const RoleGuard: React.FC<{ children: React.ReactNode; allowedRole: UserRole }> 
 
 // Root Redirect Component
 const RootRedirect: React.FC = () => {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, isLoading, role } = useAuth();
+  if (isLoading) return <SessionLoading />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return role === 'SUPER_ADMIN' ? (
     <Navigate to="/super-admin/dashboard" replace />
@@ -65,6 +76,7 @@ const RootRedirect: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
+    <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <NotificationProvider>
         <BrowserRouter>
@@ -296,6 +308,7 @@ export const App: React.FC = () => {
         </BrowserRouter>
       </NotificationProvider>
     </AuthProvider>
+    </QueryClientProvider>
   );
 };
 

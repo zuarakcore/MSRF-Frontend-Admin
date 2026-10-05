@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { Badge } from '../../components/ui/Badge';
@@ -28,16 +29,36 @@ import {
   FileDown,
   Phone
 } from 'lucide-react';
-import { INITIAL_STUDENTS, INITIAL_CATEGORIES, INITIAL_PROGRAM_TYPES, INITIAL_TRAINING_CENTERS } from '../../mock-data/msrf-data';
+import { QueryState } from '../../components/ui/QueryState';
+import { studentsApi } from '../../api/endpoints';
+import {
+  emptyToNull,
+  isPlaceholderPhoto,
+  statusQuery,
+  toApiBatch,
+  toApiFeeStatus,
+  toApiGender,
+  toApiRelationship,
+  toApiStatus,
+  toStudent,
+} from '../../api/mappers';
+import { photoField } from '../../api/photos';
+import { useApiAction } from '../../api/hooks';
+import { errorMessage } from '../../api/client';
+import type { BloodGroup, RefItem } from '../../api/types';
 import { Student } from '../../types';
-import { formatCurrency, formatDate, formatPhoneNumber, exportToCSV } from '../../utils/format';
+import { formatCurrency, formatDate, formatPhoneNumber } from '../../utils/format';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../context/NotificationContext';
 
 export const StudentListPage: React.FC = () => {
-  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
+  const query = useQuery({ queryKey: ['students', 'all'], queryFn: () => studentsApi.listAll() });
+  const students = (query.data ?? []).map(toStudent);
+  const optionsQuery = useQuery({ queryKey: ['filter-options'], queryFn: studentsApi.filterOptions });
+  const { run, pending } = useApiAction();
+  const invalidate = [['students'], ['filter-options'], ['dashboard'], ['fees']];
   const [search, setSearch] = useState('');
   
   // Filters (Category, Program Type, Training Center, DOB Year, Status, Fee Status)
@@ -51,10 +72,13 @@ export const StudentListPage: React.FC = () => {
   const [pdfStudentRecord, setPdfStudentRecord] = useState<Student | null>(null);
 
   // Dynamic lists from modules
-  const categoriesList = INITIAL_CATEGORIES.map(c => c.title);
-  const programTypesList = INITIAL_PROGRAM_TYPES.map(pt => pt.title);
-  const trainingCentersList = INITIAL_TRAINING_CENTERS.map(tc => tc.name);
-  const dobYearsList = Array.from(new Set(students.map(s => (s.dateOfBirth ? s.dateOfBirth.slice(0, 4) : '2012')))).sort().reverse();
+  const options = optionsQuery.data;
+  const categoriesList = (options?.categories ?? []).map(c => c.name);
+  const programTypesList = (options?.programTypes ?? []).map(pt => pt.name);
+  const trainingCentersList = (options?.trainingCenters ?? []).map(tc => tc.name);
+  const dobYearsList = (options?.birthYears ?? []).map(String);
+  // The forms and filters work with names; the API takes ids.
+  const idOf = (list: RefItem[] | undefined, name: string) => list?.find(item => item.name === name)?.id;
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -149,11 +173,20 @@ export const StudentListPage: React.FC = () => {
     setIsAddModalOpen(true);
   };
 
-  const handleOpenEdit = (s: Student) => {
+  // The roster omits contact, admission and emergency details; load the full record first.
+  const withDetail = async (st: Student, then: (full: Student) => void) => {
+    try {
+      then(toStudent(await studentsApi.get(st.id)));
+    } catch (error) {
+      addToast({ type: 'error', title: 'Could not load student', message: errorMessage(error) });
+    }
+  };
+
+  const handleOpenEdit = (listStudent: Student) => withDetail(listStudent, s => {
     setEditingStudent(s);
     setFormData({
       fullName: s.fullName,
-      photo: s.photo,
+      photo: isPlaceholderPhoto(s.photo) ? '' : s.photo,
       gender: s.gender as any,
       bloodGroup: s.bloodGroup || 'O+',
       dateOfBirth: s.dateOfBirth,
@@ -162,9 +195,9 @@ export const StudentListPage: React.FC = () => {
       address: s.address || '',
       admissionNumber: s.admissionNumber || '',
       admissionDate: s.admissionDate || todayDateStr,
-      category: s.category || categoriesList[0],
-      programType: s.programType || programTypesList[0],
-      trainingCenter: s.trainingCenter || trainingCentersList[0],
+      category: s.category || categoriesList[0] || '',
+      programType: s.programType || programTypesList[0] || '',
+      trainingCenter: s.trainingCenter || trainingCentersList[0] || '',
       batch: s.batch || 'Morning (6:00 AM - 8:00 AM)',
       parentName: s.parentName || '',
       relationship: s.relationship || 'Father',
@@ -174,12 +207,12 @@ export const StudentListPage: React.FC = () => {
       emergencyName: s.emergencyName || '',
       emergencyRelationship: s.emergencyRelationship || 'Father',
       emergencyPhone: s.emergencyPhone || '',
-      monthlyFee: s.monthlyFee || (s.totalFee ? Math.round(s.totalFee / 12) : 2000)
+      monthlyFee: s.monthlyFee ?? 0
     });
     setIsAddModalOpen(true);
-  };
+  });
 
-  const handleSaveStudent = (e: React.FormEvent) => {
+  const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // DOB Validation (Required & No Future Dates)
@@ -197,250 +230,120 @@ export const StudentListPage: React.FC = () => {
       return;
     }
 
-    const defaultPhoto = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
-    const computedMonthlyFee = Number(formData.monthlyFee) || 2000;
-    const computedTotalFee = computedMonthlyFee * 12;
-
-    if (editingStudent) {
-      setStudents(prev =>
-        prev.map(s =>
-          s.id === editingStudent.id
-            ? {
-                ...s,
-                fullName: formData.fullName,
-                photo: formData.photo || defaultPhoto,
-                gender: formData.gender,
-                bloodGroup: formData.bloodGroup,
-                dateOfBirth: formData.dateOfBirth,
-                phone: formData.phone,
-                email: formData.email,
-                address: formData.address,
-                admissionNumber: formData.admissionNumber || s.admissionNumber,
-                admissionDate: formData.admissionDate,
-                category: formData.category,
-                programType: formData.programType,
-                trainingCenter: formData.trainingCenter,
-                batch: formData.batch as any,
-                parentName: formData.parentName,
-                relationship: formData.relationship as any,
-                parentPhone: formData.parentPhone,
-                parentEmail: formData.parentEmail,
-                parentAddress: formData.parentAddress || formData.address,
-                emergencyName: formData.emergencyName,
-                emergencyRelationship: formData.emergencyRelationship,
-                emergencyPhone: formData.emergencyPhone,
-                monthlyFee: computedMonthlyFee,
-                totalFee: computedTotalFee,
-                pendingAmount: Math.max(0, computedTotalFee - (s.paidAmount || 0))
-              }
-            : s
-        )
-      );
-      addToast({ type: 'success', title: 'Student Updated', message: `${formData.fullName} record updated.` });
-    } else {
-      const newIdNum = String(students.length + 1).padStart(3, '0');
-      const newStudent: Student = {
-        id: `student-${Date.now()}`,
-        studentId: `MSRF-2026-${newIdNum}`,
-        fullName: formData.fullName,
-        photo: formData.photo || defaultPhoto,
-        dateOfBirth: formData.dateOfBirth,
-        gender: formData.gender,
-        bloodGroup: formData.bloodGroup,
-        phone: formData.phone || '9847000000',
-        email: formData.email || 'student@msrf.org',
-        address: formData.address || 'Calicut, Kerala',
-        admissionNumber: formData.admissionNumber || `ADM-2026-${newIdNum}`,
-        admissionDate: formData.admissionDate || todayDateStr,
-        category: formData.category,
-        programType: formData.programType,
-        trainingCenter: formData.trainingCenter,
-        batch: formData.batch as any,
-        status: 'Active',
-        parentName: formData.parentName || 'Parent Name',
-        relationship: formData.relationship as any,
-        parentPhone: formData.parentPhone || '9447000000',
-        parentEmail: formData.parentEmail || 'parent@gmail.com',
-        parentAddress: formData.parentAddress || formData.address || 'Calicut, Kerala',
-        emergencyName: formData.emergencyName || formData.parentName,
-        emergencyRelationship: formData.emergencyRelationship || formData.relationship,
-        emergencyPhone: formData.emergencyPhone || formData.parentPhone,
-        attendancePercentage: 100,
-        totalPresent: 0,
-        totalAbsent: 0,
-        feeStatus: 'Pending',
-        monthlyFee: computedMonthlyFee,
-        totalFee: computedTotalFee,
-        paidAmount: 0,
-        pendingAmount: computedTotalFee,
-        documents: []
-      };
-
-      setStudents([newStudent, ...students]);
-      addToast({ type: 'success', title: 'Admission Registered', message: `${newStudent.fullName} added.` });
+    const categoryId = idOf(options?.categories, formData.category);
+    const programTypeId = idOf(options?.programTypes, formData.programType);
+    const trainingCenterId = idOf(options?.trainingCenters, formData.trainingCenter);
+    if (!categoryId || !programTypeId || !trainingCenterId) {
+      addToast({
+        type: 'warning',
+        title: 'Missing setup data',
+        message: 'Choose a category, program type and training center (add them from their pages first).',
+      });
+      return;
     }
 
-    setIsAddModalOpen(false);
+    const target = editingStudent;
+    const ok = await run(
+      async () => {
+        const photo = await photoField(formData.photo, isPlaceholderPhoto(target?.photo) ? undefined : target?.photo, 'STUDENT_PHOTO');
+        const body = {
+          fullName: formData.fullName.trim(),
+          gender: toApiGender(formData.gender),
+          bloodGroup: (formData.bloodGroup || null) as BloodGroup | null,
+          dateOfBirth: formData.dateOfBirth,
+          phone: emptyToNull(formData.phone),
+          email: emptyToNull(formData.email),
+          address: emptyToNull(formData.address),
+          // Left empty, the backend assigns the next admission number.
+          admissionNumber: emptyToNull(formData.admissionNumber),
+          admissionDate: formData.admissionDate || todayDateStr,
+          categoryId,
+          programTypeId,
+          trainingCenterId,
+          batch: toApiBatch(formData.batch),
+          monthlyFee: Number(formData.monthlyFee) || 0,
+          parentName: formData.parentName.trim(),
+          parentRelationship: toApiRelationship(formData.relationship),
+          parentPhone: formData.parentPhone.trim(),
+          parentEmail: emptyToNull(formData.parentEmail),
+          parentAddress: emptyToNull(formData.parentAddress) ?? emptyToNull(formData.address),
+          emergencyName: emptyToNull(formData.emergencyName),
+          emergencyRelationship: emptyToNull(formData.emergencyRelationship),
+          emergencyPhone: emptyToNull(formData.emergencyPhone),
+          ...photo,
+        };
+        return target ? studentsApi.update(target.id, body) : studentsApi.create(body);
+      },
+      {
+        success: target
+          ? { title: 'Student Updated', message: `${formData.fullName} record updated.` }
+          : { title: 'Admission Registered', message: `${formData.fullName} added.` },
+        errorTitle: target ? 'Could not update student' : 'Could not register admission',
+        invalidate,
+      }
+    );
+    if (ok) setIsAddModalOpen(false);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
-    setStudents(prev => prev.map(s => (s.id === id ? { ...s, status: newStatus } : s)));
-    addToast({ type: 'info', title: 'Status Updated', message: `Student status set to ${newStatus}` });
+    run(() => studentsApi.update(id, { status: toApiStatus(newStatus) }), {
+      success: { type: 'info', title: 'Status Updated', message: `Student status set to ${newStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingStudent) return;
-    setStudents(prev => prev.filter(s => s.id !== deletingStudent.id));
-    addToast({ type: 'info', title: 'Student Removed', message: `"${deletingStudent.fullName}" deleted.` });
+    const target = deletingStudent;
+    // Students with attendance, fees or reports cannot be deleted (409); deactivate instead.
+    await run(() => studentsApi.remove(target.id), {
+      success: { type: 'info', title: 'Student Removed', message: `"${target.fullName}" deleted.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingStudent(null);
   };
 
-  const handleExportCSV = () => {
-    const exportData = filteredStudents.map(s => ({
-      'Student ID': s.studentId,
-      'Full Name': s.fullName,
-      'Category': s.category,
-      'Program Type': s.programType,
-      'Training Center': s.trainingCenter,
-      'Parent Name': s.parentName,
-      'Phone': s.phone,
-      'Attendance %': `${s.attendancePercentage}%`,
-      'Total Fee': s.totalFee,
-      'Paid': s.paidAmount,
-      'Pending': s.pendingAmount,
-      'Fee Status': s.feeStatus,
-      'Status': s.status
-    }));
-    exportToCSV('msrf_students_roster', exportData);
-  };
+  // Server-side CSV of the full roster with the current filters applied.
+  const handleExportCSV = () =>
+    run(
+      () =>
+        studentsApi.exportCsv({
+          search: search.trim() || undefined,
+          categoryId: categoryFilter === 'ALL' ? undefined : idOf(options?.categories, categoryFilter),
+          programTypeId: programTypeFilter === 'ALL' ? undefined : idOf(options?.programTypes, programTypeFilter),
+          trainingCenterId: trainingCenterFilter === 'ALL' ? undefined : idOf(options?.trainingCenters, trainingCenterFilter),
+          birthYear: dobYearFilter === 'ALL' ? undefined : Number(dobYearFilter),
+          status: statusQuery(statusFilter),
+          feeStatus: toApiFeeStatus(feeStatusFilter),
+        }),
+      { errorTitle: 'Export failed' }
+    );
 
-  const handleDownloadSampleCSV = () => {
-    const sampleData = [
-      {
-        'Full Name': 'Arjun K',
-        'Gender': 'Male',
-        'Blood Group': 'O+',
-        'Date of Birth': '2012-05-14',
-        'Phone': '9847112233',
-        'Email': 'arjun@gmail.com',
-        'Address': 'Calicut, Kerala',
-        'Category': 'Football Academy',
-        'Program Type': 'Day Scholar Program',
-        'Training Center': 'Kozhikode Main Campus',
-        'Parent Name': 'Krishnan K',
-        'Parent Phone': '9447112233',
-        'Parent Email': 'krishnan@gmail.com',
-        'Emergency Phone': '9447112233'
-      },
-      {
-        'Full Name': 'Ananya Nair',
-        'Gender': 'Female',
-        'Blood Group': 'A+',
-        'Date of Birth': '2014-08-20',
-        'Phone': '9847223344',
-        'Email': 'ananya@gmail.com',
-        'Address': 'Wayanad, Kerala',
-        'Category': 'Swimming High Performance',
-        'Program Type': 'Residential Program',
-        'Training Center': 'Wayanad Training Center',
-        'Parent Name': 'Ramesh Nair',
-        'Parent Phone': '9447223344',
-        'Parent Email': 'ramesh@gmail.com',
-        'Emergency Phone': '9447223344'
-      }
-    ];
-    exportToCSV('msrf_student_import_sample_template', sampleData);
-    addToast({ type: 'success', title: 'Sample CSV Downloaded', message: 'Template saved to downloads.' });
-  };
+  const handleDownloadSampleCSV = () =>
+    run(() => studentsApi.importTemplate(), {
+      success: { title: 'Template Downloaded', message: 'Fill it in and upload it here.' },
+      errorTitle: 'Download failed',
+    });
 
-  const handleImportCSVSubmit = (e: React.FormEvent) => {
+  const handleImportCSVSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!importFile) {
       addToast({ type: 'warning', title: 'No File Selected', message: 'Please select a CSV file to upload.' });
       return;
     }
-
-    const mockNewStudents: Student[] = [
-      {
-        id: `student-imp-${Date.now()}-1`,
-        studentId: `MSRF-2026-${String(students.length + 1).padStart(3, '0')}`,
-        fullName: 'Rahul Varma',
-        photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=300',
-        dateOfBirth: '2012-04-10',
-        gender: 'Male',
-        bloodGroup: 'B+',
-        phone: '9847556677',
-        email: 'rahul@gmail.com',
-        address: 'Kozhikode, Kerala',
-        admissionNumber: `ADM-2026-${String(students.length + 1).padStart(3, '0')}`,
-        admissionDate: new Date().toISOString().slice(0, 10),
-        category: categoriesList[0] || 'Football Academy',
-        programType: programTypesList[0] || 'Day Scholar Program',
-        trainingCenter: trainingCentersList[0] || 'Kozhikode Main Campus',
-        batch: 'Morning (6:00 AM - 8:00 AM)',
-        status: 'Active',
-        parentName: 'Vikram Varma',
-        relationship: 'Father',
-        parentPhone: '9447556677',
-        parentEmail: 'vikram@gmail.com',
-        parentAddress: 'Kozhikode, Kerala',
-        emergencyName: 'Vikram Varma',
-        emergencyRelationship: 'Father',
-        emergencyPhone: '9447556677',
-        attendancePercentage: 100,
-        totalPresent: 0,
-        totalAbsent: 0,
-        feeStatus: 'Pending',
-        totalFee: 24000,
-        paidAmount: 0,
-        pendingAmount: 24000,
-        documents: []
+    let created = 0;
+    // All rows are imported or none; the error lists the rows to fix.
+    const ok = await run(
+      async () => {
+        created = (await studentsApi.importCsv(importFile)).created;
       },
-      {
-        id: `student-imp-${Date.now()}-2`,
-        studentId: `MSRF-2026-${String(students.length + 2).padStart(3, '0')}`,
-        fullName: 'Meera Suresh',
-        photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=300',
-        dateOfBirth: '2013-09-15',
-        gender: 'Female',
-        bloodGroup: 'O+',
-        phone: '9847667788',
-        email: 'meera@gmail.com',
-        address: 'Malappuram, Kerala',
-        admissionNumber: `ADM-2026-${String(students.length + 2).padStart(3, '0')}`,
-        admissionDate: new Date().toISOString().slice(0, 10),
-        category: categoriesList[1] || 'Athletics & Track',
-        programType: programTypesList[1] || 'Weekend Program',
-        trainingCenter: trainingCentersList[0] || 'Kozhikode Main Campus',
-        batch: 'Evening (4:00 PM - 6:00 PM)',
-        status: 'Active',
-        parentName: 'Suresh Kumar',
-        relationship: 'Father',
-        parentPhone: '9447667788',
-        parentEmail: 'suresh@gmail.com',
-        parentAddress: 'Malappuram, Kerala',
-        emergencyName: 'Suresh Kumar',
-        emergencyRelationship: 'Father',
-        emergencyPhone: '9447667788',
-        attendancePercentage: 100,
-        totalPresent: 0,
-        totalAbsent: 0,
-        feeStatus: 'Pending',
-        totalFee: 24000,
-        paidAmount: 0,
-        pendingAmount: 24000,
-        documents: []
-      }
-    ];
-
-    setStudents([...mockNewStudents, ...students]);
+      { errorTitle: 'CSV Import Failed', invalidate }
+    );
+    if (!ok) return;
     setIsImportModalOpen(false);
     setImportFile(null);
-    addToast({
-      type: 'success',
-      title: 'CSV Import Successful',
-      message: `${mockNewStudents.length} student records imported into the system.`
-    });
+    addToast({ type: 'success', title: 'CSV Import Successful', message: `${created} student records imported into the system.` });
   };
 
   return (
@@ -551,7 +454,9 @@ export const StudentListPage: React.FC = () => {
       />
 
       {/* Main Table / Grid View */}
-      {filteredStudents.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filteredStudents.length === 0 ? (
         <EmptyState
           title="No Students Found"
           description="No student records match your active search query or filter settings."
@@ -644,7 +549,7 @@ export const StudentListPage: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setPdfStudentRecord(st)}
+                          onClick={() => withDetail(st, setPdfStudentRecord)}
                           icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />}
                           title="View & Print Student PDF Report"
                         />
@@ -724,7 +629,7 @@ export const StudentListPage: React.FC = () => {
                   View Profile
                 </Button>
                 <div className="flex items-center gap-1 text-slate-400" onClick={e => e.stopPropagation()}>
-                  <Button variant="ghost" size="sm" onClick={() => setPdfStudentRecord(st)} icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} title="Student PDF Report" />
+                  <Button variant="ghost" size="sm" onClick={() => withDetail(st, setPdfStudentRecord)} icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} title="Student PDF Report" />
                   <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(st)} icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} />
                   <Button variant="ghost" size="sm" onClick={() => setDeletingStudent(st)} icon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />} />
                 </div>
@@ -978,7 +883,7 @@ export const StudentListPage: React.FC = () => {
             <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit">{editingStudent ? "Update Student" : "Complete Admission"}</Button>
+            <Button type="submit" isLoading={pending}>{editingStudent ? "Update Student" : "Complete Admission"}</Button>
           </div>
         </form>
       </Modal>
@@ -994,7 +899,7 @@ export const StudentListPage: React.FC = () => {
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs">
             <div>
               <p className="font-bold text-slate-900">Need the CSV Template Format?</p>
-              <p className="text-[11px] text-slate-500">Download the official pre-formatted CSV template with sample data.</p>
+              <p className="text-[11px] text-slate-500">Category, program type and training center must match existing names. All rows are imported or none.</p>
             </div>
             <Button
               type="button"
@@ -1004,7 +909,7 @@ export const StudentListPage: React.FC = () => {
               icon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />}
               className="bg-white border-blue-200 text-blue-700 hover:bg-blue-50 shrink-0"
             >
-              Download Sample CSV
+              Download CSV Template
             </Button>
           </div>
 
@@ -1034,7 +939,7 @@ export const StudentListPage: React.FC = () => {
             <Button type="button" variant="outline" onClick={() => setIsImportModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" icon={<Upload className="w-4 h-4" />}>
+            <Button type="submit" isLoading={pending} className="bg-emerald-600 hover:bg-emerald-700 text-white" icon={<Upload className="w-4 h-4" />}>
               Import Students Batch
             </Button>
           </div>
@@ -1059,15 +964,15 @@ export const StudentListPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
-                  <p className="font-bold text-rose-600 text-sm">{pdfStudentRecord.bloodGroup || 'O+'}</p>
+                  <p className="font-bold text-rose-600 text-sm">{pdfStudentRecord.bloodGroup || '—'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Academy Category</p>
-                  <p className="font-bold text-blue-600">{pdfStudentRecord.category || 'Football Academy'}</p>
+                  <p className="font-bold text-blue-600">{pdfStudentRecord.category || '—'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Program Type</p>
-                  <p className="font-semibold text-indigo-700">{pdfStudentRecord.programType || 'Day Scholar Program'}</p>
+                  <p className="font-semibold text-indigo-700">{pdfStudentRecord.programType || '—'}</p>
                 </div>
               </div>
             </div>
@@ -1078,7 +983,7 @@ export const StudentListPage: React.FC = () => {
                 <div className="flex justify-between"><span className="text-slate-500">Gender:</span><span className="font-semibold">{pdfStudentRecord.gender}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Date of Birth:</span><span className="font-semibold">{formatDate(pdfStudentRecord.dateOfBirth)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Phone:</span><span className="font-mono">{pdfStudentRecord.phone}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Center:</span><span className="font-semibold">{pdfStudentRecord.trainingCenter || 'Kozhikode Main Campus'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Center:</span><span className="font-semibold">{pdfStudentRecord.trainingCenter || '—'}</span></div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../../components/layout/LayoutShell';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { Card } from '../../../components/ui/Card';
@@ -9,13 +10,19 @@ import { Pagination } from '../../../components/ui/Pagination';
 import { DeleteConfirmationModal } from '../../../components/ui/DeleteConfirmationModal';
 import { StatusToggle } from '../../../components/ui/StatusToggle';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { INITIAL_CATEGORIES } from '../../../mock-data/msrf-data';
+import { QueryState } from '../../../components/ui/QueryState';
+import { referenceApi } from '../../../api/endpoints';
+import { toCategory, toApiStatus } from '../../../api/mappers';
+import { useApiAction } from '../../../api/hooks';
 import { CategoryCMS } from '../../../types';
 import { Plus, Trash2, Pencil, Tag } from 'lucide-react';
-import { useNotifications } from '../../../context/NotificationContext';
 
 export const CategoriesCMSPage: React.FC = () => {
-  const [categories, setCategories] = useState<CategoryCMS[]>(INITIAL_CATEGORIES);
+  const query = useQuery({ queryKey: ['categories'], queryFn: () => referenceApi.list('categories') });
+  const categories = (query.data ?? []).map(toCategory);
+  const { run } = useApiAction();
+  // Students' filter dropdowns and forms read these lists too.
+  const invalidate = [['categories'], ['students'], ['filter-options']];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('Active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
@@ -34,7 +41,6 @@ export const CategoriesCMSPage: React.FC = () => {
     description: ''
   });
 
-  const { addToast } = useNotifications();
 
   const filtered = categories.filter(c => {
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
@@ -59,43 +65,38 @@ export const CategoriesCMSPage: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSaveCategory = (e: React.FormEvent) => {
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) return;
-
-    if (editingCategory) {
-      setCategories(prev =>
-        prev.map(c =>
-          c.id === editingCategory.id
-            ? { ...c, title: form.title, description: form.description }
-            : c
-        )
-      );
-      addToast({ type: 'success', title: 'Category Updated', message: form.title });
-    } else {
-      const newCat: CategoryCMS = {
-        id: `cat-${Date.now()}`,
-        title: form.title,
-        description: form.description || 'Sports academy category module.',
-        status: 'Active',
-        createdAt: new Date().toISOString().slice(0, 10)
-      };
-      setCategories([newCat, ...categories]);
-      addToast({ type: 'success', title: 'Category Added', message: newCat.title });
-    }
-
-    setModalOpen(false);
+    const body = { name: form.title.trim(), description: form.description.trim() || null };
+    const ok = editingCategory
+      ? await run(() => referenceApi.update('categories', editingCategory.id, body), {
+          success: { title: 'Category Updated', message: body.name },
+          invalidate,
+        })
+      : await run(() => referenceApi.create('categories', body), {
+          success: { title: 'Category Added', message: body.name },
+          invalidate,
+        });
+    if (ok) setModalOpen(false);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
-    setCategories(prev => prev.map(c => (c.id === id ? { ...c, status: newStatus } : c)));
-    addToast({ type: 'info', title: 'Status Updated', message: `Category status set to ${newStatus}` });
+    run(() => referenceApi.update('categories', id, { status: toApiStatus(newStatus) }), {
+      success: { type: 'info', title: 'Status Updated', message: `Category status set to ${newStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingCategory) return;
-    setCategories(prev => prev.filter(c => c.id !== deletingCategory.id));
-    addToast({ type: 'info', title: 'Category Removed', message: `"${deletingCategory.title}" removed.` });
+    const target = deletingCategory;
+    // The backend refuses (409) when students or coaches still use it; deactivate instead.
+    await run(() => referenceApi.remove('categories', target.id), {
+      success: { type: 'info', title: 'Category Removed', message: `"${target.title}" removed.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingCategory(null);
   };
 
@@ -130,7 +131,9 @@ export const CategoriesCMSPage: React.FC = () => {
         ]}
       />
 
-      {filtered.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filtered.length === 0 ? (
         <EmptyState title="No Categories Found" description="No category records match your search." />
       ) : viewMode === 'list' ? (
         <Card className="p-0 overflow-hidden">

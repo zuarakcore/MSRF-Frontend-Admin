@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../../components/layout/LayoutShell';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { Card } from '../../../components/ui/Card';
@@ -10,13 +11,20 @@ import { Select } from '../../../components/ui/Select';
 import { Pagination } from '../../../components/ui/Pagination';
 import { DeleteConfirmationModal } from '../../../components/ui/DeleteConfirmationModal';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { INITIAL_APPLICATIONS } from '../../../mock-data/msrf-data';
+import { QueryState } from '../../../components/ui/QueryState';
+import { cmsApi } from '../../../api/endpoints';
+import { toApiApplicationStatus, toApplication } from '../../../api/mappers';
+import { useApiAction } from '../../../api/hooks';
 import { CareerApplicationCMS } from '../../../types';
 import { Edit3, Trash2, Eye, Download, FileText, ExternalLink, Mail, Phone, Briefcase, Calendar } from 'lucide-react';
 import { useNotifications } from '../../../context/NotificationContext';
 
 export const JobApplicationsCMSPage: React.FC = () => {
-  const [applications, setApplications] = useState<CareerApplicationCMS[]>(INITIAL_APPLICATIONS);
+  const query = useQuery({ queryKey: ['job-applications'], queryFn: () => cmsApi.applicationsAll() });
+  const applications = (query.data ?? []).map(toApplication);
+  const { run, pending } = useApiAction();
+  // Application counts on the careers page change with these too.
+  const invalidate = [['job-applications'], ['jobs']];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -63,39 +71,47 @@ export const JobApplicationsCMSPage: React.FC = () => {
     });
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingApp) return;
-
-    setApplications(prev =>
-      prev.map(a =>
-        a.id === editingApp.id
-          ? { ...a, applicantName: form.applicantName, email: form.email, phone: form.phone, position: form.position, status: form.status }
-          : a
-      )
+    const target = editingApp;
+    const ok = await run(
+      () =>
+        cmsApi.updateApplication(target.id, {
+          fullName: form.applicantName.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          status: toApiApplicationStatus(form.status),
+        }),
+      { success: { title: 'Application Updated', message: form.applicantName }, invalidate }
     );
-
+    if (!ok) return;
     setEditingApp(null);
-    if (detailModalApp && detailModalApp.id === editingApp.id) {
-      setDetailModalApp(prev => prev ? { ...prev, ...form } : null);
+    if (detailModalApp && detailModalApp.id === target.id) {
+      setDetailModalApp(prev => (prev ? { ...prev, ...form } : null));
     }
-    addToast({ type: 'success', title: 'Application Updated', message: form.applicantName });
   };
 
   const handleStatusChange = (id: string, newStatus: 'Under Review' | 'Shortlisted' | 'Rejected') => {
-    setApplications(prev => prev.map(a => (a.id === id ? { ...a, status: newStatus } : a)));
     if (detailModalApp && detailModalApp.id === id) {
-      setDetailModalApp(prev => prev ? { ...prev, status: newStatus } : null);
+      setDetailModalApp(prev => (prev ? { ...prev, status: newStatus } : null));
     }
-    addToast({ type: 'info', title: 'Status Updated', message: `Application status set to ${newStatus}` });
+    run(() => cmsApi.updateApplication(id, { status: toApiApplicationStatus(newStatus) }), {
+      success: { type: 'info', title: 'Status Updated', message: `Application status set to ${newStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingApp) return;
-    setApplications(prev => prev.filter(a => a.id !== deletingApp.id));
-    addToast({ type: 'info', title: 'Application Deleted', message: `Application for ${deletingApp.applicantName} removed.` });
+    const target = deletingApp;
+    const ok = await run(() => cmsApi.deleteApplication(target.id), {
+      success: { type: 'info', title: 'Application Deleted', message: `Application for ${target.applicantName} removed.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingApp(null);
-    if (detailModalApp && detailModalApp.id === deletingApp.id) {
+    if (ok && detailModalApp && detailModalApp.id === target.id) {
       setDetailModalApp(null);
     }
   };
@@ -103,7 +119,7 @@ export const JobApplicationsCMSPage: React.FC = () => {
   const handleDownloadCV = (app: CareerApplicationCMS) => {
     const filename = app.resumeFileName || `${app.applicantName.toLowerCase().replace(/\s+/g, '_')}_cv.pdf`;
     const link = document.createElement('a');
-    link.href = app.resumeUrl && app.resumeUrl !== '#' ? app.resumeUrl : 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+    link.href = app.resumeUrl;
     link.target = '_blank';
     link.download = filename;
     document.body.appendChild(link);
@@ -137,7 +153,9 @@ export const JobApplicationsCMSPage: React.FC = () => {
         ]}
       />
 
-      {filtered.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filtered.length === 0 ? (
         <EmptyState title="No Applications Found" description="No job applications match your search query." />
       ) : (
         <Card className="p-0 overflow-hidden">
@@ -318,7 +336,8 @@ export const JobApplicationsCMSPage: React.FC = () => {
                   <div>
                     <h4 className="text-xs font-bold text-slate-900">Website Uploaded Candidate CV / Resume</h4>
                     <p className="text-[11px] font-mono text-slate-500">
-                      {detailModalApp.resumeFileName || `${detailModalApp.applicantName.toLowerCase().replace(/\s+/g, '_')}_cv.pdf`} • 1.8 MB
+                      {detailModalApp.resumeFileName || `${detailModalApp.applicantName.toLowerCase().replace(/\s+/g, '_')}_cv.pdf`}
+                      {detailModalApp.resumeSize ? ` • ${detailModalApp.resumeSize}` : ''}
                     </p>
                   </div>
                 </div>
@@ -329,8 +348,7 @@ export const JobApplicationsCMSPage: React.FC = () => {
                     variant="outline"
                     icon={<ExternalLink className="w-3.5 h-3.5" />}
                     onClick={() => {
-                      const url = detailModalApp.resumeUrl && detailModalApp.resumeUrl !== '#' ? detailModalApp.resumeUrl : 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
-                      window.open(url, '_blank');
+                      window.open(detailModalApp.resumeUrl, '_blank', 'noopener');
                     }}
                   >
                     View CV

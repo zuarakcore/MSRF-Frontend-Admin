@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../../components/layout/LayoutShell';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { Card } from '../../../components/ui/Card';
@@ -11,13 +12,18 @@ import { DeleteConfirmationModal } from '../../../components/ui/DeleteConfirmati
 import { CareerDetailModal } from '../../../components/ui/CareerDetailModal';
 import { StatusToggle } from '../../../components/ui/StatusToggle';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { INITIAL_CAREERS } from '../../../mock-data/msrf-data';
+import { QueryState } from '../../../components/ui/QueryState';
+import { cmsApi } from '../../../api/endpoints';
+import { emptyToNull, toCareer, todayIso } from '../../../api/mappers';
+import { useApiAction } from '../../../api/hooks';
 import { CareerCMS } from '../../../types';
 import { Plus, Trash2, Pencil } from 'lucide-react';
-import { useNotifications } from '../../../context/NotificationContext';
 
 export const CareersCMSPage: React.FC = () => {
-  const [careers, setCareers] = useState<CareerCMS[]>(INITIAL_CAREERS);
+  const query = useQuery({ queryKey: ['jobs'], queryFn: () => cmsApi.jobs() });
+  const careers = (query.data ?? []).map(toCareer);
+  const { run, pending } = useApiAction();
+  const invalidate = [['jobs']];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('Active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
@@ -40,7 +46,6 @@ export const CareersCMSPage: React.FC = () => {
     experienceRequired: '3+ Years'
   });
 
-  const { addToast } = useNotifications();
 
   const filtered = careers.filter(c => {
     const matchesStatus = statusFilter === 'all' || (c.status === 'Open' ? 'Active' : 'Inactive') === statusFilter;
@@ -56,7 +61,7 @@ export const CareersCMSPage: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingJob(null);
-    setForm({ position: '', location: 'KOZHIKODE, KERALA', closingDate: 'OCT 31, 2026', jobDescription: '', experienceRequired: '3+ Years' });
+    setForm({ position: '', location: 'KOZHIKODE, KERALA', closingDate: '', jobDescription: '', experienceRequired: '3+ Years' });
     setModalOpen(true);
   };
 
@@ -65,60 +70,57 @@ export const CareersCMSPage: React.FC = () => {
     setForm({
       position: c.position,
       location: c.location,
-      closingDate: c.closingDate || 'OCT 31, 2026',
+      // The form edits the ISO date; the list shows it formatted.
+      closingDate: query.data?.find(j => j.id === c.id)?.closingDate ?? '',
       jobDescription: c.jobDescription,
       experienceRequired: c.experienceRequired
     });
     setModalOpen(true);
   };
 
-  const handleSaveCareer = (e: React.FormEvent) => {
+  const handleSaveCareer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.position) return;
-
-    if (editingJob) {
-      setCareers(prev =>
-        prev.map(c =>
-          c.id === editingJob.id
-            ? { ...c, position: form.position, location: form.location, closingDate: form.closingDate, jobDescription: form.jobDescription, experienceRequired: form.experienceRequired }
-            : c
-        )
-      );
-      addToast({ type: 'success', title: 'Job Opening Updated', message: form.position });
-    } else {
-      const newJob: CareerCMS = {
-        id: `job-${Date.now()}`,
-        position: form.position,
-        location: form.location,
-        postedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
-        closingDate: form.closingDate || 'OCT 31, 2026',
-        jobDescription: form.jobDescription,
-        experienceRequired: form.experienceRequired,
-        status: 'Open',
-        applicationsCount: 0
-      };
-      setCareers([newJob, ...careers]);
-      addToast({ type: 'success', title: 'Job Opening Posted', message: newJob.position });
-    }
-
-    setModalOpen(false);
+    if (!form.position.trim()) return;
+    const body = {
+      title: form.position.trim(),
+      location: form.location.trim(),
+      description: form.jobDescription.trim() || form.position.trim(),
+      experienceRequired: emptyToNull(form.experienceRequired),
+      closingDate: form.closingDate || null,
+    };
+    const ok = editingJob
+      ? await run(() => cmsApi.updateJob(editingJob.id, body), {
+          success: { title: 'Job Opening Updated', message: body.title },
+          invalidate,
+        })
+      : await run(() => cmsApi.createJob({ ...body, postedOn: todayIso() }), {
+          success: { title: 'Job Opening Posted', message: body.title },
+          invalidate,
+        });
+    if (ok) setModalOpen(false);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
     const updatedStatus = newStatus === 'Active' ? 'Open' : 'Closed';
-    setCareers(prev => prev.map(c => (c.id === id ? { ...c, status: updatedStatus } : c)));
-
     // Keep active detail modal updated if open
     if (detailJob && detailJob.id === id) {
-      setDetailJob(prev => prev ? { ...prev, status: updatedStatus } : null);
+      setDetailJob(prev => (prev ? { ...prev, status: updatedStatus } : null));
     }
-    addToast({ type: 'info', title: 'Status Updated', message: `Job opening set to ${newStatus}` });
+    run(() => cmsApi.updateJob(id, { status: newStatus === 'Active' ? 'OPEN' : 'CLOSED' }), {
+      success: { type: 'info', title: 'Status Updated', message: `Job opening set to ${updatedStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingJob) return;
-    setCareers(prev => prev.filter(c => c.id !== deletingJob.id));
-    addToast({ type: 'info', title: 'Job Removed', message: `"${deletingJob.position}" deleted.` });
+    const target = deletingJob;
+    // Jobs that already have applications cannot be deleted (409); close them instead.
+    await run(() => cmsApi.deleteJob(target.id), {
+      success: { type: 'info', title: 'Job Removed', message: `"${target.position}" deleted.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingJob(null);
   };
 
@@ -153,7 +155,9 @@ export const CareersCMSPage: React.FC = () => {
         ]}
       />
 
-      {filtered.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filtered.length === 0 ? (
         <EmptyState title="No Career Postings Found" description="No job openings match your search." />
       ) : viewMode === 'list' ? (
         <Card className="p-0 overflow-hidden">
@@ -271,7 +275,7 @@ export const CareersCMSPage: React.FC = () => {
           <Input label="Job Position Title" required value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} placeholder="e.g. Academy Head Coach" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Location" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
-            <Input label="Closing Date" value={form.closingDate} onChange={e => setForm({ ...form, closingDate: e.target.value })} placeholder="e.g. OCT 31, 2026" />
+            <Input label="Closing Date" type="date" min={todayIso()} value={form.closingDate} onChange={e => setForm({ ...form, closingDate: e.target.value })} />
           </div>
           <Input label="Experience Required" value={form.experienceRequired} onChange={e => setForm({ ...form, experienceRequired: e.target.value })} placeholder="e.g. 5+ Years (AFC / UEFA License)" />
           
@@ -287,7 +291,7 @@ export const CareersCMSPage: React.FC = () => {
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit">{editingJob ? "Update Job Opening" : "Post Job Opening"}</Button>
+            <Button type="submit" isLoading={pending}>{editingJob ? "Update Job Opening" : "Post Job Opening"}</Button>
           </div>
         </form>
       </Modal>

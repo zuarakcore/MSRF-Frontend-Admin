@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
@@ -19,37 +20,70 @@ import {
   Globe,
   ChevronRight
 } from 'lucide-react';
-import { 
-  INITIAL_STUDENTS, 
-  INITIAL_COACHES, 
-  INITIAL_PAYMENTS, 
-  INITIAL_INVOICES, 
-  INITIAL_CATEGORIES,
-  INITIAL_PROGRAMMES,
-  INITIAL_TEAM_CMS,
-  INITIAL_GALLERY,
-  INITIAL_CAREERS,
-  INITIAL_APPLICATIONS
-} from '../../mock-data/msrf-data';
+import { QueryState } from '../../components/ui/QueryState';
+import { attendanceApi, dashboardApi } from '../../api/endpoints';
+import { toStudent, toSubmission } from '../../api/mappers';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { useNavigate } from 'react-router-dom';
 
 export const SuperAdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [attendancePeriod, setAttendancePeriod] = useState<'today' | 'week' | 'month'>('today');
+  const summaryQuery = useQuery({ queryKey: ['dashboard', 'summary'], queryFn: dashboardApi.summary });
+  const data = summaryQuery.data;
 
-  // KPI Calculations
-  const totalStudents = INITIAL_STUDENTS.length;
-  const activeCoaches = INITIAL_COACHES.filter(c => c.status === 'Active').length;
-  const todayAttendancePct = 94.2;
-  const pendingFeesTotal = INITIAL_STUDENTS.reduce((acc, s) => acc + s.pendingAmount, 0);
-  const monthlyCollectionsTotal = INITIAL_STUDENTS.reduce((acc, s) => acc + s.paidAmount, 0);
-  const annualCollectionTotal = monthlyCollectionsTotal * 12;
-  const pendingVerificationsCount = INITIAL_PAYMENTS.filter(p => p.status === 'Pending Verification').length;
+  // Attendance rate for each of the last six months: present records / all records.
+  const now = new Date();
+  const trendMonths = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+    return { year: d.getFullYear(), month: d.getMonth() + 1, label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '") };
+  });
+  const trendQueries = useQueries({
+    queries: trendMonths.map(m => ({
+      queryKey: ['dashboard', 'attendance-trend', m.year, m.month],
+      queryFn: async () => {
+        const [all, present] = await Promise.all([
+          attendanceApi.students({ year: m.year, month: m.month, pageSize: 1 }),
+          attendanceApi.students({ year: m.year, month: m.month, status: 'PRESENT', pageSize: 1 }),
+        ]);
+        return { total: all.total, present: present.total };
+      },
+    })),
+  });
+  const attendanceTrend = trendMonths.map((m, i) => {
+    const counts = trendQueries[i].data;
+    const rate = counts && counts.total > 0 ? Math.round((counts.present / counts.total) * 1000) / 10 : 0;
+    return { month: m.label, rate, present: counts?.present ?? 0, total: counts?.total ?? 0, active: i === trendMonths.length - 1 };
+  });
+  const monthsWithData = attendanceTrend.filter(t => t.total > 0);
+  const trendPresent = monthsWithData.reduce((s, t) => s + t.present, 0);
+  const trendTotal = monthsWithData.reduce((s, t) => s + t.total, 0);
+  const averageRate = trendTotal ? Math.round((trendPresent / trendTotal) * 1000) / 10 : 0;
+  const bestMonth = monthsWithData.reduce<(typeof attendanceTrend)[number] | null>((best, t) => (!best || t.rate > best.rate ? t : best), null);
 
-  const recentAdmissions = INITIAL_STUDENTS.slice(0, 5);
-  const upcomingDuePayments = INITIAL_INVOICES.filter(i => i.paymentStatus !== 'Paid').slice(0, 5);
-  const recentSubmissions = INITIAL_PAYMENTS.slice(0, 4);
+  // KPI values
+  const totalStudents = data?.students.total ?? 0;
+  const activeStudents = data?.students.active ?? 0;
+  const activeCoaches = data?.activeCoaches ?? 0;
+  const pendingFeesTotal = data?.fees.outstanding ?? 0;
+  const monthlyCollectionsTotal = data?.fees.collectedThisMonth ?? 0;
+  const annualCollectionTotal = data?.fees.collectedThisYear ?? 0;
+  const pendingVerificationsCount = data?.pendingVerifications ?? 0;
+  const collectedShare = annualCollectionTotal + pendingFeesTotal > 0
+    ? Math.round((annualCollectionTotal / (annualCollectionTotal + pendingFeesTotal)) * 100)
+    : 0;
+
+  const recentAdmissions = (data?.recentAdmissions ?? []).map(toStudent);
+  const recentSubmissions = (data?.recentSubmissions ?? []).map(toSubmission);
+
+  if (!data) {
+    return (
+      <LayoutShell title="Control Center & Executive Overview" breadcrumb={[{ label: 'Super Admin' }, { label: 'Dashboard' }]}>
+        <QueryState isLoading={summaryQuery.isLoading} error={summaryQuery.error} onRetry={() => summaryQuery.refetch()}>
+          {null}
+        </QueryState>
+      </LayoutShell>
+    );
+  }
 
   return (
     <LayoutShell
@@ -71,10 +105,9 @@ export const SuperAdminDashboard: React.FC = () => {
         <StatCard
           title="Total Students Enrolled"
           value={totalStudents}
-          subtitle="Registered across 8 academies"
+          subtitle={`${activeStudents} currently active`}
           icon={<Users className="w-6 h-6" />}
           badgeVariant="blue"
-          trend={{ value: '+8% this month', isPositive: true }}
           linkTo="/super-admin/students"
           className="p-6"
         />
@@ -84,38 +117,37 @@ export const SuperAdminDashboard: React.FC = () => {
           subtitle="Certified sports mentors"
           icon={<UserCheck className="w-6 h-6" />}
           badgeVariant="emerald"
-          badgeText="100% Active"
+          badgeText="Active"
           linkTo="/super-admin/coaches"
           className="p-6"
         />
         <StatCard
           title="Pending Fee Outstanding"
           value={formatCurrency(pendingFeesTotal)}
-          subtitle="Click to view student list"
+          subtitle={`${data.fees.overdueStudents} students overdue`}
           icon={<AlertCircle className="w-6 h-6" />}
           badgeVariant="rose"
           badgeText={`${pendingVerificationsCount} to verify`}
-          linkTo="/super-admin/students"
+          linkTo="/super-admin/fees"
           className="p-6 cursor-pointer"
         />
         <StatCard
           title="Monthly Collections"
           value={formatCurrency(monthlyCollectionsTotal)}
-          subtitle="This month collection"
+          subtitle="Collected this month"
           icon={<TrendingUp className="w-6 h-6" />}
           badgeVariant="emerald"
-          trend={{ value: '+14.5% vs target', isPositive: true }}
-          linkTo="/super-admin/payments"
+          linkTo="/super-admin/fees"
           className="p-6"
         />
         <StatCard
           title="Annual Collection"
           value={formatCurrency(annualCollectionTotal)}
-          subtitle="Annual 2026 projected total"
+          subtitle={`Collected so far in ${now.getFullYear()}`}
           icon={<CreditCard className="w-6 h-6" />}
           badgeVariant="emerald"
-          badgeText="2026 Total"
-          linkTo="/super-admin/payments"
+          badgeText={`${now.getFullYear()} Total`}
+          linkTo="/super-admin/fees"
           className="p-6"
         />
       </div>
@@ -137,7 +169,7 @@ export const SuperAdminDashboard: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                  Avg 92.8%
+                  Avg {averageRate}%
                 </span>
                 <Button variant="ghost" size="sm" onClick={() => navigate('/super-admin/attendance')}>
                   View Details <ArrowRight className="w-3.5 h-3.5 ml-1" />
@@ -151,17 +183,17 @@ export const SuperAdminDashboard: React.FC = () => {
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Overall Average</p>
-                <p className="text-xl font-black text-emerald-900 mt-0.5">92.8%</p>
-                <p className="text-[11px] text-emerald-700 font-bold">Month-Wise Trend</p>
+                <p className="text-xl font-black text-emerald-900 mt-0.5">{averageRate}%</p>
+                <p className="text-[11px] text-emerald-700 font-bold">Last 6 Months</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Highest Month</p>
-                <p className="text-xl font-black text-blue-900 mt-0.5">96.0%</p>
-                <p className="text-[11px] text-blue-700 font-bold">Aug 2026</p>
+                <p className="text-xl font-black text-blue-900 mt-0.5">{bestMonth ? `${bestMonth.rate}%` : '—'}</p>
+                <p className="text-[11px] text-blue-700 font-bold">{bestMonth?.month ?? 'No sessions yet'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Class Days Basis</p>
-                <p className="text-xl font-black text-slate-900 mt-0.5">Active Days</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Attendance Marks</p>
+                <p className="text-xl font-black text-slate-900 mt-0.5">{trendTotal.toLocaleString('en-IN')}</p>
                 <p className="text-[11px] text-slate-500 font-bold">Class Days Only</p>
               </div>
             </div>
@@ -179,14 +211,7 @@ export const SuperAdminDashboard: React.FC = () => {
 
               {/* Monthly Bar Visuals */}
               <div className="relative h-48 flex items-end justify-between gap-3 sm:gap-6 z-10 pt-4">
-                {[
-                  { month: 'Apr 26', rate: 88, present: 45, total: 51 },
-                  { month: 'May 26', rate: 91, present: 47, total: 51 },
-                  { month: 'Jun 26', rate: 85, present: 44, total: 52 },
-                  { month: 'Jul 26', rate: 94, present: 49, total: 52 },
-                  { month: 'Aug 26', rate: 96, present: 50, total: 52 },
-                  { month: 'Sep 26', rate: 94.2, present: 49, total: 52, active: true }
-                ].map((item, idx) => (
+                {attendanceTrend.map((item, idx) => (
                   <div key={idx} className="relative group flex flex-col items-center flex-1">
                     {/* Tooltip Popup on Hover */}
                     <div className="opacity-0 group-hover:opacity-100 transition-all duration-200 absolute -top-10 bg-slate-900 text-white text-[11px] font-bold py-1 px-2.5 rounded-lg whitespace-nowrap pointer-events-none shadow-lg z-30">
@@ -233,12 +258,12 @@ export const SuperAdminDashboard: React.FC = () => {
           <div className="space-y-4">
             <div className="flex items-baseline justify-between">
               <div>
-                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Collected vs Pending</p>
+                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Collected This Month</p>
                 <h4 className="text-2xl font-black text-slate-900 mt-0.5">{formatCurrency(monthlyCollectionsTotal)}</h4>
               </div>
               <div className="text-right">
                 <span
-                  onClick={() => navigate('/super-admin/students')}
+                  onClick={() => navigate('/super-admin/fees')}
                   className="text-xs font-bold text-rose-600 bg-rose-50 px-3 py-1 rounded-full border border-rose-200 cursor-pointer hover:bg-rose-100 transition-colors"
                   title="Click to view student list for pending dues"
                 >
@@ -250,19 +275,19 @@ export const SuperAdminDashboard: React.FC = () => {
             {/* Collection Progress Bar */}
             <div className="space-y-1.5">
               <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex p-0.5 border border-slate-200">
-                <div className="h-full bg-emerald-500 rounded-full w-[72%]" title="Collected 72%" />
-                <div className="h-full bg-rose-400 rounded-full w-[28%] ml-0.5" title="Pending 28%" />
+                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${collectedShare}%` }} title={`Collected ${collectedShare}%`} />
+                <div className="h-full bg-rose-400 rounded-full ml-0.5" style={{ width: `${100 - collectedShare}%` }} title={`Pending ${100 - collectedShare}%`} />
               </div>
               <div className="flex justify-between text-[11px] font-bold text-slate-500">
-                <span className="text-emerald-700">✓ Collected 72%</span>
-                <span className="text-rose-600">⚠ Pending Dues 28%</span>
+                <span className="text-emerald-700">✓ Collected {collectedShare}% (this year)</span>
+                <span className="text-rose-600">⚠ Pending Dues {100 - collectedShare}%</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-slate-500 font-semibold">Total Revenue Target</p>
-                <p className="text-base font-bold text-slate-900 mt-0.5">₹12,48,000</p>
+                <p className="text-slate-500 font-semibold">Overdue Students</p>
+                <p className="text-base font-bold text-rose-700 mt-0.5">{data.fees.overdueStudents} Students</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-slate-500 font-semibold">Pending Verifications</p>
@@ -299,7 +324,7 @@ export const SuperAdminDashboard: React.FC = () => {
               <span>Categories</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
-            <p className="text-xl font-black text-slate-900">{INITIAL_CATEGORIES.length}</p>
+            <p className="text-xl font-black text-slate-900">{data.cms.categories}</p>
             <p className="text-[10px] text-slate-400">Sports academies</p>
           </div>
 
@@ -311,7 +336,7 @@ export const SuperAdminDashboard: React.FC = () => {
               <span>Programmes</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
-            <p className="text-xl font-black text-slate-900">{INITIAL_PROGRAMMES.length}</p>
+            <p className="text-xl font-black text-slate-900">{data.cms.programmes}</p>
             <p className="text-[10px] text-slate-400">Training tracks</p>
           </div>
 
@@ -323,7 +348,7 @@ export const SuperAdminDashboard: React.FC = () => {
               <span>Team & Board</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
-            <p className="text-xl font-black text-slate-900">{INITIAL_TEAM_CMS.length}</p>
+            <p className="text-xl font-black text-slate-900">{data.cms.team}</p>
             <p className="text-[10px] text-slate-400">Mentors & Directors</p>
           </div>
 
@@ -335,7 +360,7 @@ export const SuperAdminDashboard: React.FC = () => {
               <span>Media Gallery</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
-            <p className="text-xl font-black text-slate-900">{INITIAL_GALLERY.length}</p>
+            <p className="text-xl font-black text-slate-900">{data.cms.gallery}</p>
             <p className="text-[10px] text-slate-400">Photos & Videos</p>
           </div>
 
@@ -347,22 +372,20 @@ export const SuperAdminDashboard: React.FC = () => {
               <span>Careers</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
-            <p className="text-xl font-black text-slate-900">{INITIAL_CAREERS.length}</p>
-            <p className="text-[10px] text-emerald-600 font-bold">
-              {INITIAL_CAREERS.filter(c => c.status === 'Open').length} Openings Active
-            </p>
+            <p className="text-xl font-black text-slate-900">{data.cms.openJobs}</p>
+            <p className="text-[10px] text-emerald-600 font-bold">Openings Active</p>
           </div>
 
           <div
-            onClick={() => navigate('/super-admin/website/applications')}
+            onClick={() => navigate('/super-admin/website/job-applications')}
             className="p-3.5 bg-slate-50 hover:bg-blue-50/60 rounded-xl border border-slate-200 cursor-pointer transition-all space-y-1 group"
           >
             <div className="flex items-center justify-between text-slate-500 group-hover:text-blue-600 font-bold">
               <span>Job Applications</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
-            <p className="text-xl font-black text-blue-700">{INITIAL_APPLICATIONS.length}</p>
-            <p className="text-[10px] text-slate-400">Resumes received</p>
+            <p className="text-xl font-black text-blue-700">{data.cms.applicationsUnderReview}</p>
+            <p className="text-[10px] text-slate-400">Awaiting review</p>
           </div>
         </div>
       </Card>
@@ -388,8 +411,8 @@ export const SuperAdminDashboard: React.FC = () => {
                 <thead>
                   <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider">
                     <th className="pb-3 px-2">Student</th>
-                    <th className="pb-3 px-2">Course</th>
-                    <th className="pb-3 px-2">Coach</th>
+                    <th className="pb-3 px-2">Category</th>
+                    <th className="pb-3 px-2">Program</th>
                     <th className="pb-3 px-2">Admission Date</th>
                     <th className="pb-3 px-2">Status</th>
                     <th className="pb-3 px-2 text-right">Action</th>
@@ -402,9 +425,9 @@ export const SuperAdminDashboard: React.FC = () => {
                         <div className="font-bold text-slate-900">{st.fullName}</div>
                         <div className="text-[11px] text-slate-400">{st.studentId}</div>
                       </td>
-                      <td className="py-3 px-2 font-semibold text-slate-800">{st.course}</td>
-                      <td className="py-3 px-2">{st.coachName}</td>
-                      <td className="py-3 px-2 text-slate-500">{formatDate(st.admissionDate)}</td>
+                      <td className="py-3 px-2 font-semibold text-slate-800">{st.category}</td>
+                      <td className="py-3 px-2">{st.programType}</td>
+                      <td className="py-3 px-2 text-slate-500">{st.admissionDate ? formatDate(st.admissionDate) : '—'}</td>
                       <td className="py-3 px-2">
                         <Badge variant={st.status === 'Active' ? 'active' : 'inactive'}>
                           {st.status}
@@ -450,7 +473,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 >
                   <div>
                     <p className="font-bold text-slate-900">{sub.studentName}</p>
-                    <p className="text-[11px] text-slate-500">Parent: {sub.parentName}</p>
+                    <p className="text-[11px] text-slate-500">Parent mobile: {sub.parentPhone}</p>
                     <p className="text-xs font-black text-emerald-700 mt-1">{formatCurrency(sub.amount)}</p>
                   </div>
                   <div className="text-right shrink-0">

@@ -1,6 +1,9 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SystemNotification } from '../types';
-import { INITIAL_NOTIFICATIONS } from '../mock-data/msrf-data';
+import { notificationsApi } from '../api/endpoints';
+import type { NotificationOut } from '../api/types';
+import { useAuth } from './AuthContext';
 
 interface Toast {
   id: string;
@@ -21,18 +24,63 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [notifications, setNotifications] = useState<SystemNotification[]>(INITIAL_NOTIFICATIONS);
-  const [toasts, setToasts] = useState<Toast[]>([]);
+const FEED_SIZE = 50;
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+const timeAgo = (iso: string) => {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hr${hours === 1 ? '' : 's'} ago`;
+  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const toNotification = (n: NotificationOut): SystemNotification => ({
+  id: n.id,
+  title: n.title,
+  message: n.message,
+  type: n.type,
+  timestamp: timeAgo(n.createdAt),
+  read: Boolean(n.readAt),
+  link: n.link ?? undefined,
+});
+
+export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const { isAuthenticated, role } = useAuth();
+  const queryClient = useQueryClient();
+  // Notifications go to admins (payments, admissions, enquiries, applications).
+  const enabled = isAuthenticated && role === 'SUPER_ADMIN';
+
+  const feed = useQuery({
+    queryKey: ['notifications', 'feed'],
+    queryFn: () => notificationsApi.list({ page: 1, pageSize: FEED_SIZE }),
+    enabled,
+    refetchInterval: 60_000,
+  });
+  // The backend recommends polling the unread count every 60 s while the tab is visible.
+  const unread = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: notificationsApi.unreadCount,
+    enabled,
+    refetchInterval: 60_000,
+  });
+
+  const notifications = enabled ? (feed.data?.items ?? []).map(toNotification) : [];
+  const unreadCount = enabled ? (unread.data?.count ?? 0) : 0;
+
+  const refresh = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    [queryClient]
+  );
 
   const markAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    if (notifications.find(n => n.id === id)?.read) return;
+    notificationsApi.markRead(id).then(refresh, refresh);
   };
 
   const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    notificationsApi.markAllRead().then(refresh, refresh);
   };
 
   const addToast = ({ type, title, message }: Omit<Toast, 'id'>) => {

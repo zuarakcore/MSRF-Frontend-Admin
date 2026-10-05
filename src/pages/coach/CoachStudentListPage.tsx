@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
-import { INITIAL_STUDENTS, INITIAL_COACHES } from '../../mock-data/msrf-data';
+import { QueryState } from '../../components/ui/QueryState';
+import { coachPortalApi } from '../../api/endpoints';
+import { toCoachStudent } from '../../api/mappers';
 import { formatPhoneNumber } from '../../utils/format';
 import { Eye, Search, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -14,8 +17,10 @@ export const CoachStudentListPage: React.FC = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
 
-  const coach = INITIAL_COACHES.find(c => c.email === user?.email) || INITIAL_COACHES[0];
-  const myStudents = INITIAL_STUDENTS.filter(s => s.coachId === coach.id || s.coachName === coach.fullName);
+  // The backend scopes this to students in the coach's assigned categories.
+  const query = useQuery({ queryKey: ['coach', 'students'], queryFn: () => coachPortalApi.studentsAll() });
+  const coach = { fullName: user?.name ?? 'Coach' };
+  const myStudents = (query.data ?? []).map(toCoachStudent);
 
   const filtered = myStudents.filter(s =>
     s.fullName.toLowerCase().includes(search.toLowerCase()) ||
@@ -37,7 +42,9 @@ export const CoachStudentListPage: React.FC = () => {
         />
       </div>
 
-      {filtered.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filtered.length === 0 ? (
         <Card className="py-16 text-center space-y-3 bg-slate-50/50 border border-dashed border-slate-200">
           <Users className="w-12 h-12 text-slate-300 mx-auto" />
           <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">No Assigned Trainees</h4>
@@ -62,16 +69,16 @@ export const CoachStudentListPage: React.FC = () => {
                   <span className="font-bold text-slate-800">{st.course}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Blood Group:</span>
-                  <span className="font-bold text-rose-600">{st.bloodGroup || 'O+'}</span>
+                  <span className="text-slate-400">Gender:</span>
+                  <span className="font-bold text-slate-700">{st.gender}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Attendance %:</span>
                   <span className="font-bold text-emerald-600">{st.attendancePercentage}%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Parent Phone:</span>
-                  <span className="font-mono text-blue-600 font-semibold">{formatPhoneNumber(st.parentPhone)}</span>
+                  <span className="text-slate-400">Batch:</span>
+                  <span className="font-semibold text-slate-700">{st.batch}</span>
                 </div>
               </div>
               <div className="pt-2 flex justify-end">

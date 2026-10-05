@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../../components/layout/LayoutShell';
 import { FilterBar } from '../../../components/ui/FilterBar';
 import { Card } from '../../../components/ui/Card';
@@ -10,13 +11,18 @@ import { Pagination } from '../../../components/ui/Pagination';
 import { DeleteConfirmationModal } from '../../../components/ui/DeleteConfirmationModal';
 import { StatusToggle } from '../../../components/ui/StatusToggle';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { INITIAL_PROGRAMMES } from '../../../mock-data/msrf-data';
+import { QueryState } from '../../../components/ui/QueryState';
+import { cmsApi } from '../../../api/endpoints';
+import { toApiStatus, toProgramme } from '../../../api/mappers';
+import { useApiAction } from '../../../api/hooks';
 import { ProgrammeCMS } from '../../../types';
 import { Plus, Trash2, Pencil } from 'lucide-react';
-import { useNotifications } from '../../../context/NotificationContext';
 
 export const ProgrammesCMSPage: React.FC = () => {
-  const [programmes, setProgrammes] = useState<ProgrammeCMS[]>(INITIAL_PROGRAMMES);
+  const query = useQuery({ queryKey: ['programmes'], queryFn: () => cmsApi.programmes() });
+  const programmes = (query.data ?? []).map(toProgramme);
+  const { run } = useApiAction();
+  const invalidate = [['programmes']];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('Active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // List default!
@@ -37,7 +43,6 @@ export const ProgrammesCMSPage: React.FC = () => {
     description: ''
   });
 
-  const { addToast } = useNotifications();
 
   const filtered = programmes.filter(p => {
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
@@ -63,44 +68,41 @@ export const ProgrammesCMSPage: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSaveProgramme = (e: React.FormEvent) => {
+  const handleSaveProgramme = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title) return;
-
-    if (editingProg) {
-      setProgrammes(prev =>
-        prev.map(p =>
-          p.id === editingProg.id
-            ? { ...p, ageGroup: form.ageGroup, title: form.title, description: form.description }
-            : p
-        )
-      );
-      addToast({ type: 'success', title: 'Programme Updated', message: form.title });
-    } else {
-      const newProg: ProgrammeCMS = {
-        id: `prog-${Date.now()}`,
-        ageGroup: form.ageGroup,
-        title: form.title,
-        description: form.description || 'Professional sports training program.',
-        status: 'Active',
-        enquiriesCount: 0
-      };
-      setProgrammes([newProg, ...programmes]);
-      addToast({ type: 'success', title: 'Programme Published', message: newProg.title });
-    }
-
-    setModalOpen(false);
+    if (!form.title.trim()) return;
+    const body = {
+      ageGroup: form.ageGroup.trim(),
+      title: form.title.trim(),
+      description: form.description.trim() || 'Professional sports training program.',
+    };
+    const ok = editingProg
+      ? await run(() => cmsApi.updateProgramme(editingProg.id, body), {
+          success: { title: 'Programme Updated', message: body.title },
+          invalidate,
+        })
+      : await run(() => cmsApi.createProgramme(body), {
+          success: { title: 'Programme Published', message: body.title },
+          invalidate,
+        });
+    if (ok) setModalOpen(false);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
-    setProgrammes(prev => prev.map(p => (p.id === id ? { ...p, status: newStatus } : p)));
-    addToast({ type: 'info', title: 'Status Updated', message: `Programme set to ${newStatus}` });
+    run(() => cmsApi.updateProgramme(id, { status: toApiStatus(newStatus) }), {
+      success: { type: 'info', title: 'Status Updated', message: `Programme set to ${newStatus}` },
+      invalidate,
+    });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingProg) return;
-    setProgrammes(prev => prev.filter(p => p.id !== deletingProg.id));
-    addToast({ type: 'info', title: 'Programme Removed', message: `"${deletingProg.title}" deleted.` });
+    const target = deletingProg;
+    await run(() => cmsApi.deleteProgramme(target.id), {
+      success: { type: 'info', title: 'Programme Removed', message: `"${target.title}" deleted.` },
+      errorTitle: 'Could not delete',
+      invalidate,
+    });
     setDeletingProg(null);
   };
 
@@ -135,7 +137,9 @@ export const ProgrammesCMSPage: React.FC = () => {
         ]}
       />
 
-      {filtered.length === 0 ? (
+      {query.isLoading || query.error ? (
+        <QueryState isLoading={query.isLoading} error={query.error} onRetry={() => query.refetch()}>{null}</QueryState>
+      ) : filtered.length === 0 ? (
         <EmptyState title="No Programmes Found" description="No sports programmes match your search." />
       ) : viewMode === 'list' ? (
         <Card className="p-0 overflow-hidden">

@@ -22,10 +22,11 @@ export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
   if (!coach) return null;
 
   const username = coach.email;
-  const password = coach.tempPassword || 'Coach#2026!';
+  // The auto-generated password comes from the backend with the coach record.
+  const password = coach.tempPassword || '—';
 
   const handleCopy = () => {
-    const textToCopy = `MSRF COACH PORTAL LOGIN CREDENTIALS:\nLogin URL: http://localhost:5173/login\nUsername / Email: ${username}\nPassword: ${password}`;
+    const textToCopy = `MSRF COACH PORTAL LOGIN CREDENTIALS:\nLogin URL: ${window.location.origin}/login\nUsername / Email: ${username}\nPassword: ${password}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     addToast({
@@ -61,7 +62,7 @@ export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
 
           <div className="space-y-1 pt-2 border-t border-slate-800">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">
-              Temporary Password
+              Password
             </span>
             <p className="text-sm font-bold text-amber-400 select-all">{password}</p>
           </div>

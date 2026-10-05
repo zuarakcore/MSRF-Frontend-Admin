@@ -114,6 +114,14 @@ export interface Coach {
   tempPassword?: string;
   contractUrl?: string; // Contract Document URL
   documents?: CoachDocument[]; // Documents uploaded for coach
+  gender?: 'Male' | 'Female' | 'Other';
+  address?: string;
+  /** Invite-based login: the coach sets their own password from the emailed link. */
+  inviteStatus?: 'Pending' | 'Accepted' | 'Expired';
+  lastLoginAt?: string;
+  /** Categories this coach is assigned to; they scope which students the coach sees. */
+  categoryIds?: string[];
+  categoryNames?: string[];
 }
 
 export interface SessionSplit {
@@ -140,6 +148,11 @@ export interface DailyTrainingSessionReport {
   studentAttendance: Record<string, { status: 'Present' | 'Absent' | 'Informed'; remarks?: string }>;
   coachAttendance: Record<string, { status: 'Present' | 'Absent' | 'Informed'; remarks?: string }>;
   createdAt: string;
+  /** Per-trainee attendance rows, present once the full session has been loaded. */
+  attendanceRows?: { studentId: string; studentCode: string; studentName: string; status: 'Present' | 'Absent' | 'Informed'; remarks?: string }[];
+  /** Coaches on the session with their ids (lead first). */
+  coachRefs?: { id: string; name: string; isLead: boolean }[];
+  canEdit?: boolean;
 }
 
 export interface PlayerDevelopmentReport {
@@ -279,6 +292,8 @@ export interface PerformanceRecord {
   customGoal?: string;
   coachRemarks: string;
   overallRating: RatingStar;
+  /** Backend: only the author may edit or delete, within 7 days. */
+  canEdit?: boolean;
   // Legacy fields
   technicalSkills?: number;
   staminaDiscipline?: number;
@@ -393,6 +408,7 @@ export interface CareerApplicationCMS {
   position: string;
   resumeUrl: string;
   resumeFileName?: string;
+  resumeSize?: string;
   appliedDate: string;
   status: 'Under Review' | 'Shortlisted' | 'Rejected';
 }

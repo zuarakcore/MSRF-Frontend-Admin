@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { Card } from '../../components/ui/Card';
@@ -8,8 +9,11 @@ import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { CoachCredentialsModal } from '../../components/ui/CoachCredentialsModal';
-import { INITIAL_COACHES } from '../../mock-data/msrf-data';
-import { CoachDocument } from '../../types';
+import { QueryState } from '../../components/ui/QueryState';
+import { coachesApi, openCoachContract } from '../../api/endpoints';
+import { toCoach, toDocument } from '../../api/mappers';
+import { useApiAction } from '../../api/hooks';
+import { errorMessage } from '../../api/client';
 import { ArrowLeft, Mail, Phone, Calendar, Award, Key, Copy, Check, FileText, Download, Plus, UserCheck, Trash2, FileDown, Printer, Trophy } from 'lucide-react';
 import { formatDate } from '../../utils/format';
 import { PrintPortal } from '../../components/ui/PrintPortal';
@@ -24,26 +28,35 @@ export const CoachProfilePage: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [pdfModal, setPdfModal] = useState(false);
 
-  const coach = INITIAL_COACHES.find(c => c.id === id) || INITIAL_COACHES[0];
+  const coachQuery = useQuery({ queryKey: ['coaches', id], queryFn: () => coachesApi.get(id!), enabled: Boolean(id) });
+  const docsQuery = useQuery({ queryKey: ['coaches', id, 'documents'], queryFn: () => coachesApi.documents(id!), enabled: Boolean(id) });
+  const attendanceQuery = useQuery({ queryKey: ['coaches', id, 'attendance'], queryFn: () => coachesApi.attendance(id!), enabled: Boolean(id) });
+  const coach = coachQuery.data ? toCoach(coachQuery.data) : null;
+  const coachDocs = (docsQuery.data ?? []).map(toDocument);
+  const { run, pending } = useApiAction();
+  const invalidateDocs = [['coaches', id, 'documents']];
 
-  // Documents state for coach
-  const [coachDocs, setCoachDocs] = useState<CoachDocument[]>(coach.documents || [
-    {
-      id: 'cdoc-1',
-      title: 'Employment Agreement 2026',
-      fileName: 'coach_employment_contract_2026.pdf',
-      fileType: 'PDF',
-      fileSize: '1.8 MB',
-      uploadedDate: '2026-01-10',
-      url: coach.contractUrl || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
-    }
-  ]);
   const [docModal, setDocModal] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState('');
+  const [newDocFile, setNewDocFile] = useState<File | null>(null);
+  const [newDocIsContract, setNewDocIsContract] = useState(false);
 
   const handleDeleteDoc = (docId: string, title: string) => {
-    setCoachDocs(prev => prev.filter(d => d.id !== docId));
-    addToast({ type: 'info', title: 'Document Removed', message: `"${title}" deleted from coach profile.` });
+    run(() => coachesApi.removeDocument(id!, docId), {
+      success: { type: 'info', title: 'Document Removed', message: `"${title}" deleted from coach profile.` },
+      errorTitle: 'Could not delete document',
+      invalidate: invalidateDocs,
+    });
+  };
+
+  const handleOpenContract = async () => {
+    try {
+      if (!(await openCoachContract(id!))) {
+        addToast({ type: 'info', title: 'No contract uploaded', message: 'Upload one below and tick "This is the contract".' });
+      }
+    } catch (error) {
+      addToast({ type: 'error', title: 'Could not open contract', message: errorMessage(error) });
+    }
   };
 
   const handleDownloadPDF = () => {
@@ -53,54 +66,66 @@ export const CoachProfilePage: React.FC = () => {
   // Month-wise filter for Coach Attendance History
   const [selectedMonth, setSelectedMonth] = useState('ALL');
 
-  // Mock coach attendance history logs
-  const coachAttendanceLogs = [
-    { date: '2026-09-24', monthYear: 'September 2026', session: 'Morning Session (6:00 AM - 8:00 AM)', status: 'Present', markedTime: '05:55 AM' },
-    { date: '2026-09-23', monthYear: 'September 2026', session: 'Evening Session (4:00 PM - 6:00 PM)', status: 'Present', markedTime: '03:50 PM' },
-    { date: '2026-09-22', monthYear: 'September 2026', session: 'Morning Session (6:00 AM - 8:00 AM)', status: 'Present', markedTime: '05:58 AM' },
-    { date: '2026-09-21', monthYear: 'September 2026', session: 'Morning Session (6:00 AM - 8:00 AM)', status: 'Present', markedTime: '05:52 AM' },
-    { date: '2026-08-28', monthYear: 'August 2026', session: 'Evening Session (4:00 PM - 6:00 PM)', status: 'Present', markedTime: '03:55 PM' },
-    { date: '2026-08-25', monthYear: 'August 2026', session: 'Morning Session (6:00 AM - 8:00 AM)', status: 'Present', markedTime: '05:50 AM' },
-    { date: '2026-07-20', monthYear: 'July 2026', session: 'Morning Session (6:00 AM - 8:00 AM)', status: 'Present', markedTime: '05:54 AM' }
-  ];
+  const monthYear = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  // Sessions the coach led or co-coached, newest first.
+  const coachAttendanceLogs = (attendanceQuery.data?.items ?? [])
+    .map(item => ({
+      date: item.date,
+      monthYear: monthYear(item.date),
+      session: `${item.venue} — ${item.dailyTopic}`,
+      role: item.role,
+      status: item.status === 'PRESENT' ? 'Present' : item.status === 'ABSENT' ? 'Absent' : 'Informed',
+      remarks: item.remarks,
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const monthOptions = [...new Set(coachAttendanceLogs.map(l => l.monthYear))];
 
   const filteredAttendanceLogs = coachAttendanceLogs.filter(log => {
     return selectedMonth === 'ALL' || log.monthYear === selectedMonth;
   });
 
   const handleCopyCredentials = () => {
-    const username = coach.email;
-    const password = coach.tempPassword || 'Coach#2026!';
-    const textToCopy = `MSRF COACH PORTAL LOGIN CREDENTIALS:\nLogin URL: http://localhost:5173/login\nUsername / Email: ${username}\nPassword: ${password}`;
+    if (!coach) return;
+    const password = coach.tempPassword ?? '—';
+    const textToCopy = `MSRF COACH PORTAL LOGIN CREDENTIALS:\nLogin URL: ${window.location.origin}/login\nUsername / Email: ${coach.email}\nPassword: ${password}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     addToast({
       type: 'success',
-      title: 'Credentials Copied!',
+      title: 'Login Details Copied!',
       message: `Login details for ${coach.fullName} copied to clipboard.`,
     });
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleUploadDoc = (e: React.FormEvent) => {
+  const handleUploadDoc = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDocTitle) return;
-
-    const newDoc: CoachDocument = {
-      id: `cdoc-${Date.now()}`,
-      title: newDocTitle,
-      fileName: `${newDocTitle.toLowerCase().replace(/\s+/g, '_')}.pdf`,
-      fileType: 'PDF',
-      fileSize: '1.5 MB',
-      uploadedDate: new Date().toISOString().slice(0, 10),
-      url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
-    };
-
-    setCoachDocs([newDoc, ...coachDocs]);
+    if (!newDocTitle.trim() || !newDocFile) return;
+    const ok = await run(
+      () => coachesApi.addDocument(id!, newDocTitle.trim(), newDocFile, newDocIsContract ? 'CONTRACT' : 'GENERAL'),
+      {
+        success: { title: 'Document Uploaded', message: `"${newDocTitle.trim()}" added to coach profile.` },
+        errorTitle: 'Upload failed',
+        invalidate: invalidateDocs,
+      }
+    );
+    if (!ok) return;
     setNewDocTitle('');
+    setNewDocFile(null);
+    setNewDocIsContract(false);
     setDocModal(false);
-    addToast({ type: 'success', title: 'Document Uploaded', message: `"${newDoc.title}" added to coach profile.` });
   };
+
+  if (!coach) {
+    return (
+      <LayoutShell title="Coach Profile" breadcrumb={[{ label: 'Coaches', path: '/super-admin/coaches' }, { label: 'Profile' }]}>
+        <QueryState isLoading={coachQuery.isLoading} error={coachQuery.error} onRetry={() => coachQuery.refetch()}>
+          {null}
+        </QueryState>
+      </LayoutShell>
+    );
+  }
 
   return (
     <LayoutShell
@@ -143,7 +168,7 @@ export const CoachProfilePage: React.FC = () => {
           </div>
           <div className="text-right shrink-0">
             <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
-            <p className="text-3xl font-black text-rose-400">{coach.bloodGroup || 'O+'}</p>
+            <p className="text-3xl font-black text-rose-400">{coach.bloodGroup || '—'}</p>
             <p className="text-xs text-emerald-400 font-semibold mt-1">Attendance Rate: {coach.attendanceAvg}%</p>
           </div>
         </div>
@@ -155,7 +180,7 @@ export const CoachProfilePage: React.FC = () => {
           <Card header={<h3 className="font-bold text-slate-900 text-sm">Contact & Personal Info</h3>}>
             <div className="space-y-3 text-xs">
               <div className="flex items-center gap-2 text-slate-700 font-bold text-rose-600">
-                <span>Blood Group: {coach.bloodGroup || 'O+'}</span>
+                <span>Blood Group: {coach.bloodGroup || '—'}</span>
               </div>
               <div className="flex items-center gap-2 text-slate-700">
                 <Mail className="w-4 h-4 text-slate-400" /> {coach.email}
@@ -179,14 +204,13 @@ export const CoachProfilePage: React.FC = () => {
                 <p className="font-bold text-slate-900">Employment Contract</p>
                 <p className="text-[10px] text-slate-500">Official Staff Contract PDF</p>
               </div>
-              <a
-                href={coach.contractUrl || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={handleOpenContract}
                 className="inline-flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 transition"
               >
                 <Download className="w-3.5 h-3.5" /> View / Download
-              </a>
+              </button>
             </div>
           </Card>
 
@@ -207,8 +231,8 @@ export const CoachProfilePage: React.FC = () => {
                 <span className="font-bold text-slate-900">{coach.email}</span>
               </div>
               <div>
-                <span className="text-slate-400 text-[10px] block uppercase font-sans font-semibold">Default Password</span>
-                <span className="font-bold text-amber-600">{coach.tempPassword || 'Coach#2026!'}</span>
+                <span className="text-slate-400 text-[10px] block uppercase font-sans font-semibold">Password</span>
+                <span className="font-bold text-amber-600">{coach.tempPassword || '—'}</span>
               </div>
             </div>
           </Card>
@@ -231,9 +255,9 @@ export const CoachProfilePage: React.FC = () => {
                     className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="ALL">All Months</option>
-                    <option value="September 2026">September 2026</option>
-                    <option value="August 2026">August 2026</option>
-                    <option value="July 2026">July 2026</option>
+                    {monthOptions.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -245,23 +269,25 @@ export const CoachProfilePage: React.FC = () => {
                   <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase">
                     <th className="py-2.5 px-3">Date</th>
                     <th className="py-2.5 px-3">Session</th>
-                    <th className="py-2.5 px-3">Marked Time</th>
+                    <th className="py-2.5 px-3">Role</th>
                     <th className="py-2.5 px-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {filteredAttendanceLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="py-4 text-center text-slate-400">No attendance logs for selected month.</td>
+                      <td colSpan={4} className="py-4 text-center text-slate-400">
+                        {attendanceQuery.isLoading ? 'Loading attendance…' : attendanceQuery.error ? errorMessage(attendanceQuery.error) : 'No attendance logs for selected month.'}
+                      </td>
                     </tr>
                   ) : (
                     filteredAttendanceLogs.map((log, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="py-2.5 px-3 font-bold text-slate-900">{formatDate(log.date)}</td>
                         <td className="py-2.5 px-3 text-slate-600">{log.session}</td>
-                        <td className="py-2.5 px-3 font-mono text-slate-500">{log.markedTime}</td>
+                        <td className="py-2.5 px-3 font-mono text-slate-500 capitalize">{log.role === 'CREATOR' ? 'Lead coach' : 'Co-coach'}</td>
                         <td className="py-2.5 px-3">
-                          <Badge variant="paid">{log.status}</Badge>
+                          <Badge variant={log.status === 'Present' ? 'paid' : log.status === 'Absent' ? 'overdue' : 'pending'}>{log.status}</Badge>
                         </td>
                       </tr>
                     ))
@@ -285,6 +311,11 @@ export const CoachProfilePage: React.FC = () => {
             }
           >
             <div className="divide-y divide-slate-100">
+              {coachDocs.length === 0 && (
+                <p className="py-4 text-center text-xs text-slate-400">
+                  {docsQuery.isLoading ? 'Loading documents…' : docsQuery.error ? errorMessage(docsQuery.error) : 'No documents uploaded yet.'}
+                </p>
+              )}
               {coachDocs.map(d => (
                 <div key={d.id} className="py-3 flex items-center justify-between text-xs">
                   <div className="flex items-center gap-3">
@@ -329,12 +360,19 @@ export const CoachProfilePage: React.FC = () => {
             <input
               type="file"
               required
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              onChange={e => setNewDocFile(e.target.files?.[0] ?? null)}
               className="w-full text-xs text-slate-600 border border-slate-300 rounded-lg p-2 bg-slate-50"
             />
+            <p className="text-[11px] text-slate-400 mt-1">PDF, DOC, DOCX, JPEG or PNG, up to 10 MB.</p>
           </div>
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+            <input type="checkbox" checked={newDocIsContract} onChange={e => setNewDocIsContract(e.target.checked)} />
+            This is the coach's employment contract
+          </label>
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <Button type="button" variant="outline" onClick={() => setDocModal(false)}>Cancel</Button>
-            <Button type="submit">Upload & Attach to Profile</Button>
+            <Button type="submit" isLoading={pending}>Upload & Attach to Profile</Button>
           </div>
         </form>
       </Modal>
@@ -374,7 +412,7 @@ export const CoachProfilePage: React.FC = () => {
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
-                <p className="font-bold text-rose-600 text-sm">{coach.bloodGroup || 'O+'}</p>
+                <p className="font-bold text-rose-600 text-sm">{coach.bloodGroup || '—'}</p>
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-slate-400">Experience</p>
@@ -398,7 +436,7 @@ export const CoachProfilePage: React.FC = () => {
 
             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
               <p className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">Biography & Accreditations</p>
-              <p className="text-slate-700 italic">{coach.bio || 'Certified Senior Sports Coach at MSRF.'}</p>
+              <p className="text-slate-700 italic">{coach.bio || '—'}</p>
             </div>
           </div>
 
@@ -424,7 +462,7 @@ export const CoachProfilePage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
-                  <p className="font-bold text-rose-600 text-sm">{coach.bloodGroup || 'O+'}</p>
+                  <p className="font-bold text-rose-600 text-sm">{coach.bloodGroup || '—'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Experience</p>
@@ -448,7 +486,7 @@ export const CoachProfilePage: React.FC = () => {
 
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5">
                 <p className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">Biography & Accreditations</p>
-                <p className="text-slate-700 italic">{coach.bio || 'Certified Senior Sports Coach at MSRF.'}</p>
+                <p className="text-slate-700 italic">{coach.bio || '—'}</p>
               </div>
             </div>
 

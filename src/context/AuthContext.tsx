@@ -1,90 +1,94 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { UserProfile, UserRole } from '../types';
-import { INITIAL_USERS, INITIAL_PERMISSIONS } from '../mock-data/msrf-data';
+import { refreshAccessToken, tokenStore } from '../api/client';
+import { authApi } from '../api/endpoints';
+import { queryClient } from '../api/queryClient';
+import type { ApiUser } from '../api/types';
 
 interface AuthContextType {
   user: UserProfile | null;
   role: UserRole;
   isAuthenticated: boolean;
-  login: (email: string, password: string, role?: UserRole) => Promise<boolean>;
-  logout: () => void;
-  switchRole: (newRole: UserRole) => void;
-  hasPermission: (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'export') => boolean;
+  /** True until the stored session (refresh cookie) has been checked on page load. */
+  isLoading: boolean;
+  /** Resolves with the signed-in user's role; rejects with ApiError on bad credentials. */
+  login: (email: string, password: string) => Promise<UserRole>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const toProfile = (u: ApiUser): UserProfile => ({
+  id: u.id,
+  name: u.fullName,
+  email: u.email,
+  role: u.role === 'ADMIN' ? 'SUPER_ADMIN' : 'COACH',
+  avatar: '',
+  status: u.isActive ? 'Active' : 'Inactive',
+  lastLogin: u.lastLoginAt ?? '',
+  createdAt: '',
+  coachId: u.coachId ?? undefined,
+});
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Default logged in as Super Admin for demo inspection
-  const [user, setUser] = useState<UserProfile | null>(INITIAL_USERS[0]);
-  const [role, setRole] = useState<UserRole>('SUPER_ADMIN');
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Restore the session from the httpOnly refresh cookie, if there is one.
   useEffect(() => {
-    if (user) {
-      setRole(user.role);
+    let cancelled = false;
+    (async () => {
+      try {
+        if (await refreshAccessToken()) {
+          const me = await authApi.me();
+          if (!cancelled) setUser(toProfile(me));
+        }
+      } catch {
+        tokenStore.set(null);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A failed refresh mid-session (expired, revoked, account deactivated) signs the user out.
+  useEffect(() => {
+    tokenStore.onExpired(() => setUser(null));
+    return () => tokenStore.onExpired(null);
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    const result = await authApi.login(email, password);
+    tokenStore.set(result.accessToken);
+    queryClient.clear();
+    const profile = toProfile(result.user);
+    setUser(profile);
+    return profile.role;
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // Clearing local state is what matters; the cookie expires on its own.
     }
-  }, [user]);
-
-  const login = async (email: string, _password: string, preferredRole?: UserRole): Promise<boolean> => {
-    // Mock authentication delay
-    await new Promise(res => setTimeout(res, 500));
-    
-    const targetRole = preferredRole || (email.includes('coach') ? 'COACH' : 'SUPER_ADMIN');
-    const matchedUser = INITIAL_USERS.find(u => u.role === targetRole) || {
-      id: `usr-${Date.now()}`,
-      name: targetRole === 'SUPER_ADMIN' ? 'MSRF Director (Super Admin)' : 'Coach Rajesh Varma',
-      email,
-      role: targetRole,
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200',
-      status: 'Active',
-      lastLogin: 'Just now',
-      createdAt: '2025-01-01',
-      coachId: targetRole === 'COACH' ? 'coach-1' : undefined
-    };
-
-    setUser(matchedUser);
-    setRole(targetRole);
-    return true;
-  };
-
-  const logout = () => {
+    tokenStore.set(null);
+    queryClient.clear();
     setUser(null);
-  };
-
-  const switchRole = (newRole: UserRole) => {
-    setRole(newRole);
-    const matchedUser = INITIAL_USERS.find(u => u.role === newRole) || {
-      id: `usr-${Date.now()}`,
-      name: newRole === 'SUPER_ADMIN' ? 'MSRF Director (Super Admin)' : 'Coach Rajesh Varma',
-      email: newRole === 'SUPER_ADMIN' ? 'admin@msrf.org' : 'rajesh.varma@msrf.org',
-      role: newRole,
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200',
-      status: 'Active',
-      lastLogin: 'Just now',
-      createdAt: '2025-01-01',
-      coachId: newRole === 'COACH' ? 'coach-1' : undefined
-    };
-    setUser(matchedUser);
-  };
-
-  const hasPermission = (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'export'): boolean => {
-    const roleDef = INITIAL_PERMISSIONS.find(p => p.role === role);
-    if (!roleDef) return false;
-    const group = roleDef.groups.find(g => g.module === module);
-    if (!group) return false;
-    return group[action] ?? false;
-  };
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        role,
+        role: user?.role ?? 'SUPER_ADMIN',
         isAuthenticated: !!user,
+        isLoading,
         login,
         logout,
-        switchRole,
-        hasPermission
       }}
     >
       {children}
