@@ -9,6 +9,7 @@ import {
   CheckCheck
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { avatarFor } from '../../api/photos';
 
 interface HeaderProps {
   onOpenMobileSidebar: () => void;
@@ -151,8 +152,8 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
           >
             <img
-              src={user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=100'}
-              alt="Avatar"
+              src={user?.avatar || avatarFor(user?.name || 'MSRF')}
+              alt={user?.name ? `${user.name} avatar` : 'Avatar'}
               className="w-8 h-8 rounded-full object-cover border border-slate-200"
             />
             <span className="hidden md:inline-block text-xs font-bold text-slate-800 max-w-[100px] truncate">

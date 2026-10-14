@@ -507,9 +507,9 @@ export const CoachAttendancePage: React.FC = () => {
 
             {/* Metric Overview Bar */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Card className="bg-blue-50 border-blue-200">
-                <p className="text-xs uppercase font-extrabold text-blue-700">Total Sessions Logged</p>
-                <p className="text-2xl font-black text-blue-900 mt-1">{reportsList.length} Sessions</p>
+              <Card className="bg-brand-soft border-emerald-200">
+                <p className="text-xs uppercase font-extrabold text-brand">Total Sessions Logged</p>
+                <p className="text-2xl font-black text-emerald-900 mt-1">{reportsList.length} Sessions</p>
               </Card>
               <Card className="bg-emerald-50 border-emerald-200">
                 <p className="text-xs uppercase font-extrabold text-emerald-700">Participating Trainees</p>
@@ -522,7 +522,7 @@ export const CoachAttendancePage: React.FC = () => {
             </div>
 
             {/* Filter & Search Bar - Pixel Perfect Alignment & SaaS Styling */}
-            <Card header={<h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2"><Filter className="w-4 h-4 text-blue-600" /> Filter & Search Sessions</h3>}>
+            <Card header={<h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2"><Filter className="w-4 h-4 text-brand" /> Filter & Search Sessions</h3>}>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end text-xs">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Search Topic / Venue</label>
@@ -533,7 +533,7 @@ export const CoachAttendancePage: React.FC = () => {
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
                       placeholder="Search daily topic, venue..."
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 h-10 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 h-10 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand transition-all"
                     />
                   </div>
                 </div>
@@ -547,7 +547,7 @@ export const CoachAttendancePage: React.FC = () => {
                       { label: 'All Categories', value: 'ALL' },
                       ...Array.from(new Set([...myCategories.map(c => c.name), ...reportsList.flatMap(r => r.categories)])).map(name => ({ label: name, value: name }))
                     ]}
-                    className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                    className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand"
                   />
                 </div>
 
@@ -560,7 +560,7 @@ export const CoachAttendancePage: React.FC = () => {
                       { label: 'All Years', value: 'ALL' },
                       ...Array.from({ length: 5 }, (_, i) => ({ label: String(currentYear - i), value: String(currentYear - i) }))
                     ]}
-                    className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                    className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand"
                   />
                 </div>
 
@@ -576,7 +576,7 @@ export const CoachAttendancePage: React.FC = () => {
                         : ALL_MONTHS
                       ).map(m => ({ label: m, value: m }))
                     ]}
-                    className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                    className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand"
                   />
                 </div>
 
@@ -586,7 +586,7 @@ export const CoachAttendancePage: React.FC = () => {
                     type="date"
                     value={dateFilter}
                     onChange={e => setDateFilter(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 h-10 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 h-10 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand transition-all cursor-pointer"
                   />
                 </div>
               </div>
@@ -620,7 +620,7 @@ export const CoachAttendancePage: React.FC = () => {
                         <tr
                           key={rep.id}
                           onClick={() => handleViewReportDetail(rep)}
-                          className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
+                          className="hover:bg-brand-soft/50 cursor-pointer transition-colors group"
                           title="Click row to view session details"
                         >
                           <td className="py-3.5 px-4 font-bold text-slate-900">
@@ -639,13 +639,13 @@ export const CoachAttendancePage: React.FC = () => {
                           <td className="py-3.5 px-4">
                             <div className="flex flex-wrap gap-1">
                               {rep.categories.map((c, i) => (
-                                <span key={i} className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                                <span key={i} className="text-[10px] font-bold bg-brand-soft text-brand px-2 py-0.5 rounded-full border border-emerald-200">
                                   {c}
                                 </span>
                               ))}
                             </div>
                           </td>
-                          <td className="py-3.5 px-4 font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                          <td className="py-3.5 px-4 font-bold text-slate-900 group-hover:text-brand transition-colors">
                             {rep.dailyTopic}
                           </td>
                           <td className="py-3.5 px-4">
@@ -670,7 +670,7 @@ export const CoachAttendancePage: React.FC = () => {
                                 }}
                                 className={`p-2 rounded-xl border transition-colors ${
                                   canEdit
-                                    ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                    ? 'border-emerald-200 bg-brand-soft text-brand hover:bg-brand-soft'
                                     : 'border-slate-200 bg-slate-100 text-slate-400 opacity-50 cursor-not-allowed'
                                 }`}
                                 title={canEdit ? "Edit session report" : "Locked (Over 7 days old)"}
@@ -707,7 +707,7 @@ export const CoachAttendancePage: React.FC = () => {
           <div className="space-y-6">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
               <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
+                <FileText className="w-5 h-5 text-brand" />
                 {editingReportId ? `Edit Attendance Session (${formatDate(selectedDate)})` : 'Add New Daily Attendance & Session'}
               </h3>
             </div>
@@ -718,7 +718,7 @@ export const CoachAttendancePage: React.FC = () => {
                 onClick={() => handleTabClick('setup')}
                 className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-extrabold text-xs transition-all ${
                   activeTab === 'setup'
-                    ? 'bg-blue-600 text-white shadow-md'
+                    ? 'bg-brand text-white shadow-md'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
@@ -730,7 +730,7 @@ export const CoachAttendancePage: React.FC = () => {
                 onClick={() => handleTabClick('session-form')}
                 className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-extrabold text-xs transition-all ${
                   activeTab === 'session-form'
-                    ? 'bg-blue-600 text-white shadow-md'
+                    ? 'bg-brand text-white shadow-md'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
@@ -742,7 +742,7 @@ export const CoachAttendancePage: React.FC = () => {
                 onClick={() => handleTabClick('mark-attendance')}
                 className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-extrabold text-xs transition-all ${
                   activeTab === 'mark-attendance'
-                    ? 'bg-blue-600 text-white shadow-md'
+                    ? 'bg-brand text-white shadow-md'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
@@ -758,7 +758,7 @@ export const CoachAttendancePage: React.FC = () => {
                   <div className="flex items-center justify-between w-full">
                     <div>
                       <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                        <CalendarCheck className="w-5 h-5 text-blue-600" /> Step 1: Session Details & Staffing
+                        <CalendarCheck className="w-5 h-5 text-brand" /> Step 1: Session Details & Staffing
                       </h3>
                       <p className="text-xs text-slate-500">Select categories, attendance date, and participating coaches</p>
                     </div>
@@ -782,7 +782,7 @@ export const CoachAttendancePage: React.FC = () => {
                             onClick={() => toggleCategory(cat.name)}
                             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
                               isSelected
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                ? 'bg-brand text-white border-brand shadow-sm'
                                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                             }`}
                           >
@@ -809,7 +809,7 @@ export const CoachAttendancePage: React.FC = () => {
                         required
                         value={selectedDate}
                         onChange={e => setSelectedDate(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand cursor-pointer"
                       />
                       <p className="text-[11px] text-slate-400 mt-1 font-medium">
                         Selected: <span className="font-bold text-slate-700">{formatDate(selectedDate)}</span>
@@ -831,7 +831,7 @@ export const CoachAttendancePage: React.FC = () => {
                         value={venue}
                         onChange={e => setVenue(e.target.value)}
                         placeholder="e.g. Main Stadium Ground Pitch A"
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand"
                       />
                     </div>
                   </div>
@@ -842,7 +842,7 @@ export const CoachAttendancePage: React.FC = () => {
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                         Choose Other Coaches Present ({assignedCoachesList.length} Total Selected):
                       </label>
-                      <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                      <span className="text-[11px] font-bold text-brand bg-brand-soft px-2.5 py-0.5 rounded-full border border-emerald-200">
                         Click cards to select / unselect
                       </span>
                     </div>
@@ -861,7 +861,7 @@ export const CoachAttendancePage: React.FC = () => {
                             onClick={() => toggleCoach(c.id)}
                             className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 relative ${
                               isChecked
-                                ? 'bg-blue-50/80 border-blue-400 text-blue-950 shadow-sm ring-2 ring-blue-500/20'
+                                ? 'bg-brand-soft/80 border-emerald-400 text-emerald-950 shadow-sm ring-2 ring-brand/20'
                                 : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100/80'
                             }`}
                           >
@@ -873,10 +873,10 @@ export const CoachAttendancePage: React.FC = () => {
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={() => {}}
-                                  className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 pointer-events-none shrink-0"
+                                  className="w-4 h-4 text-brand rounded border-slate-300 focus:ring-brand pointer-events-none shrink-0"
                                 />
                               </div>
-                              <p className="text-[11px] text-blue-700 font-semibold truncate mt-0.5">{c.specialization || 'Sports Coach'}</p>
+                              <p className="text-[11px] text-brand font-semibold truncate mt-0.5">{c.specialization || 'Sports Coach'}</p>
                             </div>
                           </div>
                         );
@@ -898,7 +898,7 @@ export const CoachAttendancePage: React.FC = () => {
                             <div className="flex-1 min-w-0 text-xs">
                               <p className="font-extrabold text-white truncate flex items-center gap-1">
                                 {c.fullName}
-                                {idx === 0 && <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded shrink-0">LEAD</span>}
+                                {idx === 0 && <span className="text-[9px] bg-brand text-white font-black px-1.5 py-0.2 rounded shrink-0">LEAD</span>}
                               </p>
                               <p className="text-[10px] text-slate-300 truncate">{c.specialization || 'Sports Coach'}</p>
                             </div>
@@ -924,7 +924,7 @@ export const CoachAttendancePage: React.FC = () => {
                   header={
                     <div className="flex items-center justify-between w-full">
                       <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-amber-500" /> Step 2: Daily Training Session Plan (Form)
+                        <FileText className="w-5 h-5 text-brand" /> Step 2: Daily Training Session Plan (Form)
                       </h3>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => setActiveTab('setup')} icon={<ArrowLeft className="w-3.5 h-3.5" />}>
@@ -937,13 +937,13 @@ export const CoachAttendancePage: React.FC = () => {
                     </div>
                   }
                 >
-                  <div className="bg-amber-500/5 p-4 rounded-2xl border border-amber-500/20 space-y-6">
+                  <div className="bg-brand-soft p-4 rounded-2xl border border-emerald-200 space-y-6">
                     {/* Top Info Cards Bar */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* COACHES PRESENT Box */}
                       <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-amber-400 flex items-center justify-center text-slate-900 font-extrabold shrink-0 shadow-xs">
+                          <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-slate-900 font-extrabold shrink-0 shadow-xs">
                             <UserCheck className="w-4 h-4" />
                           </div>
                           <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
@@ -962,7 +962,7 @@ export const CoachAttendancePage: React.FC = () => {
 
                       {/* ATTENDANCE Box */}
                       <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-amber-400 flex items-center justify-center text-slate-900 font-extrabold shrink-0 shadow-xs">
+                        <div className="w-10 h-10 rounded-lg bg-brand flex items-center justify-center text-slate-900 font-extrabold shrink-0 shadow-xs">
                           <CalendarCheck className="w-5 h-5" />
                         </div>
                         <div>
@@ -973,7 +973,7 @@ export const CoachAttendancePage: React.FC = () => {
 
                       {/* VENUE Box */}
                       <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-amber-400 flex items-center justify-center text-slate-900 font-extrabold shrink-0 shadow-xs">
+                        <div className="w-10 h-10 rounded-lg bg-brand flex items-center justify-center text-slate-900 font-extrabold shrink-0 shadow-xs">
                           <MapPin className="w-5 h-5" />
                         </div>
                         <div className="flex-1 space-y-1">
@@ -1003,7 +1003,7 @@ export const CoachAttendancePage: React.FC = () => {
                           value={dailyTopic}
                           onChange={e => setDailyTopic(e.target.value)}
                           placeholder="Enter daily training topic"
-                          className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                          className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand/40"
                         />
                       </div>
 
@@ -1017,7 +1017,7 @@ export const CoachAttendancePage: React.FC = () => {
                           value={explanation}
                           onChange={e => setExplanation(e.target.value)}
                           placeholder="Session explanation and drill objectives..."
-                          className="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-xs font-medium text-slate-900 focus:ring-2 focus:ring-amber-500"
+                          className="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-xs font-medium text-slate-900 focus:ring-2 focus:ring-brand/40"
                         />
                       </div>
                     </div>
@@ -1026,9 +1026,9 @@ export const CoachAttendancePage: React.FC = () => {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-amber-500" /> Dynamic Session Splits Loop ({splits.length} Splits)
+                          <Clock className="w-4 h-4 text-brand" /> Dynamic Session Splits Loop ({splits.length} Splits)
                         </h4>
-                        <Button size="sm" onClick={handleAddSplit} icon={<Plus className="w-3.5 h-3.5" />} className="bg-amber-400 text-slate-900 hover:bg-amber-500 border-none font-extrabold">
+                        <Button size="sm" onClick={handleAddSplit} icon={<Plus className="w-3.5 h-3.5" />} className="border-none font-bold">
                           Add Split
                         </Button>
                       </div>
@@ -1038,7 +1038,7 @@ export const CoachAttendancePage: React.FC = () => {
                           <div key={sp.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3 relative">
                             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                               <div className="flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-900 font-black text-xs flex items-center justify-center shadow-2xs">
+                                <span className="w-6 h-6 rounded-full bg-brand text-white font-black text-xs flex items-center justify-center shadow-2xs">
                                   {idx + 1}
                                 </span>
                                 <span className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
@@ -1114,7 +1114,7 @@ export const CoachAttendancePage: React.FC = () => {
                         value={fullSessionOverview}
                         onChange={e => setFullSessionOverview(e.target.value)}
                         placeholder="Enter overall summary and player tactical observations..."
-                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-xs font-medium text-slate-900 focus:ring-2 focus:ring-amber-500"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-xs font-medium text-slate-900 focus:ring-2 focus:ring-brand/40"
                       />
                     </div>
                   </div>
@@ -1228,7 +1228,7 @@ export const CoachAttendancePage: React.FC = () => {
                                   value={rec.remarks}
                                   onChange={e => handleStudentRemarksChange(st.id, e.target.value)}
                                   placeholder="Optional remarks..."
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1 text-xs focus:ring-2 focus:ring-blue-500"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1 text-xs focus:ring-2 focus:ring-brand"
                                 />
                               </td>
                             </tr>
@@ -1258,7 +1258,7 @@ export const CoachAttendancePage: React.FC = () => {
             <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
               <div>
                 <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-amber-500" /> Session Detail — {formatDate(selectedReportDetail.date)}
+                  <FileText className="w-5 h-5 text-brand" /> Session Detail — {formatDate(selectedReportDetail.date)}
                 </h3>
                 <p className="text-xs text-slate-500">Logged by {selectedReportDetail.loggedByCoachName}</p>
               </div>
@@ -1326,7 +1326,7 @@ export const CoachAttendancePage: React.FC = () => {
                       <div className="flex items-center justify-between gap-1">
                         <p className="font-extrabold text-slate-900 truncate">{coach.fullName}</p>
                         {coach.fullName === selectedReportDetail.loggedByCoachName && (
-                          <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.2 rounded shrink-0">LOGGED</span>
+                          <span className="text-[9px] bg-brand-soft text-emerald-800 font-bold px-1.5 py-0.2 rounded shrink-0">LOGGED</span>
                         )}
                       </div>
                       <p className="text-[11px] text-emerald-700 font-bold truncate">{coach.specialization || 'Sports Coach'}</p>
@@ -1360,7 +1360,7 @@ export const CoachAttendancePage: React.FC = () => {
               <div className="space-y-2 text-xs">
                 {selectedReportDetail.splits.map((sp, idx) => (
                   <div key={sp.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-start gap-3">
-                    <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-900 font-black text-xs flex items-center justify-center shrink-0">
+                    <span className="w-6 h-6 rounded-full bg-brand text-white font-black text-xs flex items-center justify-center shrink-0">
                       {idx + 1}
                     </span>
                     <div className="flex-1 space-y-1">
@@ -1442,7 +1442,7 @@ export const CoachAttendancePage: React.FC = () => {
               </div>
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
                 <p className="text-[10px] text-slate-500 font-black uppercase">CATEGORIES</p>
-                <p className="text-xs font-black text-blue-700 mt-1">{selectedReportForPrint.categories.join(', ')}</p>
+                <p className="text-xs font-black text-brand mt-1">{selectedReportForPrint.categories.join(', ')}</p>
               </div>
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
                 <p className="text-[10px] text-slate-500 font-black uppercase">VENUE LOCATION</p>
@@ -1468,7 +1468,7 @@ export const CoachAttendancePage: React.FC = () => {
               <div className="space-y-2">
                 {selectedReportForPrint.splits.map((sp, idx) => (
                   <div key={sp.id} className="border-2 border-slate-200 rounded-lg p-3 flex items-start gap-3 text-xs">
-                    <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-900 font-black flex items-center justify-center shrink-0">
+                    <span className="w-6 h-6 rounded-full bg-brand text-white font-black flex items-center justify-center shrink-0">
                       {idx + 1}
                     </span>
                     <div className="flex-1 space-y-1">
@@ -1537,7 +1537,7 @@ export const CoachAttendancePage: React.FC = () => {
                 <p className="text-[10px] text-slate-500 mt-0.5">Signature: __________________________</p>
               </div>
               <div className="text-right flex flex-col justify-end">
-                <p className="text-[11px] font-black uppercase text-amber-600 tracking-widest">
+                <p className="text-[11px] font-black uppercase text-brand tracking-widest">
                   DEVELOPING PLAYERS. BUILDING CHAMPIONS.
                 </p>
                 <p className="text-[10px] text-slate-400 mt-1">MALABAR CHALLENGERS FOOTBALL CLUB OFFICIAL REPORT</p>

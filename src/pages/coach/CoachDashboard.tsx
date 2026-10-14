@@ -54,7 +54,7 @@ export const CoachDashboard: React.FC = () => {
           <Button size="sm" onClick={() => navigate('/coach/attendance')} icon={<CalendarCheck className="w-4 h-4" />}>
             Mark Daily Attendance
           </Button>
-          <Button size="sm" onClick={() => navigate('/coach/performance')} icon={<Plus className="w-4 h-4" />} className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold">
+          <Button size="sm" variant="outline" onClick={() => navigate('/coach/performance')} icon={<Plus className="w-4 h-4" />}>
             New Player Evaluation
           </Button>
         </div>
@@ -65,72 +65,70 @@ export const CoachDashboard: React.FC = () => {
         {/* Top 3 Stats Matching Coach Modules */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <StatCard
-            title="Trainee Attendance Rate"
+            title="Attendance Rate"
             value={data.attendanceRateThisMonth === null ? '—' : `${data.attendanceRateThisMonth}%`}
             subtitle={`This month • ${data.studentCount} trainees`}
-            icon={<CalendarCheck className="w-5 h-5 text-emerald-600" />}
+            icon={<CalendarCheck className="w-5 h-5" />}
             badgeVariant="emerald"
             linkTo="/coach/attendance"
           />
           <StatCard
-            title="Player Development Reports"
+            title="Player Reports"
             value={data.reportsCount}
-            subtitle="15-Skill Evaluations"
-            icon={<Award className="w-5 h-5 text-amber-500" />}
-            badgeVariant="amber"
+            subtitle="15-skill evaluations"
+            icon={<Award className="w-5 h-5" />}
+            badgeVariant="emerald"
             linkTo="/coach/performance"
           />
           <StatCard
             title="Today's Session"
             value={data.today.hasSession ? 'Logged' : 'Not logged'}
             subtitle={formatDate(today)}
-            icon={<UserCheck className="w-5 h-5 text-indigo-600" />}
-            badgeVariant="emerald"
+            icon={<UserCheck className="w-5 h-5" />}
+            badgeVariant={data.today.hasSession ? 'emerald' : 'amber'}
             linkTo="/coach/attendance"
           />
         </div>
 
-        {/* Quick Action Navigation Grid */}
+        {/* Quick actions — website theme: brand green and near-black */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div
+          <button
+            type="button"
             onClick={() => navigate('/coach/attendance')}
-            className="p-5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-between group"
+            className="group text-left p-5 rounded-2xl bg-brand text-white shadow-sm hover:bg-brand-hover hover:shadow-md transition-all flex items-center gap-4"
           >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center font-bold">
-                <CalendarCheck className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm uppercase tracking-wider">1. Daily Attendance & Training Sessions</h3>
-                <p className="text-xs text-blue-100 mt-0.5">Select category, date, coaches, and log trainee attendance with session splits.</p>
-              </div>
+            <div className="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+              <CalendarCheck className="w-6 h-6" />
             </div>
-            <ArrowRight className="w-5 h-5 text-white/80 group-hover:translate-x-1 transition-transform shrink-0" />
-          </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-bold text-sm">Daily Attendance & Training Sessions</h3>
+              <p className="text-xs text-white/80 mt-0.5">Log a session, its splits and each trainee's attendance.</p>
+            </div>
+            <ArrowRight className="w-5 h-5 shrink-0 text-white/80 group-hover:translate-x-1 transition-transform" />
+          </button>
 
-          <div
+          <button
+            type="button"
             onClick={() => navigate('/coach/performance')}
-            className="p-5 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl text-white shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-between group"
+            className="group text-left p-5 rounded-2xl bg-[var(--brand-bg)] text-white shadow-sm hover:shadow-md transition-all flex items-center gap-4"
           >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-400 text-slate-900 flex items-center justify-center font-bold">
-                <Award className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm uppercase tracking-wider">2. Player Performance Rating Reports</h3>
-                <p className="text-xs text-slate-300 mt-0.5">Record 15-skill evaluations, strengths, areas for improvement & development goals.</p>
-              </div>
+            <div className="w-12 h-12 rounded-xl bg-[var(--brand-accent)] text-[var(--brand-accent-foreground)] flex items-center justify-center shrink-0">
+              <Award className="w-6 h-6" />
             </div>
-            <ArrowRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition-transform shrink-0" />
-          </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-bold text-sm">Player Development Reports</h3>
+              <p className="text-xs text-neutral-400 mt-0.5">Rate the 15 skills and set strengths, improvements and goals.</p>
+            </div>
+            <ArrowRight className="w-5 h-5 shrink-0 text-[var(--brand-accent)] group-hover:translate-x-1 transition-transform" />
+          </button>
         </div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card header={
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 w-full">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-emerald-600" /> Coach Attendance Log
+                <UserCheck className="w-4 h-4 text-brand" /> My Recent Sessions
               </h3>
               <Badge variant="active">Recent Sessions</Badge>
             </div>
@@ -158,8 +156,8 @@ export const CoachDashboard: React.FC = () => {
 
           <Card header={<h3 className="font-bold text-slate-900 text-sm">Club & Coach Policy</h3>}>
             <div className="space-y-3 text-xs text-slate-600">
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900">
-                <p className="font-extrabold uppercase text-[10px] text-blue-600">Malabar Challengers FC Policy</p>
+              <div className="p-3 bg-brand-soft border border-emerald-200 rounded-xl text-emerald-950">
+                <p className="font-bold uppercase tracking-wider text-[10px] text-brand">Malabar Challengers FC</p>
                 <p className="mt-1 text-xs font-semibold">
                   Logged in as <b>{coach.fullName}</b> ({coach.specialization}).
                 </p>

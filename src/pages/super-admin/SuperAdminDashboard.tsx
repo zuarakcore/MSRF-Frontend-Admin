@@ -100,199 +100,217 @@ export const SuperAdminDashboard: React.FC = () => {
         </div>
       }
     >
-      {/* Top KPI Cards Grid — Balanced 5-Column Desktop Layout (No Blank Space) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* Top KPI Cards — equal height, values aligned */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <StatCard
-          title="Total Students Enrolled"
+          title="Total Students"
           value={totalStudents}
-          subtitle={`${activeStudents} currently active`}
-          icon={<Users className="w-6 h-6" />}
+          subtitle={`${activeStudents} active`}
+          icon={<Users className="w-5 h-5" />}
           badgeVariant="blue"
           linkTo="/super-admin/students"
-          className="p-6"
         />
         <StatCard
           title="Active Coaches"
           value={activeCoaches}
-          subtitle="Certified sports mentors"
-          icon={<UserCheck className="w-6 h-6" />}
+          subtitle="Coaching staff"
+          icon={<UserCheck className="w-5 h-5" />}
           badgeVariant="emerald"
-          badgeText="Active"
           linkTo="/super-admin/coaches"
-          className="p-6"
         />
         <StatCard
-          title="Pending Fee Outstanding"
+          title="Fees Outstanding"
           value={formatCurrency(pendingFeesTotal)}
-          subtitle={`${data.fees.overdueStudents} students overdue`}
-          icon={<AlertCircle className="w-6 h-6" />}
+          subtitle={`${data.fees.overdueStudents} overdue`}
+          icon={<AlertCircle className="w-5 h-5" />}
           badgeVariant="rose"
           badgeText={`${pendingVerificationsCount} to verify`}
           linkTo="/super-admin/fees"
-          className="p-6 cursor-pointer"
         />
         <StatCard
-          title="Monthly Collections"
+          title="Collected This Month"
           value={formatCurrency(monthlyCollectionsTotal)}
-          subtitle="Collected this month"
-          icon={<TrendingUp className="w-6 h-6" />}
+          subtitle={now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+          icon={<TrendingUp className="w-5 h-5" />}
           badgeVariant="emerald"
           linkTo="/super-admin/fees"
-          className="p-6"
         />
         <StatCard
-          title="Annual Collection"
+          title="Collected This Year"
           value={formatCurrency(annualCollectionTotal)}
-          subtitle={`Collected so far in ${now.getFullYear()}`}
-          icon={<CreditCard className="w-6 h-6" />}
+          subtitle={`Jan – ${now.toLocaleDateString('en-IN', { month: 'short' })} ${now.getFullYear()}`}
+          icon={<CreditCard className="w-5 h-5" />}
           badgeVariant="emerald"
-          badgeText={`${now.getFullYear()} Total`}
           linkTo="/super-admin/fees"
-          className="p-6"
         />
       </div>
 
-      {/* Analytics & Overview Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Month-Wise Attendance Trend Graph Card (Overall Trend Across Class Days) */}
+      {/* Analytics & Overview Row — both cards share the row height */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        {/* Attendance trend (last 6 months) */}
         <Card
+          className="h-full flex flex-col [&>div:last-child]:flex-1"
           header={
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">
+            <div className="flex items-center justify-between gap-3 w-full">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
                   <TrendingUp className="w-4 h-4" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">ATTENDANCE TREND (MONTH-WISE)</h3>
-                  <p className="text-[11px] text-slate-400 font-medium">Overall attendance rate calculated across conducted class days</p>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-slate-900 text-sm truncate">Attendance Trend</h3>
+                  <p className="text-[11px] text-slate-400 font-medium truncate">Last 6 months · class days only</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                  Avg {averageRate}%
-                </span>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/super-admin/attendance')}>
-                  View Details <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                </Button>
-              </div>
+              <Button variant="ghost" size="sm" className="whitespace-nowrap shrink-0" onClick={() => navigate('/super-admin/attendance')}>
+                View Details <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
             </div>
           }
         >
-          <div className="space-y-6 pt-2">
-            {/* Overall Attendance Summary Badges */}
+          <div className="space-y-6">
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Overall Average</p>
-                <p className="text-xl font-black text-emerald-900 mt-0.5">{averageRate}%</p>
-                <p className="text-[11px] text-emerald-700 font-bold">Last 6 Months</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Average</p>
+                <p className="text-xl font-black text-emerald-900 mt-1">{averageRate}%</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Highest Month</p>
-                <p className="text-xl font-black text-blue-900 mt-0.5">{bestMonth ? `${bestMonth.rate}%` : '—'}</p>
-                <p className="text-[11px] text-blue-700 font-bold">{bestMonth?.month ?? 'No sessions yet'}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Best Month</p>
+                <p className="text-xl font-black text-blue-900 mt-1">{bestMonth ? `${bestMonth.rate}%` : '—'}</p>
+                <p className="text-[10px] text-blue-700 font-semibold">{bestMonth?.month ?? 'No sessions yet'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Attendance Marks</p>
-                <p className="text-xl font-black text-slate-900 mt-0.5">{trendTotal.toLocaleString('en-IN')}</p>
-                <p className="text-[11px] text-slate-500 font-bold">Class Days Only</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Marks</p>
+                <p className="text-xl font-black text-slate-900 mt-1">{trendTotal.toLocaleString('en-IN')}</p>
               </div>
             </div>
 
-            {/* Month-Wise Bar Chart Matching Screenshot Layout */}
-            <div className="relative pt-6 pb-2 px-2 sm:px-6">
-              {/* Dashed Horizontal Grid Lines & Y-Axis Scale */}
-              <div className="absolute inset-x-2 sm:inset-x-6 top-6 bottom-8 flex flex-col justify-between pointer-events-none text-[10px] text-slate-400 font-mono">
-                <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1"><span>100%</span></div>
-                <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1"><span>75%</span></div>
-                <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1"><span>50%</span></div>
-                <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1"><span>25%</span></div>
-                <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1"><span>0%</span></div>
+            {/* Bar chart: y-axis labels in their own column, grid lines behind the bars */}
+            <div className="flex gap-3">
+              <div className="flex flex-col justify-between h-44 text-[10px] font-medium text-slate-400 text-right w-9 shrink-0 -mt-1.5">
+                {[100, 75, 50, 25, 0].map(v => (
+                  <span key={v}>{v}%</span>
+                ))}
               </div>
-
-              {/* Monthly Bar Visuals */}
-              <div className="relative h-48 flex items-end justify-between gap-3 sm:gap-6 z-10 pt-4">
-                {attendanceTrend.map((item, idx) => (
-                  <div key={idx} className="relative group flex flex-col items-center flex-1">
-                    {/* Tooltip Popup on Hover */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-all duration-200 absolute -top-10 bg-slate-900 text-white text-[11px] font-bold py-1 px-2.5 rounded-lg whitespace-nowrap pointer-events-none shadow-lg z-30">
-                      {item.month}: {item.rate}% ({item.present}/{item.total})
-                    </div>
-
-                    {/* Bar Container */}
-                    <div className="w-full max-w-[44px] bg-slate-100/80 rounded-t-xl overflow-hidden flex items-end h-40 border border-slate-200/50">
-                      <div
-                        style={{ height: `${item.rate}%` }}
-                        className={`w-full transition-all duration-500 rounded-t-lg ${
-                          item.active
-                            ? 'bg-gradient-to-t from-blue-600 via-indigo-500 to-indigo-600 shadow-md'
-                            : 'bg-gradient-to-t from-emerald-500 to-teal-400 group-hover:from-emerald-600 group-hover:to-teal-500'
-                        }`}
-                      />
-                    </div>
-
-                    {/* Month X-Axis Label */}
-                    <span className={`text-xs font-bold mt-2.5 ${item.active ? 'text-blue-600 font-black' : 'text-slate-500'}`}>
+              <div className="flex-1 min-w-0">
+                <div className="relative h-44">
+                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                    {[0, 1, 2, 3, 4].map(i => (
+                      <div key={i} className={`border-t ${i === 4 ? 'border-slate-300' : 'border-dashed border-slate-200'}`} />
+                    ))}
+                  </div>
+                  <div className="relative h-full flex items-end justify-around gap-2">
+                    {attendanceTrend.map(item => (
+                      <div key={item.month} className="group relative h-full flex-1 max-w-[44px] flex items-end">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[11px] font-bold py-1 px-2 rounded-md whitespace-nowrap pointer-events-none shadow-lg z-10">
+                          {item.total ? `${item.rate}% (${item.present}/${item.total})` : 'No sessions'}
+                        </div>
+                        <div
+                          style={{ height: `${Math.max(item.rate, item.total ? 2 : 0)}%` }}
+                          className={`w-full rounded-t-md transition-all duration-500 ${
+                            item.active ? 'bg-brand' : 'bg-emerald-300 group-hover:bg-emerald-400'
+                          }`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-around gap-2 mt-2">
+                  {attendanceTrend.map(item => (
+                    <span
+                      key={item.month}
+                      className={`flex-1 max-w-[44px] text-center text-[11px] whitespace-nowrap ${item.active ? 'text-brand font-bold' : 'text-slate-500 font-medium'}`}
+                    >
                       {item.month}
                     </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         </Card>
 
-        {/* Fee Collection & Revenue Breakdown */}
+        {/* Fee collection */}
         <Card
+          className="h-full flex flex-col [&>div:last-child]:flex-1"
           header={
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-slate-900 text-sm">Monthly Fee Collection</h3>
+            <div className="flex items-center justify-between gap-3 w-full">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-slate-900 text-sm truncate">Fee Collection</h3>
+                  <p className="text-[11px] text-slate-400 font-medium truncate">{now.getFullYear()} so far</p>
+                </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/super-admin/fees')}>
+              <Button variant="ghost" size="sm" className="whitespace-nowrap shrink-0" onClick={() => navigate('/super-admin/fees')}>
                 Manage Fees <ArrowRight className="w-3.5 h-3.5 ml-1" />
               </Button>
             </div>
           }
         >
-          <div className="space-y-4">
-            <div className="flex items-baseline justify-between">
+          <div className="space-y-5">
+            <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Collected This Month</p>
-                <h4 className="text-2xl font-black text-slate-900 mt-0.5">{formatCurrency(monthlyCollectionsTotal)}</h4>
+                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Collected</p>
+                <p className="text-2xl font-black text-slate-900 mt-0.5 whitespace-nowrap">{formatCurrency(annualCollectionTotal)}</p>
               </div>
               <div className="text-right">
-                <span
-                  onClick={() => navigate('/super-admin/fees')}
-                  className="text-xs font-bold text-rose-600 bg-rose-50 px-3 py-1 rounded-full border border-rose-200 cursor-pointer hover:bg-rose-100 transition-colors"
-                  title="Click to view student list for pending dues"
-                >
-                  Pending: {formatCurrency(pendingFeesTotal)}
-                </span>
+                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Outstanding</p>
+                <p className="text-2xl font-black text-rose-600 mt-0.5 whitespace-nowrap">{formatCurrency(pendingFeesTotal)}</p>
               </div>
             </div>
 
-            {/* Collection Progress Bar */}
             <div className="space-y-1.5">
-              <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex p-0.5 border border-slate-200">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${collectedShare}%` }} title={`Collected ${collectedShare}%`} />
-                <div className="h-full bg-rose-400 rounded-full ml-0.5" style={{ width: `${100 - collectedShare}%` }} title={`Pending ${100 - collectedShare}%`} />
+              <div className="w-full h-2.5 bg-rose-100 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${collectedShare}%` }} />
               </div>
-              <div className="flex justify-between text-[11px] font-bold text-slate-500">
-                <span className="text-emerald-700">✓ Collected {collectedShare}% (this year)</span>
-                <span className="text-rose-600">⚠ Pending Dues {100 - collectedShare}%</span>
+              <div className="flex justify-between text-[11px] font-semibold">
+                <span className="text-emerald-700">{collectedShare}% collected</span>
+                <span className="text-rose-600">{100 - collectedShare}% outstanding</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
+            <div className="grid grid-cols-3 gap-3 text-center">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-slate-500 font-semibold">Overdue Students</p>
-                <p className="text-base font-bold text-rose-700 mt-0.5">{data.fees.overdueStudents} Students</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">This Month</p>
+                <p className="text-base font-black text-slate-900 mt-1 whitespace-nowrap">{formatCurrency(monthlyCollectionsTotal)}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-slate-500 font-semibold">Pending Verifications</p>
-                <p className="text-base font-bold text-amber-700 mt-0.5">{pendingVerificationsCount} Payments</p>
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700">Overdue</p>
+                <p className="text-base font-black text-rose-700 mt-1">{data.fees.overdueStudents}</p>
               </div>
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">To Verify</p>
+                <p className="text-base font-black text-amber-700 mt-1">{pendingVerificationsCount}</p>
+              </div>
+            </div>
+
+            {/* Largest outstanding balances */}
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Top Overdue</p>
+              {data.topOverdue.length === 0 ? (
+                <p className="text-xs text-slate-400 py-3">No overdue fees. 🎉</p>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {data.topOverdue.slice(0, 4).map(row => (
+                    <button
+                      key={row.student.id}
+                      type="button"
+                      onClick={() => navigate(`/super-admin/students/${row.student.id}`)}
+                      className="w-full flex items-center justify-between gap-3 py-2 text-left hover:bg-slate-50 rounded-lg px-1 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 truncate">{row.student.fullName}</p>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          {row.student.category.name} · {row.months} month{row.months === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                      <span className="text-xs font-black text-rose-600 whitespace-nowrap">{formatCurrency(row.outstanding)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </Card>

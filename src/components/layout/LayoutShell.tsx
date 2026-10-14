@@ -31,7 +31,7 @@ export const LayoutShell: React.FC<LayoutShellProps> = ({
       {/* Main Content Area */}
       <div
         className={`flex-1 flex flex-col transition-all duration-300 ${
-          collapsed ? 'md:ml-20' : 'md:ml-64'
+          collapsed ? 'md:ml-[6.5rem]' : 'md:ml-[17.5rem]'
         }`}
       >
         {/* Top Header */}
