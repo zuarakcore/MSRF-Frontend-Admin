@@ -95,7 +95,7 @@ async function send(method: string, path: string, opts: RequestOptions): Promise
       method,
       headers,
       body,
-      credentials: 'same-origin',
+      credentials: 'include',
       signal: opts.signal,
     });
   } catch (error) {

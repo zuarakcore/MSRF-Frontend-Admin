@@ -247,7 +247,7 @@ export const CoachPerformancePage: React.FC = () => {
             <Button variant="outline" size="sm" onClick={() => setViewMode('list')} icon={<ArrowLeft className="w-4 h-4" />}>
               Back to Reports
             </Button>
-            <Button size="sm" onClick={handleSaveReport} isLoading={pending} className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold">
+            <Button size="sm" onClick={handleSaveReport} isLoading={pending} className="bg-brand hover:bg-brand-hover text-white font-extrabold">
               Save Player Development Report
             </Button>
           </div>
@@ -256,7 +256,7 @@ export const CoachPerformancePage: React.FC = () => {
         <form onSubmit={handleSaveReport} className="space-y-6 max-w-5xl mx-auto pb-12 text-xs">
           
           {/* Section 1: Player Information */}
-          <Card header={<h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2"><Award className="w-4 h-4 text-blue-600" /> 1. Player & Report Information</h3>}>
+          <Card header={<h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2"><Award className="w-4 h-4 text-brand" /> 1. Player & Report Information</h3>}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <Select
                 label="Select Player"
@@ -328,7 +328,7 @@ export const CoachPerformancePage: React.FC = () => {
                     onClick={() => setFormData({ ...formData, strongFoot: footOption.value as any })}
                     className={`p-3 rounded-xl border font-bold text-xs flex items-center justify-between transition-all ${
                       formData.strongFoot === footOption.value
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        ? 'bg-brand text-white border-brand shadow-sm'
                         : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
                     }`}
                   >
@@ -346,7 +346,7 @@ export const CoachPerformancePage: React.FC = () => {
               {formData.skillAssessments.map((sa, idx) => (
                 <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center hover:border-slate-300 transition-colors">
                   <div className="lg:col-span-4">
-                    <span className="text-[10px] font-black text-blue-600 font-mono">0{idx + 1}.</span>
+                    <span className="text-[10px] font-black text-brand font-mono">0{idx + 1}.</span>
                     <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wide inline-block ml-1">
                       {sa.category}
                     </h4>
@@ -361,7 +361,7 @@ export const CoachPerformancePage: React.FC = () => {
                         'bg-rose-500 text-white border-rose-600',
                         'bg-amber-500 text-white border-amber-600',
                         'bg-yellow-500 text-slate-900 border-yellow-600',
-                        'bg-blue-600 text-white border-blue-700',
+                        'bg-brand text-white border-brand',
                         'bg-emerald-600 text-white border-emerald-700'
                       ];
                       return (
@@ -371,7 +371,7 @@ export const CoachPerformancePage: React.FC = () => {
                           onClick={() => handleCategoryRatingChange(idx, star)}
                           className={`w-9 h-9 rounded-xl font-black text-xs transition-all flex items-center justify-center ${
                             isActive
-                              ? `${activeColors[star]} shadow-md scale-105 ring-2 ring-offset-1 ring-blue-500`
+                              ? `${activeColors[star]} shadow-md scale-105 ring-2 ring-offset-1 ring-brand`
                               : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-100'
                           }`}
                         >
@@ -389,7 +389,7 @@ export const CoachPerformancePage: React.FC = () => {
                       onChange={e => handleCategoryCommentChange(idx, e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
                       placeholder="Add specific skill observation..."
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand transition-all"
                     />
                   </div>
                 </div>
@@ -404,7 +404,7 @@ export const CoachPerformancePage: React.FC = () => {
                 rows={5}
                 value={formData.strengths}
                 onChange={e => setFormData({ ...formData, strengths: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-xs font-medium text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-xs font-medium text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand"
                 placeholder="1. Outstanding ball control & first touch..."
               />
             </Card>
@@ -414,7 +414,7 @@ export const CoachPerformancePage: React.FC = () => {
                 rows={5}
                 value={formData.areasForImprovement}
                 onChange={e => setFormData({ ...formData, areasForImprovement: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-xs font-medium text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-xs font-medium text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand"
                 placeholder="1. Weak foot passing under pressure..."
               />
             </Card>
@@ -431,7 +431,7 @@ export const CoachPerformancePage: React.FC = () => {
                     onClick={() => handleGoalToggle(goal)}
                     className={`p-3 rounded-xl border cursor-pointer font-bold transition-all flex items-center justify-between ${
                       isSelected
-                        ? 'bg-blue-50 border-blue-500 text-blue-900 shadow-2xs'
+                        ? 'bg-brand-soft border-brand text-emerald-900 shadow-2xs'
                         : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                     }`}
                   >
@@ -466,7 +466,7 @@ export const CoachPerformancePage: React.FC = () => {
                     }
                   }}
                   placeholder="Enter custom player development goal and press Add Goal..."
-                  className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
                 />
                 <Button
                   type="button"
@@ -499,7 +499,7 @@ export const CoachPerformancePage: React.FC = () => {
                   rows={3}
                   value={formData.coachRemarks}
                   onChange={e => setFormData({ ...formData, coachRemarks: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
                   placeholder="Overall player performance summary..."
                 />
               </div>
@@ -534,7 +534,7 @@ export const CoachPerformancePage: React.FC = () => {
             <Button type="button" variant="outline" onClick={() => setViewMode('list')} icon={<ArrowLeft className="w-4 h-4" />}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-8 h-11 text-xs">
+            <Button type="submit" className="bg-brand hover:bg-brand-hover text-white font-extrabold px-8 h-11 text-xs">
               {viewMode === 'edit' ? "Update Player Development Report" : "Submit Player Development Report"}
             </Button>
           </div>
@@ -568,7 +568,7 @@ export const CoachPerformancePage: React.FC = () => {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               placeholder="Search by player name or position..."
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 h-10 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 h-10 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
             />
           </div>
         </Card>
@@ -601,9 +601,9 @@ export const CoachPerformancePage: React.FC = () => {
                     <tr
                       key={rec.id}
                       onClick={() => withReport(rec, setViewDetailRecord)}
-                      className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
+                      className="hover:bg-brand-soft/50 cursor-pointer transition-colors group"
                     >
-                      <td className="py-3.5 px-4 font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">
+                      <td className="py-3.5 px-4 font-extrabold text-slate-900 group-hover:text-brand transition-colors">
                         {rec.studentName}
                         <p className="text-[10px] text-slate-400 font-mono font-normal">ID: {rec.studentId}</p>
                       </td>
@@ -645,10 +645,10 @@ export const CoachPerformancePage: React.FC = () => {
                                   e.stopPropagation();
                                   handleOpenEditPage(rec);
                                 }}
-                                className="p-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                                className="p-2 rounded-xl border border-emerald-200 bg-brand-soft text-brand hover:bg-brand-soft transition-colors"
                                 title="Edit Player Report (Within 7 Days)"
                               >
-                                <Edit className="w-4 h-4 text-blue-600" />
+                                <Edit className="w-4 h-4 text-brand" />
                               </button>
                               <button
                                 type="button"

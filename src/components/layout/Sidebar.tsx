@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../utils/cn';
 import logoImg from '../../assets/logo.png';
+import { avatarFor } from '../../api/photos';
 import {
   LayoutDashboard,
   Users,
@@ -92,96 +93,110 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navGroups = role === 'SUPER_ADMIN' ? superAdminNav : coachNav;
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-slate-900 text-slate-300 border-r border-slate-800 shadow-xl">
-      {/* Brand Header with Attached Malabar Challengers Logo */}
-      <div className="p-3 border-b border-slate-800/80 flex items-center justify-between shrink-0 bg-slate-950/60">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-11 h-11 rounded-xl bg-white/10 p-1 flex items-center justify-center shrink-0 border border-white/10">
-            <img src={logoImg} alt="Malabar Challengers Logo" className="w-full h-full object-contain" />
+    <div className="flex flex-col h-full bg-[var(--brand-bg)] text-neutral-300">
+      {/* Brand */}
+      <div className={cn('h-16 px-4 flex items-center shrink-0 border-b border-white/[0.08]', collapsed ? 'justify-center' : 'justify-between')}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-full bg-white p-0.5 flex items-center justify-center shrink-0 ring-1 ring-white/10">
+            <img src={logoImg} alt="Malabar Challengers" className="w-full h-full object-contain rounded-full" />
           </div>
           {!collapsed && (
-            <div className="truncate">
-              <h1 className="text-sm font-black tracking-tight text-white leading-tight uppercase">MALABAR</h1>
-              <p className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider">CHALLENGERS MSRF</p>
+            <div className="min-w-0">
+              <p className="text-[13px] font-extrabold tracking-tight text-white leading-tight truncate">Malabar Challengers</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--brand-accent)] truncate">
+                {role === 'SUPER_ADMIN' ? 'Admin Portal' : 'Coach Portal'}
+              </p>
             </div>
           )}
         </div>
+        {!collapsed && (
+          <button
+            onClick={onToggleCollapse}
+            className="hidden md:flex p-1.5 rounded-full text-neutral-500 hover:text-white hover:bg-white/[0.06] transition-colors"
+            title="Collapse sidebar"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      {collapsed && (
         <button
           onClick={onToggleCollapse}
-          className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="hidden md:flex mx-auto mt-3 p-1.5 rounded-full text-neutral-500 hover:text-white hover:bg-white/[0.06] transition-colors"
+          title="Expand sidebar"
         >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          <ChevronRight className="w-4 h-4" />
         </button>
-      </div>
+      )}
 
-      {/* Navigation Menu */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.12)_transparent]">
         {navGroups.map((group, idx) => (
-          <div key={idx} className="space-y-1">
-            {!collapsed && (
-              <h3 className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                {group.title}
-              </h3>
+          <div key={idx}>
+            {!collapsed ? (
+              <p className="px-3 mb-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-[0.18em]">{group.title}</p>
+            ) : (
+              idx > 0 && <div className="mx-3 mb-3 border-t border-white/[0.08]" />
             )}
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
-              return (
-                <NavLink
-                  key={item.path}
-                  ref={isActive ? activeRef : undefined}
-                  to={item.path}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isMobileOpen) onCloseMobile();
-                  }}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group relative',
-                    isActive
-                      ? role === 'COACH'
-                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow-md shadow-emerald-600/30'
-                        : 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Icon className={cn('w-5 h-5 shrink-0 transition-colors', isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200')} />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                  {isActive && !collapsed && (
-                    <span className="ml-auto w-1.5 h-5 bg-white rounded-full opacity-80" />
-                  )}
-                </NavLink>
-              );
-            })}
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+                return (
+                  <NavLink
+                    key={item.path}
+                    ref={isActive ? activeRef : undefined}
+                    to={item.path}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isMobileOpen) onCloseMobile();
+                    }}
+                    className={cn(
+                      'flex items-center gap-3 rounded-full text-[13px] font-medium transition-colors',
+                      collapsed ? 'justify-center h-10 w-10 mx-auto' : 'px-3.5 py-2',
+                      isActive
+                        ? 'bg-[var(--brand-accent)] text-[var(--brand-accent-foreground)] font-semibold'
+                        : 'text-neutral-400 hover:text-white hover:bg-white/[0.06]'
+                    )}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <Icon className="w-[18px] h-[18px] shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                  </NavLink>
+                );
+              })}
+            </div>
           </div>
         ))}
-      </div>
+      </nav>
 
-      {/* User Profile at Bottom */}
-      <div className="p-3 border-t border-slate-800/80 bg-slate-950/60 shrink-0">
-        <div className={cn('flex items-center gap-3', collapsed ? 'justify-center' : 'justify-between')}>
-          <div className="flex items-center gap-3 overflow-hidden">
-            <img
-              src={user?.avatar || logoImg}
-              alt="User Avatar"
-              className="w-9 h-9 rounded-full object-cover border border-slate-700 shrink-0 bg-white"
-            />
-            {!collapsed && (
-              <div className="truncate">
-                <p className="text-xs font-bold text-white truncate">{user?.name}</p>
-                <p className="text-[11px] text-slate-400 truncate font-medium">{role === 'SUPER_ADMIN' ? 'Super Admin' : 'Sports Coach'}</p>
-              </div>
-            )}
-          </div>
+      {/* Signed-in user */}
+      <div className="p-3 shrink-0 border-t border-white/[0.08]">
+        <div
+          className={cn(
+            'flex items-center gap-3 rounded-2xl bg-[var(--brand-surface)] border border-white/[0.06]',
+            collapsed ? 'justify-center p-2' : 'p-2.5'
+          )}
+        >
+          <img
+            src={user?.avatar || avatarFor(user?.name || 'MSRF')}
+            alt={user?.name ?? 'User'}
+            className="w-8 h-8 rounded-full object-cover shrink-0"
+          />
           {!collapsed && (
-            <button
-              onClick={logout}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-              title="Logout"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            <>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
+                <p className="text-[11px] text-neutral-500 truncate">{role === 'SUPER_ADMIN' ? 'Super Admin' : 'Coach'}</p>
+              </div>
+              <button
+                onClick={logout}
+                className="p-1.5 rounded-full text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -193,7 +208,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Desktop Permanent Sidebar */}
       <aside
         className={cn(
-          'hidden md:block fixed top-0 left-0 bottom-0 z-30 transition-all duration-300',
+          // Floating panel: inset from the screen edges, rounded, with a soft shadow.
+          'hidden md:block fixed top-3 left-3 bottom-3 z-30 transition-all duration-300 rounded-3xl overflow-hidden shadow-xl shadow-slate-900/15',
           collapsed ? 'w-20' : 'w-64'
         )}
       >
@@ -204,7 +220,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isMobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 overflow-hidden">
           <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs" onClick={onCloseMobile} />
-          <div className="fixed inset-y-0 left-0 w-72 bg-slate-900 shadow-2xl z-10 animate-in slide-in-from-left duration-300">
+          <div className="fixed top-3 bottom-3 left-3 w-72 rounded-3xl overflow-hidden bg-[var(--brand-bg)] shadow-2xl z-10 animate-in slide-in-from-left duration-300">
             {sidebarContent}
           </div>
         </div>

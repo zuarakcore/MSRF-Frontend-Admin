@@ -8,6 +8,7 @@ import { Modal } from '../../components/ui/Modal';
 import { errorMessage } from '../../api/client';
 import { authApi } from '../../api/endpoints';
 import logoImg from '../../assets/logo.png';
+import loginBg from '../../assets/login-bg.jpg';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -63,20 +64,24 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden font-sans">
-      {/* Background Graphic Accents */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl" />
+    <div className="min-h-screen bg-[var(--brand-bg)] flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden font-sans">
+      {/* Background: the website's floodlit stadium, darkened, with a brand-green glow */}
+      <img src={loginBg} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[var(--brand-bg)]/70 via-[var(--brand-bg)]/55 to-[var(--brand-bg)]/90" />
+      <div
+        className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[70vw] h-[70vh] opacity-25 blur-3xl"
+        style={{ background: 'radial-gradient(circle, var(--brand-accent), transparent 65%)' }}
+      />
 
       {/* Main Card */}
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden relative z-10 animate-in zoom-in-95 duration-300">
         {/* Header Branding */}
-        <div className="bg-slate-950 p-8 text-center text-white relative">
-          <div className="w-16 h-16 bg-white/10 p-1.5 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg border border-white/20">
-            <img src={logoImg} alt="Malabar Challengers Logo" className="w-full h-full object-contain" />
+        <div className="bg-[var(--brand-bg)] p-8 text-center text-white relative border-b-2 border-[var(--brand-accent)]">
+          <div className="w-16 h-16 bg-white p-1 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg ring-4 ring-white/10">
+            <img src={logoImg} alt="Malabar Challengers Logo" className="w-full h-full object-contain rounded-full" />
           </div>
           <h1 className="text-xl font-black tracking-tight text-white uppercase">MALABAR CHALLENGERS</h1>
-          <p className="text-xs text-slate-400 font-medium mt-1">Coaching & Management System</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--brand-accent)] mt-1">Coaching & Management System</p>
 
         </div>
 
@@ -107,7 +112,7 @@ export const LoginPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setForgotModal(true)}
-                className="text-xs text-blue-600 hover:underline font-semibold"
+                className="text-xs text-brand hover:underline font-semibold"
               >
                 Forgot password?
               </button>
@@ -119,7 +124,7 @@ export const LoginPage: React.FC = () => {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 autoComplete="current-password"
-                className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-10 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-10 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand"
                 placeholder="••••••••"
               />
               <Lock className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
@@ -136,7 +141,7 @@ export const LoginPage: React.FC = () => {
           <Button
             type="submit"
             isLoading={loading}
-            className="w-full py-2.5 text-base font-bold shadow-lg shadow-blue-500/20"
+            className="w-full py-2.5 text-base font-bold shadow-lg shadow-brand/25"
           >
             Sign In to Dashboard
           </Button>
@@ -193,7 +198,7 @@ export const LoginPage: React.FC = () => {
         )}
       </Modal>
 
-      <p className="text-center text-xs text-slate-400 mt-6 z-10">
+      <p className="text-center text-xs text-neutral-400 mt-6 z-10 relative">
         © 2026 Malabar Challengers Football Club. All rights reserved.
       </p>
     </div>

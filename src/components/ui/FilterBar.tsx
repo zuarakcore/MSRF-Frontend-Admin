@@ -130,7 +130,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 <Filter className="w-3.5 h-3.5 text-blue-600" />
                 <span>Filters</span>
                 {activeFiltersCount > 0 && (
-                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-black flex items-center justify-center">
+                  <span className="w-5 h-5 rounded-full bg-brand text-white text-[10px] font-black flex items-center justify-center">
                     {activeFiltersCount}
                   </span>
                 )}

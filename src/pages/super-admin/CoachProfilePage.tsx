@@ -207,7 +207,7 @@ export const CoachProfilePage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleOpenContract}
-                className="inline-flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 transition"
+                className="inline-flex items-center gap-1.5 bg-brand text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-brand-hover transition"
               >
                 <Download className="w-3.5 h-3.5" /> View / Download
               </button>

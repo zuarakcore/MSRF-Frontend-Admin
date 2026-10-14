@@ -35,7 +35,7 @@ export const Badge: React.FC<BadgeProps> = ({ children, variant = 'neutral', siz
   const sizeClass = size === 'sm' ? 'px-2.5 py-0.5 text-xs font-medium' : 'px-3 py-1 text-sm font-medium';
 
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-full border tracking-tight', styles[variant] || styles.neutral, sizeClass, className)}>
+    <span className={cn('inline-flex items-center gap-1 rounded-full border tracking-tight whitespace-nowrap', styles[variant] || styles.neutral, sizeClass, className)}>
       <span className="w-1.5 h-1.5 rounded-full bg-current opacity-75 shrink-0" />
       {children}
     </span>

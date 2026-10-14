@@ -434,7 +434,7 @@ export const AttendanceManagementPage: React.FC = () => {
               onClick={() => { setDateFilter('ALL'); setCurrentPage(1); }}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
                 dateFilter === 'ALL'
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  ? 'bg-brand text-white border-brand shadow-xs'
                   : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
               }`}
             >

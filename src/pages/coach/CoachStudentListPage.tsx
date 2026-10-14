@@ -38,7 +38,7 @@ export const CoachStudentListPage: React.FC = () => {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search assigned student by name or ID..."
-          className="w-full max-w-md bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+          className="w-full max-w-md bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-brand"
         />
       </div>
 

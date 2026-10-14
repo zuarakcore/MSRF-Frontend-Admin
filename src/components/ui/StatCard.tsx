@@ -49,38 +49,43 @@ export const StatCard: React.FC<StatCardProps> = ({
     <div
       onClick={handleCardClick}
       className={cn(
-        'bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 group',
+        'h-full flex flex-col bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 group',
         (linkTo || onClick) && 'cursor-pointer hover:border-blue-200',
         className
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{title}</p>
-          <h3 className="text-2xl font-black tracking-tight text-slate-900 mt-1.5">{value}</h3>
+        <div className="min-w-0">
+          {/* Titles reserve two lines so values line up across a row of cards. */}
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 leading-snug line-clamp-2 min-h-[2.4em]">
+            {title}
+          </p>
+          <h3 className="text-2xl font-black tracking-tight text-slate-900 mt-2 whitespace-nowrap">{value}</h3>
         </div>
-        <div className={cn('p-3 rounded-xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105', iconBgMap[badgeVariant])}>
+        <div className={cn('w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105', iconBgMap[badgeVariant])}>
           {icon}
         </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-        {trend ? (
-          <span className={cn('inline-flex items-center gap-0.5 font-bold', trend.isPositive !== false ? 'text-emerald-600' : 'text-rose-600')}>
-            {trend.isPositive !== false ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-            {trend.value}
-          </span>
-        ) : subtitle ? (
-          <span className="text-slate-500 font-medium">{subtitle}</span>
-        ) : (
-          <span />
-        )}
+      <div className="mt-auto pt-4">
+        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs min-h-[2rem]">
+          {trend ? (
+            <span className={cn('inline-flex items-center gap-0.5 font-bold truncate', trend.isPositive !== false ? 'text-emerald-600' : 'text-rose-600')}>
+              {trend.isPositive !== false ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+              {trend.value}
+            </span>
+          ) : subtitle ? (
+            <span className="text-slate-500 font-medium truncate" title={subtitle}>{subtitle}</span>
+          ) : (
+            <span />
+          )}
 
-        {badgeText && (
-          <span className={cn('px-2 py-0.5 text-[11px] font-semibold rounded-full border', iconBgMap[badgeVariant])}>
-            {badgeText}
-          </span>
-        )}
+          {badgeText && (
+            <span className={cn('px-2 py-0.5 text-[11px] font-semibold rounded-full border whitespace-nowrap shrink-0', iconBgMap[badgeVariant])}>
+              {badgeText}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

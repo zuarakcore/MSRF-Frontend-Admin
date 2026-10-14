@@ -464,10 +464,11 @@ export const StudentListPage: React.FC = () => {
       ) : viewMode === 'list' ? (
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            {/* Columns keep their natural width; the table scrolls sideways on narrow screens. */}
+            <table className="w-full min-w-[1180px] text-left border-collapse text-xs [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_td]:align-middle">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Student</th>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
+                  <th className="py-3.5 px-4 min-w-[220px]">Student</th>
                   <th className="py-3.5 px-4">Student ID</th>
                   <th className="py-3.5 px-4">Category</th>
                   <th className="py-3.5 px-4">Program Type</th>
@@ -475,21 +476,21 @@ export const StudentListPage: React.FC = () => {
                   <th className="py-3.5 px-4">Parent Details</th>
                   <th className="py-3.5 px-4">Fee Status</th>
                   <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4 text-right sticky right-0 bg-slate-50 shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.12)]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedStudents.map(st => (
-                  <tr key={st.id} onClick={() => navigate(`/super-admin/students/${st.id}`)} className="hover:bg-slate-50/80 transition-colors cursor-pointer">
-                    <td className="py-3.5 px-4">
+                  <tr key={st.id} onClick={() => navigate(`/super-admin/students/${st.id}`)} className="group hover:bg-slate-50 transition-colors cursor-pointer">
+                    <td className="py-3.5 px-4 min-w-[220px]">
                       <div className="flex items-center gap-3">
                         <img
                           src={st.photo}
                           alt={st.fullName}
                           onClick={() => setLightboxImg({ url: st.photo, title: `${st.fullName} (${st.studentId})` })}
-                          className="w-9 h-9 rounded-full object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
+                          className="w-9 h-9 shrink-0 rounded-full object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
                         />
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-bold text-slate-900 text-sm hover:text-blue-600 cursor-pointer" onClick={() => navigate(`/super-admin/students/${st.id}`)}>
                             {st.fullName}
                           </p>
@@ -544,7 +545,10 @@ export const StudentListPage: React.FC = () => {
                         onChange={newStatus => handleStatusChange(st.id, newStatus)}
                       />
                     </td>
-                    <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
+                    <td
+                      className="py-3.5 px-4 text-right sticky right-0 bg-white group-hover:bg-slate-50 transition-colors shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.12)]"
+                      onClick={e => e.stopPropagation()}
+                    >
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
