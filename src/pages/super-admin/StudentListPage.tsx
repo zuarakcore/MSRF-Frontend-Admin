@@ -44,7 +44,7 @@ import {
 } from '../../api/mappers';
 import { photoField } from '../../api/photos';
 import { useApiAction } from '../../api/hooks';
-import { errorMessage } from '../../api/client';
+import { ApiError, errorMessage, type FieldError } from '../../api/client';
 import type { BloodGroup, RefItem } from '../../api/types';
 import { Student } from '../../types';
 import { formatCurrency, formatDate, formatPhoneNumber } from '../../utils/format';
@@ -88,6 +88,8 @@ export const StudentListPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  // Problems in the last uploaded file, grouped by row so staff can fix the whole file in one go.
+  const [importErrors, setImportErrors] = useState<[number, FieldError[]][]>([]);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
   const [lightboxImg, setLightboxImg] = useState<{ url: string; title: string } | null>(null);
@@ -333,10 +335,20 @@ export const StudentListPage: React.FC = () => {
       return;
     }
     let created = 0;
-    // All rows are imported or none; the error lists the rows to fix.
+    setImportErrors([]);
+    // All rows are imported or none; the error lists every problem in every row.
     const ok = await run(
       async () => {
-        created = (await studentsApi.importCsv(importFile)).created;
+        try {
+          created = (await studentsApi.importCsv(importFile)).created;
+        } catch (err) {
+          const rowErrors = err instanceof ApiError ? err.fieldErrors.filter(e => e.row != null) : [];
+          if (!rowErrors.length) throw err;
+          const byRow = new Map<number, FieldError[]>();
+          rowErrors.forEach(e => byRow.set(e.row!, [...(byRow.get(e.row!) ?? []), e]));
+          setImportErrors([...byRow.entries()].sort((a, b) => a[0] - b[0]));
+          throw new Error(`${byRow.size} row${byRow.size === 1 ? '' : 's'} need fixing. Nothing was imported; see the list below.`);
+        }
       },
       { errorTitle: 'CSV Import Failed', invalidate }
     );
@@ -355,7 +367,7 @@ export const StudentListPage: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsImportModalOpen(true)}
+            onClick={() => { setImportErrors([]); setIsImportModalOpen(true); }}
             icon={<FileUp className="w-4 h-4 text-emerald-600" />}
             className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
           >
@@ -925,12 +937,38 @@ export const StudentListPage: React.FC = () => {
               <input
                 type="file"
                 accept=".csv"
-                onChange={e => setImportFile(e.target.files?.[0] || null)}
+                onChange={e => {
+                  setImportFile(e.target.files?.[0] || null);
+                  setImportErrors([]);
+                }}
                 className="w-full text-xs text-slate-600 cursor-pointer"
               />
               <p className="text-[11px] text-slate-400 mt-2">Supports UTF-8 formatted CSV files (Max 5MB)</p>
             </div>
           </div>
+
+          {importErrors.length > 0 && (
+            <div className="border border-rose-200 bg-rose-50 rounded-xl text-xs max-h-64 overflow-y-auto">
+              <p className="px-3 py-2 font-bold text-rose-800 border-b border-rose-200 sticky top-0 bg-rose-50">
+                Fix these rows and upload the file again ({importErrors.length} row{importErrors.length === 1 ? '' : 's'})
+              </p>
+              <ul className="divide-y divide-rose-100">
+                {importErrors.map(([row, errs]) => (
+                  <li key={row} className="px-3 py-2">
+                    <p className="font-bold text-slate-900">Row {row}</p>
+                    <ul className="mt-1 space-y-0.5 text-rose-700">
+                      {errs.map((e, i) => (
+                        <li key={i}>
+                          {e.field && <span className="font-semibold">{e.field}: </span>}
+                          {String(e.message).replace(/^Value error, /, '')}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {importFile && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs flex items-center justify-between text-emerald-900 font-medium">

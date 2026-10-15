@@ -10,7 +10,8 @@
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '/api/v1').replace(/\/+$/, '');
 
-export type FieldError = { field: string; message: string };
+/** `row` is set on CSV import errors (1-based file row, header = 1). */
+export type FieldError = { field: string; message: string; row?: number };
 
 /** Error body: {"detail", "code", "errors"?: [{field, message}]} — backend app/core/errors.py. */
 export class ApiError extends Error {
@@ -40,6 +41,8 @@ interface RequestOptions {
   /** false for endpoints that must not carry or refresh the bearer token (login, refresh). */
   auth?: boolean;
   signal?: AbortSignal;
+  /** Let the request finish even if the page navigates away (logout). */
+  keepalive?: boolean;
 }
 
 let accessToken: string | null = null;
@@ -97,6 +100,7 @@ async function send(method: string, path: string, opts: RequestOptions): Promise
       body,
       credentials: 'include',
       signal: opts.signal,
+      keepalive: opts.keepalive,
     });
   } catch (error) {
     if ((error as Error)?.name === 'AbortError') throw error;

@@ -7,16 +7,21 @@ import { Lock, Save, Key } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import { authApi } from '../../api/endpoints';
 import { errorMessage, tokenStore } from '../../api/client';
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, newPasswordError, passwordProblem } from '../../api/password';
+import { useAuth } from '../../context/AuthContext';
 
 export const SettingsPage: React.FC = () => {
   const { addToast } = useNotifications();
+  const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [newPasswordMsg, setNewPasswordMsg] = useState('');
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
+    setNewPasswordMsg('');
     if (!currentPassword || !newPassword || !confirmPassword) {
       addToast({ type: 'error', title: 'Validation Error', message: 'Please fill out all password fields.' });
       return;
@@ -25,8 +30,9 @@ export const SettingsPage: React.FC = () => {
       addToast({ type: 'error', title: 'Password Mismatch', message: 'New password and confirm password do not match.' });
       return;
     }
-    if (newPassword.length < 10) {
-      addToast({ type: 'error', title: 'Weak Password', message: 'New password must be at least 10 characters long.' });
+    const problem = passwordProblem(newPassword, user?.email);
+    if (problem) {
+      setNewPasswordMsg(problem);
       return;
     }
 
@@ -36,6 +42,11 @@ export const SettingsPage: React.FC = () => {
       const result = await authApi.changePassword(currentPassword, newPassword);
       tokenStore.set(result.accessToken);
     } catch (err) {
+      const fieldMsg = newPasswordError(err);
+      if (fieldMsg) {
+        setNewPasswordMsg(fieldMsg);
+        return;
+      }
       addToast({ type: 'error', title: 'Password Not Changed', message: errorMessage(err) });
       return;
     } finally {
@@ -83,8 +94,14 @@ export const SettingsPage: React.FC = () => {
                 type="password"
                 required
                 value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                placeholder="Enter new password (min. 10 chars)"
+                onChange={e => {
+                  setNewPassword(e.target.value);
+                  setNewPasswordMsg('');
+                }}
+                placeholder={`Enter new password (min. ${PASSWORD_MIN_LENGTH} chars)`}
+                autoComplete="new-password"
+                error={newPasswordMsg || undefined}
+                helperText={PASSWORD_HINT}
                 icon={<Lock className="w-4 h-4 text-slate-400" />}
               />
 

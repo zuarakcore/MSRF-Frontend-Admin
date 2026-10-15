@@ -73,7 +73,8 @@ export const SuperAdminDashboard: React.FC = () => {
     : 0;
 
   const recentAdmissions = (data?.recentAdmissions ?? []).map(toStudent);
-  const recentSubmissions = (data?.recentSubmissions ?? []).map(toSubmission);
+  // The card is a to-do list: reviewed (verified/rejected) submissions live on the Payments page.
+  const recentSubmissions = (data?.recentSubmissions ?? []).filter(s => s.status === 'PENDING').map(toSubmission);
 
   if (!data) {
     return (
@@ -484,6 +485,9 @@ export const SuperAdminDashboard: React.FC = () => {
             }
           >
             <div className="space-y-3">
+              {recentSubmissions.length === 0 && (
+                <p className="text-xs text-slate-500 py-2">No payment submissions are waiting for review.</p>
+              )}
               {recentSubmissions.map(sub => (
                 <div
                   key={sub.id}

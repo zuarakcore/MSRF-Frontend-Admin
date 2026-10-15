@@ -22,10 +22,12 @@ export async function fetchAllPages<I>(path: string, query: Q = {}, maxPages = 5
 export const authApi = {
   login: (email: string, password: string) =>
     request<T.TokenOut>('POST', '/auth/login', { json: { email, password }, auth: false }),
-  logout: () => request<void>('POST', '/auth/logout', { auth: false }),
+  logout: () => request<void>('POST', '/auth/logout', { auth: false, keepalive: true }),
   me: () => http.get<T.ApiUser>('/auth/me'),
   forgotPassword: (email: string) =>
     request<{ detail: string }>('POST', '/auth/forgot-password', { json: { email }, auth: false }),
+  resetPassword: (token: string, newPassword: string) =>
+    request<void>('POST', '/auth/reset-password', { json: { token, newPassword }, auth: false }),
   changePassword: (currentPassword: string, newPassword: string) =>
     http.post<T.TokenOut>('/auth/change-password', { currentPassword, newPassword }),
 };

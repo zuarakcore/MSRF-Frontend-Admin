@@ -111,6 +111,7 @@ export interface StudentListItem {
   programType: RefItem;
   trainingCenter: RefItem;
   batch: Batch;
+  admissionDate: ISODate;
   parentName: string;
   parentPhone: string;
   status: RecordStatus;
@@ -137,7 +138,6 @@ export interface StudentDetail extends StudentListItem {
   email: string | null;
   address: string | null;
   admissionNumber: string;
-  admissionDate: ISODate;
   remarks: string | null;
   parentRelationship: Relationship;
   parentEmail: string | null;
@@ -590,6 +590,7 @@ export interface ProgrammeOut {
   trainingDays: string | null;
   coachLabel: string | null;
   benefits: string[];
+  registrationUrl: string | null;
   status: RecordStatus;
   sortOrder: number;
   enquiriesCount?: number;
@@ -605,6 +606,8 @@ export interface ProgrammeIn {
   trainingDays?: string | null;
   coachLabel?: string | null;
   benefits?: string[];
+  /** https:// link or a site path such as /contact, max 500 characters. */
+  registrationUrl?: string | null;
   status?: RecordStatus;
   sortOrder?: number;
 }
