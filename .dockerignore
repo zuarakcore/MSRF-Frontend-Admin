@@ -1,0 +1,11 @@
+.git
+.github
+dist
+node_modules
+docs
+Dockerfile
+.dockerignore
+*.local
+*.log
+*.tsbuildinfo
+.DS_Store
