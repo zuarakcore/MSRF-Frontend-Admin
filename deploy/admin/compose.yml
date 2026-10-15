@@ -1,0 +1,30 @@
+# Production stack on the server at /srv/msrf/admin (copied there by CI on every deploy).
+#
+#   IMAGE_TAG=<git sha> docker compose up -d      (deploy.sh does this; do not run by hand without a tag)
+#
+# Joins the shared `edge` network only; Caddy (/srv/msrf/proxy) reaches it as msrf-admin:8080.
+# The browser calls https://api.malabarchallengersfc.com directly, so the container needs no backend access.
+name: msrf-admin
+
+services:
+  web:
+    image: ghcr.io/zuarakcore/msrf-admin:${IMAGE_TAG:?set IMAGE_TAG}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks:
+      edge:
+        aliases: [msrf-admin]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+    mem_limit: 128m
+
+networks:
+  edge:
+    external: true
