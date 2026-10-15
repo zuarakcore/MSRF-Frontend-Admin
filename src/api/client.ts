@@ -108,14 +108,23 @@ async function send(method: string, path: string, opts: RequestOptions): Promise
   }
 }
 
+/** The signed-in user from the last successful refresh (the refresh response includes it). */
+let refreshedUser: unknown = null;
+export const takeRefreshedUser = <U>() => {
+  const user = refreshedUser as U | null;
+  refreshedUser = null;
+  return user;
+};
+
 /** Exchange the refresh cookie for a new access token. Concurrent callers share one request. */
 export function refreshAccessToken(): Promise<string | null> {
   refreshInFlight ??= (async () => {
     try {
       const response = await send('POST', '/auth/refresh', { auth: false });
       if (!response.ok) return null;
-      const data = (await response.json()) as { accessToken: string };
+      const data = (await response.json()) as { accessToken: string; user?: unknown };
       accessToken = data.accessToken;
+      refreshedUser = data.user ?? null;
       return accessToken;
     } catch {
       return null;
