@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { Card } from '../../components/ui/Card';
@@ -38,6 +39,23 @@ export const PaymentVerificationPage: React.FC = () => {
   // Rejection modal
   const [rejectModal, setRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+
+  // The dashboard's "Review" button links here with ?review=<id>: open that submission's detail.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const reviewId = searchParams.get('review');
+  useEffect(() => {
+    if (!reviewId || !query.data) return;
+    const target = payments.find(p => p.id === reviewId);
+    if (target) {
+      setSelectedSub(target);
+      setDetailModal(true);
+    }
+    setSearchParams(prev => {
+      prev.delete('review');
+      return prev;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewId, query.data]);
 
 
   const filteredPayments = payments.filter(p => {

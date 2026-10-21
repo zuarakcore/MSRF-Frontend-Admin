@@ -9,12 +9,14 @@ import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { CoachCredentialsModal } from '../../components/ui/CoachCredentialsModal';
+import { DeleteConfirmationModal } from '../../components/ui/DeleteConfirmationModal';
+import { useCoachPasswordReset } from '../../components/ui/useCoachPasswordReset';
 import { QueryState } from '../../components/ui/QueryState';
 import { coachesApi, openCoachContract } from '../../api/endpoints';
 import { toCoach, toDocument } from '../../api/mappers';
 import { useApiAction } from '../../api/hooks';
 import { errorMessage } from '../../api/client';
-import { ArrowLeft, Mail, Phone, Calendar, Award, Key, Copy, Check, FileText, Download, Plus, UserCheck, Trash2, FileDown, Printer, Trophy } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Calendar, Award, Key, Copy, Check, FileText, Download, Plus, UserCheck, Trash2, FileDown, Printer, Send } from 'lucide-react';
 import { formatDate } from '../../utils/format';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
@@ -40,6 +42,11 @@ export const CoachProfilePage: React.FC = () => {
   const [newDocTitle, setNewDocTitle] = useState('');
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
   const [newDocIsContract, setNewDocIsContract] = useState(false);
+
+  const { sendLink, pending: sendingLink, actionLabel } = useCoachPasswordReset();
+  const hasContract = (docsQuery.data ?? []).some(d => d.kind === 'CONTRACT');
+  // Ask before deleting a document.
+  const [deletingDoc, setDeletingDoc] = useState<{ id: string; title: string } | null>(null);
 
   const handleDeleteDoc = (docId: string, title: string) => {
     run(() => coachesApi.removeDocument(id!, docId), {
@@ -87,8 +94,7 @@ export const CoachProfilePage: React.FC = () => {
 
   const handleCopyCredentials = () => {
     if (!coach) return;
-    const password = coach.tempPassword ?? '—';
-    const textToCopy = `MSRF COACH PORTAL LOGIN CREDENTIALS:\nLogin URL: ${window.location.origin}/login\nUsername / Email: ${coach.email}\nPassword: ${password}`;
+    const textToCopy = `MSRF COACH PORTAL LOGIN:\nLogin URL: ${window.location.origin}/login\nUsername / Email: ${coach.email}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     addToast({
@@ -199,19 +205,27 @@ export const CoachProfilePage: React.FC = () => {
 
           {/* Contract Document Quick View */}
           <Card header={<h3 className="font-bold text-slate-900 text-sm flex items-center gap-2"><FileText className="w-4 h-4 text-blue-600" /> Contract Document</h3>}>
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs">
-              <div>
-                <p className="font-bold text-slate-900">Employment Contract</p>
-                <p className="text-[10px] text-slate-500">Official Staff Contract PDF</p>
+            {hasContract ? (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs">
+                <div>
+                  <p className="font-bold text-slate-900">Employment Contract</p>
+                  <p className="text-[10px] text-slate-500">Official Staff Contract</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenContract}
+                  className="inline-flex items-center gap-1.5 bg-brand text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-brand-hover transition"
+                >
+                  <Download className="w-3.5 h-3.5" /> View / Download
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleOpenContract}
-                className="inline-flex items-center gap-1.5 bg-brand text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-brand-hover transition"
-              >
-                <Download className="w-3.5 h-3.5" /> View / Download
-              </button>
-            </div>
+            ) : (
+              <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500">
+                {docsQuery.isLoading
+                  ? 'Checking for a contract…'
+                  : 'No contract uploaded yet. Use "Upload Document" and tick "This is the coach\'s employment contract".'}
+              </div>
+            )}
           </Card>
 
           {/* Coach Credentials Panel */}
@@ -232,8 +246,24 @@ export const CoachProfilePage: React.FC = () => {
               </div>
               <div>
                 <span className="text-slate-400 text-[10px] block uppercase font-sans font-semibold">Password</span>
-                <span className="font-bold text-amber-600">{coach.tempPassword || '—'}</span>
+                <span className="font-sans text-slate-600">
+                  {coach.inviteStatus === 'Accepted'
+                    ? 'Set by the coach (stored encrypted, cannot be viewed)'
+                    : coach.inviteStatus === 'Expired'
+                    ? 'Invite link expired, not set yet'
+                    : 'Not set yet (invite pending)'}
+                </span>
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full mt-1 font-sans"
+                isLoading={sendingLink}
+                onClick={() => sendLink(coach)}
+                icon={<Send className="w-3.5 h-3.5" />}
+              >
+                {actionLabel(coach)}
+              </Button>
             </div>
           </Card>
         </div>
@@ -336,7 +366,7 @@ export const CoachProfilePage: React.FC = () => {
                     >
                       <Download className="w-3.5 h-3.5 text-slate-600" /> Download
                     </a>
-                    <Button variant="ghost" size="sm" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-4 h-4" />} onClick={() => handleDeleteDoc(d.id, d.title)} title="Delete Document" />
+                    <Button variant="ghost" size="sm" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-4 h-4" />} onClick={() => setDeletingDoc({ id: d.id, title: d.title })} title="Delete Document" />
                   </div>
                 </div>
               ))}
@@ -376,6 +406,13 @@ export const CoachProfilePage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      <DeleteConfirmationModal
+        isOpen={!!deletingDoc}
+        onClose={() => setDeletingDoc(null)}
+        onConfirm={() => deletingDoc && handleDeleteDoc(deletingDoc.id, deletingDoc.title)}
+        itemName={deletingDoc?.title}
+      />
 
       <CoachCredentialsModal
         isOpen={credentialsModal}

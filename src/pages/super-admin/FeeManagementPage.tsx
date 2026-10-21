@@ -408,8 +408,9 @@ export const FeeManagementPage: React.FC = () => {
               label="Manual Discount Amount (₹)"
               type="number"
               placeholder="0 (e.g. Absent discount)"
-              value={discountAmount}
-              onChange={e => setDiscountAmount(Number(e.target.value))}
+              min={0}
+              value={discountAmount || ''}
+              onChange={e => setDiscountAmount(Math.max(0, Number(e.target.value) || 0))}
             />
             <Input
               label="Discount Reason"

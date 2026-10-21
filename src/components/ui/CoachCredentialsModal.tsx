@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Key, Copy, Check, Shield, Mail } from 'lucide-react';
+import { Key, Copy, Check, Shield, Mail, Send, Info } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Coach } from '../../types';
 import { useNotifications } from '../../context/NotificationContext';
+import { useCoachPasswordReset } from './useCoachPasswordReset';
+import { formatDate } from '../../utils/format';
 
 export interface CoachCredentialsModalProps {
   isOpen: boolean;
@@ -11,6 +13,11 @@ export interface CoachCredentialsModalProps {
   coach: Coach | null;
 }
 
+/**
+ * Coach login details. Passwords are stored encrypted (hashed) by the backend, so nobody,
+ * including the super admin, can read them. Instead the admin can email the coach a link to
+ * set a new password: the invite link while the coach has not signed up yet, a reset link after.
+ */
 export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
   isOpen,
   onClose,
@@ -18,78 +25,88 @@ export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const { addToast } = useNotifications();
+  const { sendLink, pending, actionLabel } = useCoachPasswordReset();
 
   if (!coach) return null;
 
-  const username = coach.email;
-  // The auto-generated password comes from the backend with the coach record.
-  const password = coach.tempPassword || '—';
+  const loginUrl = `${window.location.origin}/login`;
+  const accepted = coach.inviteStatus === 'Accepted';
 
   const handleCopy = () => {
-    const textToCopy = `MSRF COACH PORTAL LOGIN CREDENTIALS:\nLogin URL: ${window.location.origin}/login\nUsername / Email: ${username}\nPassword: ${password}`;
-    navigator.clipboard.writeText(textToCopy);
+    navigator.clipboard.writeText(`MSRF COACH PORTAL LOGIN:\nLogin URL: ${loginUrl}\nUsername / Email: ${coach.email}`);
     setCopied(true);
-    addToast({
-      type: 'success',
-      title: 'Credentials Copied!',
-      message: `Login details for ${coach.fullName} copied to clipboard & sent to ${coach.email}`,
-    });
+    addToast({ type: 'success', title: 'Login Details Copied', message: `Login URL and username for ${coach.fullName} copied.` });
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Coach Login Credentials" size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title="Coach Login & Password" size="md">
       <div className="space-y-4 py-1">
-        {/* Header summary */}
         <div className="flex items-center gap-3 p-3 bg-blue-50/80 rounded-2xl border border-blue-100">
           <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">
             <Key className="w-5 h-5" />
           </div>
           <div>
             <h4 className="text-sm font-extrabold text-slate-900">{coach.fullName}</h4>
-            <p className="text-xs text-blue-700 font-semibold">{coach.specialization}</p>
+            <p className="text-xs text-blue-700 font-semibold">{coach.specialization || 'No categories assigned'}</p>
           </div>
         </div>
 
-        {/* Credentials Card */}
         <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-3 font-mono border border-slate-800 shadow-xl">
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">
               Login Username / Email
             </span>
-            <p className="text-sm font-bold text-emerald-400 select-all">{username}</p>
+            <p className="text-sm font-bold text-emerald-400 select-all break-all">{coach.email}</p>
           </div>
 
           <div className="space-y-1 pt-2 border-t border-slate-800">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">
-              Password
+              Account Status
             </span>
-            <p className="text-sm font-bold text-amber-400 select-all">{password}</p>
-          </div>
-
-          <div className="space-y-1 pt-2 border-t border-slate-800 font-sans text-xs text-slate-400 flex items-center gap-2">
-            <Mail className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>Credentials dispatched to <b>{coach.email}</b></span>
+            <p className="text-sm font-bold text-amber-400 font-sans">
+              {accepted
+                ? 'Password set by coach'
+                : coach.inviteStatus === 'Expired'
+                ? 'Invite link expired. Send a new one.'
+                : 'Invite sent, waiting for coach to set a password'}
+            </p>
+            {coach.lastLoginAt && (
+              <p className="text-[11px] text-slate-400 font-sans">Last sign-in: {formatDate(coach.lastLoginAt)}</p>
+            )}
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+          <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+          <p>
+            Passwords are stored encrypted, so they cannot be viewed by anyone, including the super admin. If the coach
+            forgot their password, send them a link to set a new one.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
           <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
-            <Shield className="w-3.5 h-3.5 text-blue-600" /> Coach Portal Authorized Access
+            <Shield className="w-3.5 h-3.5 text-blue-600" /> Coach Portal Access
           </span>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={onClose}>
-              Close
-            </Button>
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              variant="primary"
+              variant="outline"
               size="sm"
               onClick={handleCopy}
               icon={copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             >
-              {copied ? 'Copied!' : 'Copy Credentials'}
+              {copied ? 'Copied!' : 'Copy Login Details'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              isLoading={pending}
+              onClick={() => sendLink(coach)}
+              icon={accepted ? <Mail className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+            >
+              {actionLabel(coach)}
             </Button>
           </div>
         </div>

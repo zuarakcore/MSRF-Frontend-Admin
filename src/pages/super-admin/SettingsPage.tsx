@@ -18,6 +18,25 @@ export const SettingsPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [newPasswordMsg, setNewPasswordMsg] = useState('');
+  const [sendingReset, setSendingReset] = useState(false);
+
+  // Forgot the current password: email a reset link to the signed-in admin's address.
+  const handleSendResetLink = async () => {
+    if (!user?.email) return;
+    setSendingReset(true);
+    try {
+      await authApi.forgotPassword(user.email);
+      addToast({
+        type: 'success',
+        title: 'Reset Link Sent',
+        message: `A link to set a new password was emailed to ${user.email}. It works without your current password.`,
+      });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Could not send reset link', message: errorMessage(err) });
+    } finally {
+      setSendingReset(false);
+    }
+  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +107,17 @@ export const SettingsPage: React.FC = () => {
                 placeholder="Enter current password"
                 icon={<Lock className="w-4 h-4 text-slate-400" />}
               />
+              <p className="text-xs text-slate-500 -mt-2">
+                Forgot your current password?{' '}
+                <button
+                  type="button"
+                  onClick={handleSendResetLink}
+                  disabled={sendingReset || !user?.email}
+                  className="font-semibold text-brand hover:underline disabled:opacity-60"
+                >
+                  {sendingReset ? 'Sending…' : `Email a reset link to ${user?.email ?? 'my email'}`}
+                </button>
+              </p>
 
               <Input
                 label="New Password"
