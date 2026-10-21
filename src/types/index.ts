@@ -344,6 +344,7 @@ export interface ProgrammeCMS {
   ageGroup: string; // e.g. "6 - 10 YEARS", "11 - 14 YEARS", "15 - 18 YEARS"
   title: string; // e.g. "Grassroots Kids Football"
   description: string;
+  registrationUrl?: string; // https:// link or site path
   status: 'Active' | 'Inactive';
   enquiriesCount: number;
 }

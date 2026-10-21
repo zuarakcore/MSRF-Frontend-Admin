@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { Button } from '../../components/ui/Button';
@@ -61,7 +61,7 @@ export const CoachListPage: React.FC = () => {
     phone: '',
     gender: 'Male' as 'Male' | 'Female',
     bloodGroup: 'O+',
-    experienceYears: 5,
+    experienceYears: 5 as number | '',
     joinedDate: new Date().toISOString().slice(0, 10),
     address: '',
     photo: '',
@@ -70,6 +70,12 @@ export const CoachListPage: React.FC = () => {
     bio: '',
     categoryIds: [] as string[]
   });
+  // Inline messages under the form fields, keyed by form field name.
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const setField = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
+    if (formErrors[key]) setFormErrors(prev => ({ ...prev, [key]: '' }));
+  };
 
   const navigate = useNavigate();
   const { addToast } = useNotifications();
@@ -82,6 +88,18 @@ export const CoachListPage: React.FC = () => {
 
   const totalPages = Math.ceil(filteredCoaches.length / pageSize) || 1;
   const paginatedCoaches = filteredCoaches.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Whether each coach on this page has a contract, so the Contract button only shows when there is one.
+  const docsQueries = useQueries({
+    queries: paginatedCoaches.map(c => ({
+      queryKey: ['coaches', c.id, 'documents'],
+      queryFn: () => coachesApi.documents(c.id),
+    })),
+  });
+  const hasContract = (coachId: string) => {
+    const i = paginatedCoaches.findIndex(c => c.id === coachId);
+    return Boolean(docsQueries[i]?.data?.some(d => d.kind === 'CONTRACT'));
+  };
 
   const handleOpenAdd = () => {
     setEditingCoach(null);
@@ -100,6 +118,7 @@ export const CoachListPage: React.FC = () => {
       bio: '',
       categoryIds: []
     });
+    setFormErrors({});
     setAddModal(true);
   };
 
@@ -141,19 +160,56 @@ export const CoachListPage: React.FC = () => {
         bio: c.bio,
         categoryIds: c.categoryIds ?? []
       });
+      setFormErrors({});
       setAddModal(true);
     });
 
+  // Two coaches cannot share an email (it is the login) or a phone number.
+  const validateCoachForm = (target: Coach | null): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    const name = formData.fullName.trim();
+    const email = formData.email.trim().toLowerCase();
+    const phone = formData.phone.trim();
+    const others = coaches.filter(c => c.id !== target?.id);
+
+    if (!name) errors.fullName = 'Full name is required.';
+    else if (name.length < 2) errors.fullName = 'Full name must be at least 2 characters.';
+
+    if (!email) errors.email = 'Email address is required.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Enter a valid email address.';
+    else {
+      const clash = others.find(c => c.email.trim().toLowerCase() === email);
+      if (clash) errors.email = `This email is already used by coach ${clash.fullName}.`;
+    }
+
+    if (!phone) errors.phone = 'Phone number is required.';
+    else if (!/^[6-9]\d{9}$/.test(phone)) errors.phone = 'Enter a valid 10-digit Indian mobile number (starts with 6, 7, 8 or 9).';
+    else {
+      const clash = others.find(c => (c.phone ?? '').replace(/\D/g, '').slice(-10) === phone);
+      if (clash) errors.phone = `This phone number is already used by coach ${clash.fullName}.`;
+    }
+
+    const years = formData.experienceYears;
+    if (years === '' || !Number.isInteger(Number(years)) || Number(years) < 0 || Number(years) > 60) {
+      errors.experienceYears = 'Experience must be a whole number from 0 to 60.';
+    }
+    if (!formData.joinedDate) errors.joinedDate = 'Joining date is required.';
+    else if (formData.joinedDate > new Date().toISOString().slice(0, 10)) errors.joinedDate = 'Joining date cannot be in the future.';
+    return errors;
+  };
+
   const handleSaveCoach = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.fullName) return;
+    const target = editingCoach;
 
-    if (formData.phone && formData.phone.length < 10) {
-      addToast({ type: 'warning', title: 'Invalid Phone Number', message: 'Phone number must be 10 digits.' });
+    const errors = validateCoachForm(target);
+    setFormErrors(errors);
+    const firstError = Object.values(errors).find(Boolean);
+    if (firstError) {
+      addToast({ type: 'warning', title: 'Check the form', message: firstError });
       return;
     }
 
-    const target = editingCoach;
     const previousPhoto = target && !target.photo.startsWith('data:image/svg') ? target.photo : undefined;
     const ok = await run(
       async () => {
@@ -282,13 +338,17 @@ export const CoachListPage: React.FC = () => {
                       </p>
                     </td>
                     <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenContract(c)}
-                        className="inline-flex items-center gap-1.5 text-blue-600 font-semibold hover:underline bg-blue-50 px-2.5 py-1 rounded border border-blue-200"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-blue-600" /> Contract PDF
-                      </button>
+                      {hasContract(c.id) ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenContract(c)}
+                          className="inline-flex items-center gap-1.5 text-blue-600 font-semibold hover:underline bg-blue-50 px-2.5 py-1 rounded border border-blue-200"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-blue-600" /> Contract PDF
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">Not uploaded</span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                       <StatusToggle
@@ -299,7 +359,7 @@ export const CoachListPage: React.FC = () => {
                     <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <Button size="sm" variant="ghost" icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} onClick={() => withDetail(c, setPdfCoachRecord)} title="View & Print Coach PDF Report" />
-                        <Button size="sm" variant="ghost" icon={<Key className="w-3.5 h-3.5 text-amber-500" />} onClick={() => setCredentialsCoach(c)} title="View & Copy Login Credentials" />
+                        <Button size="sm" variant="ghost" icon={<Key className="w-3.5 h-3.5 text-amber-500" />} onClick={() => setCredentialsCoach(c)} title="Login & Password Reset" />
                         <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(c)} title="Edit Coach" />
                         <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingCoach(c)} title="Delete Coach" />
                       </div>
@@ -349,16 +409,18 @@ export const CoachListPage: React.FC = () => {
                 <Button size="sm" variant="outline" onClick={() => navigate(`/super-admin/coaches/${c.id}`)} icon={<Eye className="w-3.5 h-3.5" />}>
                   Profile
                 </Button>
-                <button
-                  type="button"
-                  onClick={() => handleOpenContract(c)}
-                  className="inline-flex items-center gap-1 text-[11px] text-blue-600 font-semibold hover:underline bg-blue-50 px-2 py-1 rounded"
-                >
-                  <FileText className="w-3 h-3 text-blue-600" /> Contract
-                </button>
+                {hasContract(c.id) && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenContract(c)}
+                    className="inline-flex items-center gap-1 text-[11px] text-blue-600 font-semibold hover:underline bg-blue-50 px-2 py-1 rounded"
+                  >
+                    <FileText className="w-3 h-3 text-blue-600" /> Contract
+                  </button>
+                )}
                 <div className="flex items-center gap-1">
                   <Button size="sm" variant="ghost" icon={<FileDown className="w-3.5 h-3.5 text-emerald-600" />} onClick={() => withDetail(c, setPdfCoachRecord)} title="Coach PDF Report" />
-                  <Button size="sm" variant="ghost" icon={<Key className="w-3.5 h-3.5 text-amber-500" />} onClick={() => setCredentialsCoach(c)} title="Credentials" />
+                  <Button size="sm" variant="ghost" icon={<Key className="w-3.5 h-3.5 text-amber-500" />} onClick={() => setCredentialsCoach(c)} title="Login & Password Reset" />
                   <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(c)} />
                   <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingCoach(c)} />
                 </div>
@@ -397,19 +459,22 @@ export const CoachListPage: React.FC = () => {
         isOpen={!!deletingCoach}
         onClose={() => setDeletingCoach(null)}
         onConfirm={handleDeleteConfirm}
+        title="Delete Coach"
         itemName={deletingCoach?.fullName}
+        message={`This permanently deletes coach "${deletingCoach?.fullName ?? ''}" and their login. It cannot be undone. Coaches with sessions or reports on record cannot be deleted; set them to Inactive instead.`}
       />
 
       {/* Add / Edit Coach Modal (Without Status field - First always active) */}
       <Modal isOpen={addModal} onClose={() => setAddModal(false)} title={editingCoach ? "Edit Coach Profile" : "Onboard New Head Coach"}>
-        <form onSubmit={handleSaveCoach} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSaveCoach} className="space-y-4" noValidate>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
             <Input
               label="Full Name"
               required
               value={formData.fullName}
-              onChange={e => setFormData({ ...formData, fullName: e.target.value })}
-              placeholder="e.g. Coach Sandeep Kumar"
+              error={formErrors.fullName || undefined}
+              onChange={e => setField('fullName', e.target.value)}
+              placeholder="e.g. Sandeep Kumar"
             />
             <Select
               label="Gender"
@@ -418,16 +483,15 @@ export const CoachListPage: React.FC = () => {
                 { label: 'Female', value: 'Female' }
               ]}
               value={formData.gender}
-              onChange={e => setFormData({ ...formData, gender: e.target.value as any })}
+              onChange={e => setField('gender', e.target.value as 'Male' | 'Female')}
             />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Email Address (Login Username)"
+              label="Email (Login Username)"
               type="email"
               required
               value={formData.email}
-              onChange={e => setFormData({ ...formData, email: e.target.value })}
+              error={formErrors.email || undefined}
+              onChange={e => setField('email', e.target.value)}
               placeholder="sandeep@msrf.org"
             />
             <Input
@@ -435,11 +499,12 @@ export const CoachListPage: React.FC = () => {
               isPhone
               required
               value={formData.phone}
-              onChange={e => setFormData({ ...formData, phone: e.target.value })}
+              error={formErrors.phone || undefined}
+              onChange={e => setField('phone', e.target.value)}
               placeholder="10-digit mobile"
             />
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
             <Select
               label="Blood Group"
               options={[
@@ -453,26 +518,34 @@ export const CoachListPage: React.FC = () => {
                 { label: 'AB-', value: 'AB-' }
               ]}
               value={formData.bloodGroup}
-              onChange={e => setFormData({ ...formData, bloodGroup: e.target.value })}
+              onChange={e => setField('bloodGroup', e.target.value)}
             />
             <Input
               label="Experience (Years)"
               type="number"
+              min={0}
+              max={60}
+              step={1}
               value={formData.experienceYears}
-              onChange={e => setFormData({ ...formData, experienceYears: Number(e.target.value) })}
+              error={formErrors.experienceYears || undefined}
+              onChange={e => setField('experienceYears', e.target.value === '' ? '' : Math.trunc(Number(e.target.value)))}
+              placeholder="0 - 60"
             />
             <Input
               label="Date Joined MSRF"
               type="date"
+              required
+              max={new Date().toISOString().slice(0, 10)}
               value={formData.joinedDate}
-              onChange={e => setFormData({ ...formData, joinedDate: e.target.value })}
+              error={formErrors.joinedDate || undefined}
+              onChange={e => setField('joinedDate', e.target.value)}
             />
           </div>
 
           <Input
             label="Residential / Office Address"
             value={formData.address}
-            onChange={e => setFormData({ ...formData, address: e.target.value })}
+            onChange={e => setField('address', e.target.value)}
             placeholder="Full street address, Kozhikode, Kerala..."
           />
 
@@ -485,7 +558,7 @@ export const CoachListPage: React.FC = () => {
           />
 
           <div>
-            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Assigned Categories</label>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Assigned Categories</label>
             <p className="text-[11px] text-slate-500 mb-1.5">The coach sees and takes attendance for students in these categories.</p>
             <div className="flex flex-wrap gap-2">
               {(categoriesQuery.data ?? []).map(cat => {
@@ -526,12 +599,12 @@ export const CoachListPage: React.FC = () => {
           />
 
           <div>
-            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Coach Biography & Accreditations</label>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Coach Biography & Accreditations</label>
             <textarea
               rows={3}
               value={formData.bio}
-              onChange={e => setFormData({ ...formData, bio: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 mt-1"
+              onChange={e => setField('bio', e.target.value)}
+              className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand"
               placeholder="Certifications, state gold medals, prior coaching history..."
             />
           </div>

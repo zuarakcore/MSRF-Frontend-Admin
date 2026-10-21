@@ -21,7 +21,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { QueryState } from '../../components/ui/QueryState';
-import { attendanceApi, dashboardApi } from '../../api/endpoints';
+import { attendanceApi, dashboardApi, feesApi, studentsApi } from '../../api/endpoints';
 import { toStudent, toSubmission } from '../../api/mappers';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { useNavigate } from 'react-router-dom';
@@ -30,9 +30,23 @@ export const SuperAdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const summaryQuery = useQuery({ queryKey: ['dashboard', 'summary'], queryFn: dashboardApi.summary });
   const data = summaryQuery.data;
+  const now = new Date();
+
+  // The summary's overdue list also counts inactive students; show only active ones.
+  const activeIdsQuery = useQuery({
+    queryKey: ['students', 'active-ids'],
+    queryFn: async () => new Set((await studentsApi.listAll({ status: 'ACTIVE' })).map(st => st.id)),
+  });
+  const overdueQuery = useQuery({
+    queryKey: ['fees', 'ledger', 'overdue', now.getFullYear(), now.getMonth() + 1],
+    queryFn: () => feesApi.ledgerAll({ year: now.getFullYear(), month: now.getMonth() + 1, status: 'OVERDUE' }),
+  });
+  const activeOverdue =
+    activeIdsQuery.data && overdueQuery.data
+      ? overdueQuery.data.filter(row => activeIdsQuery.data.has(row.student.id)).sort((a, b) => b.outstanding - a.outstanding)
+      : null;
 
   // Attendance rate for each of the last six months: present records / all records.
-  const now = new Date();
   const trendMonths = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
     return { year: d.getFullYear(), month: d.getMonth() + 1, label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '") };
@@ -72,8 +86,12 @@ export const SuperAdminDashboard: React.FC = () => {
     ? Math.round((annualCollectionTotal / (annualCollectionTotal + pendingFeesTotal)) * 100)
     : 0;
 
+  const overdueStudentsCount = activeOverdue ? activeOverdue.length : data?.fees.overdueStudents ?? 0;
+  const topOverdue = activeOverdue ?? (data?.topOverdue ?? []);
+
   const recentAdmissions = (data?.recentAdmissions ?? []).map(toStudent);
-  const recentSubmissions = (data?.recentSubmissions ?? []).map(toSubmission);
+  // The card is a to-do list: reviewed (verified/rejected) submissions live on the Payments page.
+  const recentSubmissions = (data?.recentSubmissions ?? []).filter(s => s.status === 'PENDING').map(toSubmission);
 
   if (!data) {
     return (
@@ -91,7 +109,7 @@ export const SuperAdminDashboard: React.FC = () => {
       breadcrumb={[{ label: 'Super Admin' }, { label: 'Dashboard' }]}
       actions={
         <div className="flex items-center gap-2">
-          <Button size="sm" onClick={() => navigate('/super-admin/students')} icon={<Plus className="w-4 h-4" />}>
+          <Button size="sm" onClick={() => navigate('/super-admin/students?new=1')} icon={<Plus className="w-4 h-4" />}>
             New Admission
           </Button>
           <Button size="sm" variant="outline" onClick={() => navigate('/super-admin/reports')}>
@@ -121,7 +139,7 @@ export const SuperAdminDashboard: React.FC = () => {
         <StatCard
           title="Fees Outstanding"
           value={formatCurrency(pendingFeesTotal)}
-          subtitle={`${data.fees.overdueStudents} overdue`}
+          subtitle={`${overdueStudentsCount} overdue`}
           icon={<AlertCircle className="w-5 h-5" />}
           badgeVariant="rose"
           badgeText={`${pendingVerificationsCount} to verify`}
@@ -278,7 +296,7 @@ export const SuperAdminDashboard: React.FC = () => {
               </div>
               <div className="p-3 bg-rose-50 rounded-xl border border-rose-100">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700">Overdue</p>
-                <p className="text-base font-black text-rose-700 mt-1">{data.fees.overdueStudents}</p>
+                <p className="text-base font-black text-rose-700 mt-1">{overdueStudentsCount}</p>
               </div>
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">To Verify</p>
@@ -289,11 +307,11 @@ export const SuperAdminDashboard: React.FC = () => {
             {/* Largest outstanding balances */}
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Top Overdue</p>
-              {data.topOverdue.length === 0 ? (
+              {topOverdue.length === 0 ? (
                 <p className="text-xs text-slate-400 py-3">No overdue fees. 🎉</p>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {data.topOverdue.slice(0, 4).map(row => (
+                  {topOverdue.slice(0, 4).map(row => (
                     <button
                       key={row.student.id}
                       type="button"
@@ -484,6 +502,9 @@ export const SuperAdminDashboard: React.FC = () => {
             }
           >
             <div className="space-y-3">
+              {recentSubmissions.length === 0 && (
+                <p className="text-xs text-slate-500 py-2">No payment submissions are waiting for review.</p>
+              )}
               {recentSubmissions.map(sub => (
                 <div
                   key={sub.id}
@@ -510,7 +531,7 @@ export const SuperAdminDashboard: React.FC = () => {
                       <Button
                         size="sm"
                         variant="primary"
-                        onClick={() => navigate('/super-admin/payments')}
+                        onClick={() => navigate(`/super-admin/payments?review=${sub.id}`)}
                       >
                         Review
                       </Button>

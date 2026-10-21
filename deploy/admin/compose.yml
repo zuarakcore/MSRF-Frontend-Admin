@@ -3,7 +3,7 @@
 #   IMAGE_TAG=<git sha> docker compose up -d      (deploy.sh does this; do not run by hand without a tag)
 #
 # Joins the shared `edge` network only; Caddy (/srv/msrf/proxy) reaches it as msrf-admin:8080.
-# The browser calls https://api.malabarchallengersfc.com directly, so the container needs no backend access.
+# nginx proxies /api/ to the backend as msrf-api:8000 on the same network (same-origin API, no CORS preflights).
 name: msrf-admin
 
 services:

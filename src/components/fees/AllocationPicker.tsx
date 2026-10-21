@@ -108,6 +108,8 @@ export const AllocationPicker: React.FC<{
                     min={0}
                     max={m.outstanding}
                     step="0.01"
+                    onWheel={e => e.currentTarget.blur()}
+                    onKeyDown={e => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }}
                     value={amountFor(m) || ''}
                     onChange={e => setAmount(m, e.target.value)}
                     placeholder="0"

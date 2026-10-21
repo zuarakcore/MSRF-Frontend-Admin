@@ -10,7 +10,8 @@
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '/api/v1').replace(/\/+$/, '');
 
-export type FieldError = { field: string; message: string };
+/** `row` is set on CSV import errors (1-based file row, header = 1). */
+export type FieldError = { field: string; message: string; row?: number };
 
 /** Error body: {"detail", "code", "errors"?: [{field, message}]} — backend app/core/errors.py. */
 export class ApiError extends Error {
@@ -40,6 +41,8 @@ interface RequestOptions {
   /** false for endpoints that must not carry or refresh the bearer token (login, refresh). */
   auth?: boolean;
   signal?: AbortSignal;
+  /** Let the request finish even if the page navigates away (logout). */
+  keepalive?: boolean;
 }
 
 let accessToken: string | null = null;
@@ -97,6 +100,7 @@ async function send(method: string, path: string, opts: RequestOptions): Promise
       body,
       credentials: 'include',
       signal: opts.signal,
+      keepalive: opts.keepalive,
     });
   } catch (error) {
     if ((error as Error)?.name === 'AbortError') throw error;
@@ -104,14 +108,23 @@ async function send(method: string, path: string, opts: RequestOptions): Promise
   }
 }
 
+/** The signed-in user from the last successful refresh (the refresh response includes it). */
+let refreshedUser: unknown = null;
+export const takeRefreshedUser = <U>() => {
+  const user = refreshedUser as U | null;
+  refreshedUser = null;
+  return user;
+};
+
 /** Exchange the refresh cookie for a new access token. Concurrent callers share one request. */
 export function refreshAccessToken(): Promise<string | null> {
   refreshInFlight ??= (async () => {
     try {
       const response = await send('POST', '/auth/refresh', { auth: false });
       if (!response.ok) return null;
-      const data = (await response.json()) as { accessToken: string };
+      const data = (await response.json()) as { accessToken: string; user?: unknown };
       accessToken = data.accessToken;
+      refreshedUser = data.user ?? null;
       return accessToken;
     } catch {
       return null;

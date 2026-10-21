@@ -11,21 +11,21 @@ export const ALL = { page: 1, pageSize: 100 } as const;
 /** Fetch every page of a paginated endpoint (for screens that filter and paginate locally). */
 export async function fetchAllPages<I>(path: string, query: Q = {}, maxPages = 50): Promise<I[]> {
   const first = await http.get<T.Page<I>>(path, { ...query, ...ALL });
-  const items = [...first.items];
-  for (let page = 2; page <= Math.min(first.pages, maxPages); page++) {
-    const next = await http.get<T.Page<I>>(path, { ...query, page, pageSize: ALL.pageSize });
-    items.push(...next.items);
-  }
-  return items;
+  // The rest in parallel: one round trip instead of one per page.
+  const pages = Array.from({ length: Math.min(first.pages, maxPages) - 1 }, (_, i) => i + 2);
+  const rest = await Promise.all(pages.map(page => http.get<T.Page<I>>(path, { ...query, page, pageSize: ALL.pageSize })));
+  return [...first.items, ...rest.flatMap(p => p.items)];
 }
 
 export const authApi = {
   login: (email: string, password: string) =>
     request<T.TokenOut>('POST', '/auth/login', { json: { email, password }, auth: false }),
-  logout: () => request<void>('POST', '/auth/logout', { auth: false }),
+  logout: () => request<void>('POST', '/auth/logout', { auth: false, keepalive: true }),
   me: () => http.get<T.ApiUser>('/auth/me'),
   forgotPassword: (email: string) =>
     request<{ detail: string }>('POST', '/auth/forgot-password', { json: { email }, auth: false }),
+  resetPassword: (token: string, newPassword: string) =>
+    request<void>('POST', '/auth/reset-password', { json: { token, newPassword }, auth: false }),
   changePassword: (currentPassword: string, newPassword: string) =>
     http.post<T.TokenOut>('/auth/change-password', { currentPassword, newPassword }),
 };

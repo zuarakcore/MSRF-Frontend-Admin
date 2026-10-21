@@ -7,16 +7,40 @@ import { Lock, Save, Key } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import { authApi } from '../../api/endpoints';
 import { errorMessage, tokenStore } from '../../api/client';
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, newPasswordError, passwordProblem } from '../../api/password';
+import { useAuth } from '../../context/AuthContext';
 
 export const SettingsPage: React.FC = () => {
   const { addToast } = useNotifications();
+  const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [newPasswordMsg, setNewPasswordMsg] = useState('');
+  const [sendingReset, setSendingReset] = useState(false);
+
+  // Forgot the current password: email a reset link to the signed-in admin's address.
+  const handleSendResetLink = async () => {
+    if (!user?.email) return;
+    setSendingReset(true);
+    try {
+      await authApi.forgotPassword(user.email);
+      addToast({
+        type: 'success',
+        title: 'Reset Link Sent',
+        message: `A link to set a new password was emailed to ${user.email}. It works without your current password.`,
+      });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Could not send reset link', message: errorMessage(err) });
+    } finally {
+      setSendingReset(false);
+    }
+  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
+    setNewPasswordMsg('');
     if (!currentPassword || !newPassword || !confirmPassword) {
       addToast({ type: 'error', title: 'Validation Error', message: 'Please fill out all password fields.' });
       return;
@@ -25,8 +49,9 @@ export const SettingsPage: React.FC = () => {
       addToast({ type: 'error', title: 'Password Mismatch', message: 'New password and confirm password do not match.' });
       return;
     }
-    if (newPassword.length < 10) {
-      addToast({ type: 'error', title: 'Weak Password', message: 'New password must be at least 10 characters long.' });
+    const problem = passwordProblem(newPassword, user?.email);
+    if (problem) {
+      setNewPasswordMsg(problem);
       return;
     }
 
@@ -36,6 +61,11 @@ export const SettingsPage: React.FC = () => {
       const result = await authApi.changePassword(currentPassword, newPassword);
       tokenStore.set(result.accessToken);
     } catch (err) {
+      const fieldMsg = newPasswordError(err);
+      if (fieldMsg) {
+        setNewPasswordMsg(fieldMsg);
+        return;
+      }
       addToast({ type: 'error', title: 'Password Not Changed', message: errorMessage(err) });
       return;
     } finally {
@@ -77,14 +107,31 @@ export const SettingsPage: React.FC = () => {
                 placeholder="Enter current password"
                 icon={<Lock className="w-4 h-4 text-slate-400" />}
               />
+              <p className="text-xs text-slate-500 -mt-2">
+                Forgot your current password?{' '}
+                <button
+                  type="button"
+                  onClick={handleSendResetLink}
+                  disabled={sendingReset || !user?.email}
+                  className="font-semibold text-brand hover:underline disabled:opacity-60"
+                >
+                  {sendingReset ? 'Sending…' : `Email a reset link to ${user?.email ?? 'my email'}`}
+                </button>
+              </p>
 
               <Input
                 label="New Password"
                 type="password"
                 required
                 value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                placeholder="Enter new password (min. 10 chars)"
+                onChange={e => {
+                  setNewPassword(e.target.value);
+                  setNewPasswordMsg('');
+                }}
+                placeholder={`Enter new password (min. ${PASSWORD_MIN_LENGTH} chars)`}
+                autoComplete="new-password"
+                error={newPasswordMsg || undefined}
+                helperText={PASSWORD_HINT}
                 icon={<Lock className="w-4 h-4 text-slate-400" />}
               />
 

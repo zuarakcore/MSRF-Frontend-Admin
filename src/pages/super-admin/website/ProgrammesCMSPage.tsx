@@ -40,8 +40,10 @@ export const ProgrammesCMSPage: React.FC = () => {
   const [form, setForm] = useState({
     ageGroup: '6 - 10 YEARS',
     title: '',
-    description: ''
+    description: '',
+    registrationUrl: ''
   });
+  const [urlError, setUrlError] = useState('');
 
 
   const filtered = programmes.filter(p => {
@@ -58,20 +60,29 @@ export const ProgrammesCMSPage: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingProg(null);
-    setForm({ ageGroup: '6 - 10 YEARS', title: '', description: '' });
+    setForm({ ageGroup: '6 - 10 YEARS', title: '', description: '', registrationUrl: '' });
+    setUrlError('');
     setModalOpen(true);
   };
 
   const handleOpenEdit = (p: ProgrammeCMS) => {
     setEditingProg(p);
-    setForm({ ageGroup: p.ageGroup, title: p.title, description: p.description });
+    setForm({ ageGroup: p.ageGroup, title: p.title, description: p.description, registrationUrl: p.registrationUrl ?? '' });
+    setUrlError('');
     setModalOpen(true);
   };
 
   const handleSaveProgramme = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) return;
+    // Same rule as the API: an https:// link or a path on the website, up to 500 characters.
+    const url = form.registrationUrl.trim();
+    if (url && (url.length > 500 || !(/^https:\/\/\S+$/i.test(url) || /^\/(?!\/)\S*$/.test(url)))) {
+      setUrlError('Use an https:// link or a website path such as /contact (max 500 characters).');
+      return;
+    }
     const body = {
+      registrationUrl: url || null,
       ageGroup: form.ageGroup.trim(),
       title: form.title.trim(),
       description: form.description.trim() || 'Professional sports training program.',
@@ -280,6 +291,18 @@ export const ProgrammesCMSPage: React.FC = () => {
               placeholder="A fun-first program introducing ball mastery..."
             />
           </div>
+          <Input
+            label="Registration Link"
+            value={form.registrationUrl}
+            onChange={e => {
+              setForm({ ...form, registrationUrl: e.target.value });
+              setUrlError('');
+            }}
+            placeholder="https://forms.gle/... or /contact"
+            maxLength={500}
+            error={urlError || undefined}
+            helperText="Optional. Shown as the Register button on the website's Programmes page."
+          />
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button type="submit">{editingProg ? "Update Programme" : "Publish Programme"}</Button>

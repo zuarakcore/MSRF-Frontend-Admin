@@ -5,6 +5,7 @@ import { cn } from '../../utils/cn';
 import logoImg from '../../assets/logo.png';
 import { avatarFor } from '../../api/photos';
 import {
+  Receipt,
   LayoutDashboard,
   Users,
   UserCheck,
@@ -57,6 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { label: 'Attendance', path: '/super-admin/attendance', icon: CalendarCheck },
       { label: 'Fee Management', path: '/super-admin/fees', icon: CreditCard },
       { label: 'Payment Verification', path: '/super-admin/payments', icon: CheckCircle2 },
+      { label: 'Receipts', path: '/super-admin/invoices', icon: Receipt },
       { label: 'Reports Center', path: '/super-admin/reports', icon: BarChart3 },
     ]},
     { title: 'WEBSITE DYNAMIC CONTENT', items: [

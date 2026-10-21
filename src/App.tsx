@@ -7,6 +7,7 @@ import { NotificationProvider } from './context/NotificationContext';
 
 // Pages
 import { LoginPage } from './pages/auth/LoginPage';
+import { SetPasswordPage } from './pages/auth/SetPasswordPage';
 import { SuperAdminDashboard } from './pages/super-admin/SuperAdminDashboard';
 import { StudentListPage } from './pages/super-admin/StudentListPage';
 import { StudentProfilePage } from './pages/super-admin/StudentProfilePage';
@@ -83,6 +84,8 @@ export const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
+            {/* Password reset email link */}
+            <Route path="/set-password" element={<SetPasswordPage />} />
 
             {/* Super Admin Protected Routes */}
             <Route

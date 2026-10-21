@@ -194,9 +194,9 @@ export const Header: React.FC<HeaderProps> = ({
 
               <div className="border-t border-slate-100 pt-1">
                 <button
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
                     setShowUserMenu(false);
+                    await logout();
                     navigate('/login');
                   }}
                   className="w-full text-left px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2"

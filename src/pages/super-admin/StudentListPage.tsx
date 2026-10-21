@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { FilterBar } from '../../components/ui/FilterBar';
@@ -44,13 +44,13 @@ import {
 } from '../../api/mappers';
 import { photoField } from '../../api/photos';
 import { useApiAction } from '../../api/hooks';
-import { errorMessage } from '../../api/client';
+import { ApiError, errorMessage, type FieldError } from '../../api/client';
 import type { BloodGroup, RefItem } from '../../api/types';
 import { Student } from '../../types';
 import { formatCurrency, formatDate, formatPhoneNumber } from '../../utils/format';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useNotifications } from '../../context/NotificationContext';
 
 export const StudentListPage: React.FC = () => {
@@ -88,6 +88,8 @@ export const StudentListPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  // Problems in the last uploaded file, grouped by row so staff can fix the whole file in one go.
+  const [importErrors, setImportErrors] = useState<[number, FieldError[]][]>([]);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
   const [lightboxImg, setLightboxImg] = useState<{ url: string; title: string } | null>(null);
@@ -114,12 +116,19 @@ export const StudentListPage: React.FC = () => {
     parentEmail: '',
     parentAddress: '',
     emergencyName: '',
-    emergencyRelationship: 'Father',
+    emergencyRelationship: '',
     emergencyPhone: '',
-    monthlyFee: 2000
+    monthlyFee: 2000 as number | ''
   });
+  // Inline messages under the form fields, keyed by form field name.
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const setField = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
+    if (formErrors[key]) setFormErrors(prev => ({ ...prev, [key]: '' }));
+  };
 
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addToast } = useNotifications();
   const todayDateStr = new Date().toISOString().split('T')[0];
 
@@ -166,12 +175,24 @@ export const StudentListPage: React.FC = () => {
       parentEmail: '',
       parentAddress: '',
       emergencyName: '',
-      emergencyRelationship: 'Father',
+      emergencyRelationship: '',
       emergencyPhone: '',
       monthlyFee: 2000
     });
+    setFormErrors({});
     setIsAddModalOpen(true);
   };
+
+  // The dashboard's "New Admission" button links here with ?new=1 to open the form straight away.
+  useEffect(() => {
+    if (searchParams.get('new') !== '1' || !optionsQuery.data) return;
+    handleOpenAdd();
+    setSearchParams(prev => {
+      prev.delete('new');
+      return prev;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, optionsQuery.data]);
 
   // The roster omits contact, admission and emergency details; load the full record first.
   const withDetail = async (st: Student, then: (full: Student) => void) => {
@@ -205,28 +226,80 @@ export const StudentListPage: React.FC = () => {
       parentEmail: s.parentEmail || '',
       parentAddress: s.parentAddress || s.address || '',
       emergencyName: s.emergencyName || '',
-      emergencyRelationship: s.emergencyRelationship || 'Father',
+      emergencyRelationship: s.emergencyRelationship || '',
       emergencyPhone: s.emergencyPhone || '',
       monthlyFee: s.monthlyFee ?? 0
     });
+    setFormErrors({});
     setIsAddModalOpen(true);
   });
+
+  // Same rules as the backend (StudentIn), so mistakes show under the field instead of failing on save.
+  const validateStudentForm = (): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    const nameProblem = (value: string, label: string) => {
+      const v = value.trim();
+      if (!v) return `${label} is required.`;
+      if (v.length < 2) return `${label} must be at least 2 characters.`;
+      if (v.length > 120) return `${label} must be at most 120 characters.`;
+      if (!/^[\p{L}][\p{L} .'-]*$/u.test(v)) return `${label} can only contain letters, spaces, dots, hyphens and apostrophes.`;
+      return '';
+    };
+    const phoneProblem = (value: string, label: string, required: boolean) => {
+      const v = value.trim();
+      if (!v) return required ? `${label} is required.` : '';
+      if (v.length !== 10) return `${label} must be exactly 10 digits.`;
+      if (!/^[6-9]\d{9}$/.test(v)) return `${label} must be a valid Indian mobile number starting with 6, 7, 8 or 9.`;
+      return '';
+    };
+    errors.fullName = nameProblem(formData.fullName, 'Full name');
+    errors.parentName = nameProblem(formData.parentName, 'Parent / guardian name');
+    errors.phone = phoneProblem(formData.phone, 'Student phone', false);
+    errors.parentPhone = phoneProblem(formData.parentPhone, 'Parent phone', true);
+    errors.emergencyPhone = phoneProblem(formData.emergencyPhone, 'Emergency phone', false);
+    if (formData.emergencyName.trim() && formData.emergencyName.trim().length > 120) {
+      errors.emergencyName = 'Emergency contact name must be at most 120 characters.';
+    }
+    if (formData.emergencyRelationship.trim().length > 40) {
+      errors.emergencyRelationship = 'Relationship must be at most 40 characters.';
+    }
+
+    if (!formData.dateOfBirth) {
+      errors.dateOfBirth = 'Date of birth is required.';
+    } else {
+      const dob = new Date(`${formData.dateOfBirth}T00:00:00`);
+      const ageYears = (Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000);
+      if (dob > new Date()) errors.dateOfBirth = 'Date of birth cannot be in the future.';
+      else if (ageYears < 3 || ageYears > 25) errors.dateOfBirth = 'Date of birth must give an age between 3 and 25 years.';
+      else if (formData.admissionDate && formData.admissionDate < formData.dateOfBirth) {
+        errors.admissionDate = 'Admission date cannot be before date of birth.';
+      }
+    }
+    if (formData.monthlyFee === '' || Number(formData.monthlyFee) < 0) {
+      errors.monthlyFee = 'Enter the monthly fee (0 or more).';
+    }
+    return errors;
+  };
+
+  // Server-side field errors ("parentPhone", "fullName"...) shown under the matching inputs.
+  const showServerFieldErrors = (error: unknown) => {
+    if (!(error instanceof ApiError) || !error.fieldErrors.length) return;
+    const next: Record<string, string> = {};
+    error.fieldErrors.forEach(fe => {
+      const key = fe.field === 'parentRelationship' ? 'relationship' : fe.field;
+      if (key in formData) next[key] = String(fe.message).replace(/^Value error, /, '');
+    });
+    setFormErrors(prev => ({ ...prev, ...next }));
+  };
 
   const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // DOB Validation (Required & No Future Dates)
-    if (!formData.dateOfBirth) {
-      addToast({ type: 'warning', title: 'Missing Date of Birth', message: 'Date of Birth is required.' });
-      return;
-    }
-    if (new Date(formData.dateOfBirth) > new Date()) {
-      addToast({ type: 'warning', title: 'Invalid Date of Birth', message: 'Date of Birth cannot be in future dates.' });
-      return;
-    }
-
-    if (formData.parentPhone && formData.parentPhone.length < 10) {
-      addToast({ type: 'warning', title: 'Invalid Phone Number', message: 'Parent phone number must be 10 digits.' });
+    const errors = validateStudentForm();
+    setFormErrors(errors);
+    const firstError = Object.values(errors).find(Boolean);
+    if (firstError) {
+      addToast({ type: 'warning', title: 'Check the form', message: firstError });
       return;
     }
 
@@ -272,7 +345,12 @@ export const StudentListPage: React.FC = () => {
           emergencyPhone: emptyToNull(formData.emergencyPhone),
           ...photo,
         };
-        return target ? studentsApi.update(target.id, body) : studentsApi.create(body);
+        try {
+          return await (target ? studentsApi.update(target.id, body) : studentsApi.create(body));
+        } catch (error) {
+          showServerFieldErrors(error);
+          throw error;
+        }
       },
       {
         success: target
@@ -333,10 +411,20 @@ export const StudentListPage: React.FC = () => {
       return;
     }
     let created = 0;
-    // All rows are imported or none; the error lists the rows to fix.
+    setImportErrors([]);
+    // All rows are imported or none; the error lists every problem in every row.
     const ok = await run(
       async () => {
-        created = (await studentsApi.importCsv(importFile)).created;
+        try {
+          created = (await studentsApi.importCsv(importFile)).created;
+        } catch (err) {
+          const rowErrors = err instanceof ApiError ? err.fieldErrors.filter(e => e.row != null) : [];
+          if (!rowErrors.length) throw err;
+          const byRow = new Map<number, FieldError[]>();
+          rowErrors.forEach(e => byRow.set(e.row!, [...(byRow.get(e.row!) ?? []), e]));
+          setImportErrors([...byRow.entries()].sort((a, b) => a[0] - b[0]));
+          throw new Error(`${byRow.size} row${byRow.size === 1 ? '' : 's'} need fixing. Nothing was imported; see the list below.`);
+        }
       },
       { errorTitle: 'CSV Import Failed', invalidate }
     );
@@ -355,7 +443,7 @@ export const StudentListPage: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsImportModalOpen(true)}
+            onClick={() => { setImportErrors([]); setIsImportModalOpen(true); }}
             icon={<FileUp className="w-4 h-4 text-emerald-600" />}
             className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
           >
@@ -665,7 +753,9 @@ export const StudentListPage: React.FC = () => {
         isOpen={!!deletingStudent}
         onClose={() => setDeletingStudent(null)}
         onConfirm={handleDeleteConfirm}
+        title="Delete Student"
         itemName={deletingStudent?.fullName}
+        message={`This permanently deletes "${deletingStudent?.fullName ?? 'this student'}" and their documents. It is not a soft delete and cannot be undone. Students with attendance, payments or reports on record cannot be deleted; set them to Inactive instead to keep their history.`}
       />
 
       {/* Add / Edit Student Modal */}
@@ -686,7 +776,8 @@ export const StudentListPage: React.FC = () => {
                 label="Full Name"
                 required
                 value={formData.fullName}
-                onChange={e => setFormData({ ...formData, fullName: e.target.value })}
+                error={formErrors.fullName || undefined}
+                onChange={e => setField('fullName', e.target.value)}
                 placeholder="e.g. Adarsh Nair"
               />
               <Select
@@ -696,7 +787,7 @@ export const StudentListPage: React.FC = () => {
                   { label: 'Female', value: 'Female' }
                 ]}
                 value={formData.gender}
-                onChange={e => setFormData({ ...formData, gender: e.target.value as any })}
+                onChange={e => setField('gender', e.target.value as any)}
               />
               <Select
                 label="Blood Group"
@@ -711,7 +802,7 @@ export const StudentListPage: React.FC = () => {
                   { label: 'AB-', value: 'AB-' }
                 ]}
                 value={formData.bloodGroup}
-                onChange={e => setFormData({ ...formData, bloodGroup: e.target.value })}
+                onChange={e => setField('bloodGroup', e.target.value)}
               />
               <Input
                 label="Date of Birth"
@@ -719,20 +810,23 @@ export const StudentListPage: React.FC = () => {
                 required
                 max={todayDateStr}
                 value={formData.dateOfBirth}
-                onChange={e => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                error={formErrors.dateOfBirth || undefined}
+                onChange={e => setField('dateOfBirth', e.target.value)}
               />
               <Input
                 label="Student Phone"
                 isPhone
                 value={formData.phone}
-                onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                error={formErrors.phone || undefined}
+                onChange={e => setField('phone', e.target.value)}
                 placeholder="10-digit mobile"
               />
               <Input
                 label="Student Email Address"
                 type="email"
                 value={formData.email}
-                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                error={formErrors.email || undefined}
+                onChange={e => setField('email', e.target.value)}
                 placeholder="student@gmail.com"
               />
             </div>
@@ -741,7 +835,8 @@ export const StudentListPage: React.FC = () => {
               <Input
                 label="Residential Address"
                 value={formData.address}
-                onChange={e => setFormData({ ...formData, address: e.target.value })}
+                error={formErrors.address || undefined}
+                onChange={e => setField('address', e.target.value)}
                 placeholder="Full street address, city, pin code..."
               />
             </div>
@@ -750,7 +845,7 @@ export const StudentListPage: React.FC = () => {
               <ImageUpload
                 label="Student Profile Photo"
                 value={formData.photo}
-                onChange={url => setFormData({ ...formData, photo: url })}
+                onChange={url => setField('photo', url)}
               />
             </div>
           </div>
@@ -764,39 +859,43 @@ export const StudentListPage: React.FC = () => {
               <Input
                 label="Admission Number"
                 value={formData.admissionNumber}
-                onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
+                error={formErrors.admissionNumber || undefined}
+                onChange={e => setField('admissionNumber', e.target.value)}
                 placeholder="Auto-generated if left empty (e.g. ADM-2026-101)"
               />
               <Input
                 label="Admission Date"
                 type="date"
                 value={formData.admissionDate}
-                onChange={e => setFormData({ ...formData, admissionDate: e.target.value })}
+                error={formErrors.admissionDate || undefined}
+                onChange={e => setField('admissionDate', e.target.value)}
               />
               <Select
                 label="Category"
                 options={categoriesList.map(c => ({ label: c, value: c }))}
                 value={formData.category}
-                onChange={e => setFormData({ ...formData, category: e.target.value })}
+                onChange={e => setField('category', e.target.value)}
               />
               <Select
                 label="Program Type"
                 options={programTypesList.map(pt => ({ label: pt, value: pt }))}
                 value={formData.programType}
-                onChange={e => setFormData({ ...formData, programType: e.target.value })}
+                onChange={e => setField('programType', e.target.value)}
               />
               <Select
                 label="Training Center"
                 options={trainingCentersList.map(tc => ({ label: tc, value: tc }))}
                 value={formData.trainingCenter}
-                onChange={e => setFormData({ ...formData, trainingCenter: e.target.value })}
+                onChange={e => setField('trainingCenter', e.target.value)}
               />
               <div>
                 <Input
                   label="Monthly Fee (₹/month)"
                   type="number"
                   value={formData.monthlyFee}
-                  onChange={e => setFormData({ ...formData, monthlyFee: Number(e.target.value) })}
+                  error={formErrors.monthlyFee || undefined}
+                  min={0}
+                  onChange={e => setField('monthlyFee', e.target.value === '' ? '' : Number(e.target.value))}
                   placeholder="e.g. 2000"
                 />
                 <p className="text-[10px] text-slate-500 mt-1 font-medium">
@@ -816,7 +915,8 @@ export const StudentListPage: React.FC = () => {
                 label="Parent / Guardian Name"
                 required
                 value={formData.parentName}
-                onChange={e => setFormData({ ...formData, parentName: e.target.value })}
+                error={formErrors.parentName || undefined}
+                onChange={e => setField('parentName', e.target.value)}
                 placeholder="e.g. Ramesh Nair"
               />
               <Select
@@ -827,21 +927,23 @@ export const StudentListPage: React.FC = () => {
                   { label: 'Guardian', value: 'Guardian' }
                 ]}
                 value={formData.relationship}
-                onChange={e => setFormData({ ...formData, relationship: e.target.value as any })}
+                onChange={e => setField('relationship', e.target.value as any)}
               />
               <Input
                 label="Parent Phone Number"
                 isPhone
                 required
                 value={formData.parentPhone}
-                onChange={e => setFormData({ ...formData, parentPhone: e.target.value })}
+                error={formErrors.parentPhone || undefined}
+                onChange={e => setField('parentPhone', e.target.value)}
                 placeholder="10-digit mobile"
               />
               <Input
                 label="Parent Email Address"
                 type="email"
                 value={formData.parentEmail}
-                onChange={e => setFormData({ ...formData, parentEmail: e.target.value })}
+                error={formErrors.parentEmail || undefined}
+                onChange={e => setField('parentEmail', e.target.value)}
                 placeholder="parent@gmail.com"
               />
             </div>
@@ -849,7 +951,8 @@ export const StudentListPage: React.FC = () => {
               <Input
                 label="Parent Address"
                 value={formData.parentAddress}
-                onChange={e => setFormData({ ...formData, parentAddress: e.target.value })}
+                error={formErrors.parentAddress || undefined}
+                onChange={e => setField('parentAddress', e.target.value)}
                 placeholder="Parent residential address..."
               />
             </div>
@@ -864,20 +967,23 @@ export const StudentListPage: React.FC = () => {
               <Input
                 label="Emergency Contact Name"
                 value={formData.emergencyName}
-                onChange={e => setFormData({ ...formData, emergencyName: e.target.value })}
+                error={formErrors.emergencyName || undefined}
+                onChange={e => setField('emergencyName', e.target.value)}
                 placeholder="e.g. Suresh Kumar"
               />
               <Input
                 label="Relationship"
                 value={formData.emergencyRelationship}
-                onChange={e => setFormData({ ...formData, emergencyRelationship: e.target.value })}
-                placeholder="e.g. Uncle / Parent"
+                error={formErrors.emergencyRelationship || undefined}
+                onChange={e => setField('emergencyRelationship', e.target.value)}
+                placeholder="e.g. Uncle / Aunt / Neighbour"
               />
               <Input
                 label="Emergency Phone"
                 isPhone
                 value={formData.emergencyPhone}
-                onChange={e => setFormData({ ...formData, emergencyPhone: e.target.value })}
+                error={formErrors.emergencyPhone || undefined}
+                onChange={e => setField('emergencyPhone', e.target.value)}
                 placeholder="10-digit emergency number"
               />
             </div>
@@ -925,12 +1031,38 @@ export const StudentListPage: React.FC = () => {
               <input
                 type="file"
                 accept=".csv"
-                onChange={e => setImportFile(e.target.files?.[0] || null)}
+                onChange={e => {
+                  setImportFile(e.target.files?.[0] || null);
+                  setImportErrors([]);
+                }}
                 className="w-full text-xs text-slate-600 cursor-pointer"
               />
               <p className="text-[11px] text-slate-400 mt-2">Supports UTF-8 formatted CSV files (Max 5MB)</p>
             </div>
           </div>
+
+          {importErrors.length > 0 && (
+            <div className="border border-rose-200 bg-rose-50 rounded-xl text-xs max-h-64 overflow-y-auto">
+              <p className="px-3 py-2 font-bold text-rose-800 border-b border-rose-200 sticky top-0 bg-rose-50">
+                Fix these rows and upload the file again ({importErrors.length} row{importErrors.length === 1 ? '' : 's'})
+              </p>
+              <ul className="divide-y divide-rose-100">
+                {importErrors.map(([row, errs]) => (
+                  <li key={row} className="px-3 py-2">
+                    <p className="font-bold text-slate-900">Row {row}</p>
+                    <ul className="mt-1 space-y-0.5 text-rose-700">
+                      {errs.map((e, i) => (
+                        <li key={i}>
+                          {e.field && <span className="font-semibold">{e.field}: </span>}
+                          {String(e.message).replace(/^Value error, /, '')}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {importFile && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs flex items-center justify-between text-emerald-900 font-medium">

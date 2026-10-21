@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { UserProfile, UserRole } from '../types';
-import { refreshAccessToken, tokenStore } from '../api/client';
+import { refreshAccessToken, takeRefreshedUser, tokenStore } from '../api/client';
 import { authApi } from '../api/endpoints';
 import { queryClient } from '../api/queryClient';
 import type { ApiUser } from '../api/types';
@@ -40,7 +40,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     (async () => {
       try {
         if (await refreshAccessToken()) {
-          const me = await authApi.me();
+          // POST /auth/refresh already returns the user; only ask /auth/me if it somehow did not.
+          const me = takeRefreshedUser<ApiUser>() ?? (await authApi.me());
           if (!cancelled) setUser(toProfile(me));
         }
       } catch {

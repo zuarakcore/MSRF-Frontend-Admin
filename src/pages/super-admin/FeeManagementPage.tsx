@@ -153,7 +153,8 @@ export const FeeManagementPage: React.FC = () => {
   const totalExpected = summary.data?.expected ?? 0;
   const totalCollected = summary.data?.collected ?? 0;
   const totalOutstanding = summary.data?.outstanding ?? 0;
-  const pendingCount = (summary.data?.pendingCount ?? 0) + (summary.data?.overdueCount ?? 0);
+  // pendingCount already includes overdue students (anyone not paid in full).
+  const pendingCount = summary.data?.pendingCount ?? 0;
 
   const openPayModal = (st: ComputedStudent) => {
     setPayModalStudent(st);
@@ -407,8 +408,9 @@ export const FeeManagementPage: React.FC = () => {
               label="Manual Discount Amount (₹)"
               type="number"
               placeholder="0 (e.g. Absent discount)"
-              value={discountAmount}
-              onChange={e => setDiscountAmount(Number(e.target.value))}
+              min={0}
+              value={discountAmount || ''}
+              onChange={e => setDiscountAmount(Math.max(0, Number(e.target.value) || 0))}
             />
             <Input
               label="Discount Reason"

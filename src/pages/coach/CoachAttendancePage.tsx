@@ -125,7 +125,7 @@ export const CoachAttendancePage: React.FC = () => {
 
   // Splits Loop State (Dynamic loop of splits)
   const [splits, setSplits] = useState<SessionSplit[]>([
-    { id: 'sp-1', heading: 'Warmup', timeDoneMins: '15', explanation: '' }
+    { id: 'sp-1', heading: '', timeDoneMins: '15', explanation: '' }
   ]);
 
   const [fullSessionOverview, setFullSessionOverview] = useState<string>('');
@@ -259,7 +259,7 @@ export const CoachAttendancePage: React.FC = () => {
     setSessionTime('');
     setDailyTopic('');
     setExplanation('');
-    setSplits([{ id: 'sp-1', heading: 'Warmup', timeDoneMins: '15', explanation: '' }]);
+    setSplits([{ id: 'sp-1', heading: '', timeDoneMins: '15', explanation: '' }]);
     setFullSessionOverview('');
     setStudentAttendance({});
 
@@ -296,7 +296,7 @@ export const CoachAttendancePage: React.FC = () => {
       setSessionTime(report.time);
       setDailyTopic(report.dailyTopic);
       setExplanation(report.explanation);
-      setSplits(report.splits.length > 0 ? report.splits : [{ id: 'sp-1', heading: 'Warmup', timeDoneMins: '15', explanation: '' }]);
+      setSplits(report.splits.length > 0 ? report.splits : [{ id: 'sp-1', heading: '', timeDoneMins: '15', explanation: '' }]);
       setFullSessionOverview(report.fullSessionOverview || '');
       setStudentAttendance(
         Object.fromEntries(
@@ -359,12 +359,11 @@ export const CoachAttendancePage: React.FC = () => {
   // Split Loop Handlers
   const handleAddSplit = () => {
     const newId = `sp-${Date.now()}`;
-    const newSplitNum = splits.length + 1;
     setSplits([
       ...splits,
       {
         id: newId,
-        heading: `Split ${newSplitNum} Topic`,
+        heading: '',
         timeDoneMins: '15',
         explanation: ''
       }
@@ -417,8 +416,8 @@ export const CoachAttendancePage: React.FC = () => {
       dailyTopic: dailyTopic.trim(),
       explanation: explanation.trim(),
       overview: emptyToNull(fullSessionOverview),
-      splits: splits.map(sp => ({
-        heading: sp.heading.trim() || 'Split',
+      splits: splits.map((sp, i) => ({
+        heading: sp.heading.trim() || `Split ${i + 1}`,
         durationMinutes: Math.min(300, Math.max(1, Number(sp.timeDoneMins) || 1)),
         explanation: emptyToNull(sp.explanation),
       })),
@@ -770,7 +769,7 @@ export const CoachAttendancePage: React.FC = () => {
                   {/* 1. Category Selection (Multi-select) */}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                      Select Categories (Required *):
+                      Select Categories <span className="text-rose-500">*</span>
                     </label>
                     <div className="flex flex-wrap gap-2.5">
                       {myCategories.map(cat => {
@@ -801,7 +800,7 @@ export const CoachAttendancePage: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                        Session Date (Required * - Future Dates Disabled):
+                        Session Date <span className="text-rose-500">*</span> <span className="normal-case font-medium text-slate-400">(future dates disabled)</span>
                       </label>
                       <input
                         type="date"
@@ -823,7 +822,7 @@ export const CoachAttendancePage: React.FC = () => {
 
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                        Venue Location (Required *):
+                        Venue Location <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -995,7 +994,7 @@ export const CoachAttendancePage: React.FC = () => {
                     <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-4">
                       <div>
                         <label className="block text-xs font-black uppercase tracking-wider text-slate-900 mb-1">
-                          DAILY TOPIC (Required *)
+                          DAILY TOPIC <span className="text-rose-500">*</span>
                         </label>
                         <input
                           type="text"
@@ -1009,7 +1008,7 @@ export const CoachAttendancePage: React.FC = () => {
 
                       <div>
                         <label className="block text-xs font-black uppercase tracking-wider text-slate-900 mb-1">
-                          EXPLANATION (Required *)
+                          EXPLANATION <span className="text-rose-500">*</span>
                         </label>
                         <textarea
                           rows={3}
@@ -1067,17 +1066,20 @@ export const CoachAttendancePage: React.FC = () => {
                                   value={sp.heading}
                                   onChange={e => handleUpdateSplit(sp.id, 'heading', e.target.value)}
                                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-900"
-                                  placeholder="e.g. Warmup & Agility"
+                                  placeholder={idx === 0 ? 'e.g. Warmup & Agility' : `Split ${idx + 1} topic`}
                                 />
                               </div>
 
                               <div className="md:col-span-3">
                                 <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-                                  TIME DONE (MINS)
+                                  TIME DONE (MINS) <span className="text-rose-500">*</span>
                                 </label>
                                 <div className="flex items-center gap-1.5">
                                   <input
                                     type="number"
+                                    min={1}
+                                    max={300}
+                                    onWheel={e => e.currentTarget.blur()}
                                     value={sp.timeDoneMins}
                                     onChange={e => handleUpdateSplit(sp.id, 'timeDoneMins', e.target.value)}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-900"

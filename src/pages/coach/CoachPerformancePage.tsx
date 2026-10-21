@@ -14,7 +14,7 @@ import { useApiAction } from '../../api/hooks';
 import { errorMessage } from '../../api/client';
 import type { Skill } from '../../api/types';
 import { PerformanceRecord, RatingStar } from '../../types';
-import { Award, Plus, FileDown, Edit, Search, UserCheck, Star, ArrowLeft, Check, CheckCircle2, Trash2, Lock } from 'lucide-react';
+import { Award, Plus, FileDown, Edit, Search, UserCheck, Star, ArrowLeft, Check, CheckCircle2, Trash2, Lock, X } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import { PlayerDevelopmentReportPDF } from '../../components/ui/PlayerDevelopmentReportPDF';
 import { PlayerReportDetail } from '../../components/ui/PlayerReportDetail';
@@ -148,8 +148,8 @@ export const CoachPerformancePage: React.FC = () => {
         strongFoot: rec.strongFoot || 'Right',
         strengths: rec.strengths,
         areasForImprovement: rec.areasForImprovement,
-        developmentGoals: rec.developmentGoals || [],
-        customGoal: rec.customGoal || '',
+        developmentGoals: [...(rec.developmentGoals || []), ...splitCustomGoals(rec.customGoal)],
+        customGoal: '',
         coachRemarks: rec.coachRemarks,
         overallRating: rec.overallRating,
         skillAssessments: (rec.skillAssessments ?? []).map(sa => ({ category: sa.category, rating: sa.rating, comments: sa.comments || '' }))
@@ -183,6 +183,25 @@ export const CoachPerformancePage: React.FC = () => {
     }
   };
 
+  // The API takes the standard goals as a list and everything else as one custom-goal text.
+  // In the form, custom goals sit in the same list so they show as ticked cards.
+  const splitCustomGoals = (text?: string | null) =>
+    (text ?? '').split(';').map(g => g.trim()).filter(Boolean);
+
+  const handleAddCustomGoal = () => {
+    const goal = formData.customGoal.trim();
+    if (!goal) {
+      addToast({ type: 'warning', title: 'Goal is empty', message: 'Type a goal first, then press Add Goal.' });
+      return;
+    }
+    if (formData.developmentGoals.some(g => g.toLowerCase() === goal.toLowerCase())) {
+      addToast({ type: 'info', title: 'Already added', message: `"${goal}" is already in the goal list.` });
+      setFormData({ ...formData, customGoal: '' });
+      return;
+    }
+    setFormData({ ...formData, developmentGoals: [...formData.developmentGoals, goal], customGoal: '' });
+  };
+
   const handleSaveReport = async (e: React.FormEvent) => {
     e.preventDefault();
     const targetStudent = myStudents.find(s => s.id === formData.studentId);
@@ -190,11 +209,24 @@ export const CoachPerformancePage: React.FC = () => {
       addToast({ type: 'warning', title: 'Select a player', message: 'Choose one of your trainees for this report.' });
       return;
     }
+    if (!formData.reportPeriod.trim() || !formData.recordedDate) {
+      addToast({ type: 'warning', title: 'Missing details', message: 'Fill in the report period and evaluation date.' });
+      return;
+    }
     if (!formData.strengths.trim() || !formData.areasForImprovement.trim() || !formData.coachRemarks.trim()) {
       addToast({ type: 'warning', title: 'Missing details', message: 'Fill in strengths, areas for improvement and coach remarks.' });
       return;
     }
     const standardGoals = configQuery.data?.standardGoals ?? [];
+    // Custom goals (added with Add Goal, or typed but not added yet) go in the custom-goal text.
+    const customGoals = formData.developmentGoals.filter(g => !standardGoals.includes(g));
+    const pendingGoal = formData.customGoal.trim();
+    if (pendingGoal && !customGoals.includes(pendingGoal)) customGoals.push(pendingGoal);
+    const customGoalText = customGoals.join('; ');
+    if (customGoalText.length > 300) {
+      addToast({ type: 'warning', title: 'Custom goals too long', message: 'Custom goals can be up to 300 characters in total. Shorten or remove some.' });
+      return;
+    }
     const body = {
       studentId: targetStudent.id,
       reportPeriod: formData.reportPeriod.trim(),
@@ -208,7 +240,7 @@ export const CoachPerformancePage: React.FC = () => {
       areasForImprovement: formData.areasForImprovement.trim(),
       // Only the standard goals are accepted; anything else belongs in the custom goal.
       developmentGoals: formData.developmentGoals.filter(g => standardGoals.includes(g)),
-      customGoal: emptyToNull(formData.customGoal),
+      customGoal: emptyToNull(customGoalText),
       coachRemarks: formData.coachRemarks.trim(),
       overallRating: formData.overallRating,
     };
@@ -233,6 +265,8 @@ export const CoachPerformancePage: React.FC = () => {
   );
 
   const standardGoalsList = configQuery.data?.standardGoals ?? [];
+  // Goals added with Add Goal (anything that is not one of the standard goals).
+  const customGoalsInForm = formData.developmentGoals.filter(g => !standardGoalsList.includes(g));
 
   // ==========================================
   // RENDER DEDICATED CREATE / EDIT FORM PAGE
@@ -260,6 +294,7 @@ export const CoachPerformancePage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <Select
                 label="Select Player"
+                required
                 options={myStudents.map(s => ({ label: `${s.fullName} (${s.studentId})`, value: s.id }))}
                 value={formData.studentId}
                 disabled={viewMode === 'edit'}
@@ -271,6 +306,7 @@ export const CoachPerformancePage: React.FC = () => {
               />
               <Input
                 label="Report Period"
+                required
                 value={formData.reportPeriod}
                 onChange={e => setFormData({ ...formData, reportPeriod: e.target.value })}
                 onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
@@ -279,6 +315,8 @@ export const CoachPerformancePage: React.FC = () => {
               <Input
                 label="Evaluation Date"
                 type="date"
+                required
+                max={todayIso()}
                 value={formData.recordedDate}
                 onChange={e => setFormData({ ...formData, recordedDate: e.target.value })}
                 onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
@@ -341,7 +379,7 @@ export const CoachPerformancePage: React.FC = () => {
           </Card>
 
           {/* Section 2: 15-Skill Performance Assessment */}
-          <Card header={<h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">2. 15-Skill Performance Assessment (Rating 1 - 5 & Observations)</h3>}>
+          <Card header={<h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">2. 15-Skill Performance Assessment (Rating 1 - 5 & Observations) <span className="text-rose-500">*</span></h3>}>
             <div className="space-y-3">
               {formData.skillAssessments.map((sa, idx) => (
                 <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center hover:border-slate-300 transition-colors">
@@ -399,7 +437,7 @@ export const CoachPerformancePage: React.FC = () => {
 
           {/* Section 3: Strengths, Areas for Improvement & Development Goals */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card header={<h3 className="font-extrabold text-slate-900 text-sm">3. Player Strengths</h3>}>
+            <Card header={<h3 className="font-extrabold text-slate-900 text-sm">3. Player Strengths <span className="text-rose-500">*</span></h3>}>
               <textarea
                 rows={5}
                 value={formData.strengths}
@@ -409,7 +447,7 @@ export const CoachPerformancePage: React.FC = () => {
               />
             </Card>
 
-            <Card header={<h3 className="font-extrabold text-slate-900 text-sm">4. Areas For Improvement</h3>}>
+            <Card header={<h3 className="font-extrabold text-slate-900 text-sm">4. Areas For Improvement <span className="text-rose-500">*</span></h3>}>
               <textarea
                 rows={5}
                 value={formData.areasForImprovement}
@@ -423,7 +461,7 @@ export const CoachPerformancePage: React.FC = () => {
           {/* Section 4: Development Goals Checkbox Cards */}
           <Card header={<h3 className="font-extrabold text-slate-900 text-sm">5. Target Development Goals</h3>}>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              {Array.from(new Set([...standardGoalsList, ...formData.developmentGoals])).map((goal, i) => {
+              {standardGoalsList.map((goal, i) => {
                 const isSelected = formData.developmentGoals.includes(goal);
                 return (
                   <div
@@ -456,13 +494,7 @@ export const CoachPerformancePage: React.FC = () => {
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      if (formData.customGoal.trim() && !formData.developmentGoals.includes(formData.customGoal.trim())) {
-                        setFormData({
-                          ...formData,
-                          developmentGoals: [...formData.developmentGoals, formData.customGoal.trim()],
-                          customGoal: ''
-                        });
-                      }
+                      handleAddCustomGoal();
                     }
                   }}
                   placeholder="Enter custom player development goal and press Add Goal..."
@@ -471,20 +503,39 @@ export const CoachPerformancePage: React.FC = () => {
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => {
-                    if (formData.customGoal.trim() && !formData.developmentGoals.includes(formData.customGoal.trim())) {
-                      setFormData({
-                        ...formData,
-                        developmentGoals: [...formData.developmentGoals, formData.customGoal.trim()],
-                        customGoal: ''
-                      });
-                    }
-                  }}
+                  onClick={handleAddCustomGoal}
                   icon={<Plus className="w-4 h-4" />}
                 >
                   Add Goal
                 </Button>
               </div>
+              {customGoalsInForm.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Custom goals ({customGoalsInForm.length})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {customGoalsInForm.map(goal => (
+                      <span
+                        key={goal}
+                        className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl bg-brand-soft border border-brand text-emerald-900 font-bold"
+                      >
+                        <Check className="w-3.5 h-3.5 text-brand" />
+                        {goal}
+                        <button
+                          type="button"
+                          onClick={() => handleGoalToggle(goal)}
+                          className="ml-0.5 w-5 h-5 rounded-md flex items-center justify-center text-emerald-800 hover:bg-emerald-200"
+                          title="Remove goal"
+                          aria-label={`Remove goal ${goal}`}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -493,7 +544,7 @@ export const CoachPerformancePage: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Coach's Comments / Summary
+                  Coach's Comments / Summary <span className="text-rose-500">*</span>
                 </label>
                 <textarea
                   rows={3}
@@ -506,7 +557,7 @@ export const CoachPerformancePage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  Overall Rating (1 - 5 Stars)
+                  Overall Rating (1 - 5 Stars) <span className="text-rose-500">*</span>
                 </label>
                 <div className="flex items-center gap-3">
                   {[1, 2, 3, 4, 5].map(rating => (
