@@ -4,9 +4,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Modal } from '../../components/ui/Modal';
 import { errorMessage } from '../../api/client';
-import { authApi } from '../../api/endpoints';
 import logoImg from '../../assets/logo.png';
 import loginBg from '../../assets/login-bg.jpg';
 
@@ -16,11 +14,6 @@ export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [forgotModal, setForgotModal] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotSent, setForgotSent] = useState(false);
-  const [forgotLoading, setForgotLoading] = useState(false);
-  const [forgotError, setForgotError] = useState('');
 
   const { login, isAuthenticated, role } = useAuth();
   const navigate = useNavigate();
@@ -45,21 +38,6 @@ export const LoginPage: React.FC = () => {
       setError(errorMessage(err, 'Invalid login credentials. Please try again.'));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleForgotSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!forgotEmail) return;
-    setForgotLoading(true);
-    setForgotError('');
-    try {
-      await authApi.forgotPassword(forgotEmail.trim());
-      setForgotSent(true);
-    } catch (err) {
-      setForgotError(errorMessage(err));
-    } finally {
-      setForgotLoading(false);
     }
   };
 
@@ -105,18 +83,9 @@ export const LoginPage: React.FC = () => {
           />
 
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Password <span className="text-rose-500">*</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setForgotModal(true)}
-                className="text-xs text-brand hover:underline font-semibold"
-              >
-                Forgot password?
-              </button>
-            </div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              Password <span className="text-rose-500">*</span>
+            </label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -149,57 +118,11 @@ export const LoginPage: React.FC = () => {
         </form>
       </div>
 
-      {/* Forgot Password Modal */}
-      <Modal
-        isOpen={forgotModal}
-        onClose={() => {
-          setForgotModal(false);
-          setForgotSent(false);
-          setForgotError('');
-        }}
-        title="Reset Password"
-      >
-        {forgotSent ? (
-          <div className="text-center py-4 space-y-3">
-            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-              ✓
-            </div>
-            <h4 className="text-sm font-bold text-slate-900">Password Reset Email Sent</h4>
-            <p className="text-xs text-slate-600">
-              If <b>{forgotEmail}</b> belongs to an account, a reset link has been sent to it.
-            </p>
-            <Button onClick={() => setForgotModal(false)} size="sm" className="mt-2">
-              Close
-            </Button>
-          </div>
-        ) : (
-          <form onSubmit={handleForgotSubmit} className="space-y-4">
-            <p className="text-xs text-slate-600">
-              Enter your registered email address and we will send you a reset link.
-            </p>
-            {forgotError && <p className="text-xs font-semibold text-rose-600">{forgotError}</p>}
-            <Input
-              label="Email Address"
-              type="email"
-              required
-              value={forgotEmail}
-              onChange={e => setForgotEmail(e.target.value)}
-              placeholder="e.g. admin@msrf.org"
-            />
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setForgotModal(false)} size="sm">
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" isLoading={forgotLoading}>
-                Send Reset Link
-              </Button>
-            </div>
-          </form>
-        )}
-      </Modal>
-
       <p className="text-center text-xs text-neutral-400 mt-6 z-10 relative">
         © 2026 Malabar Challengers Football Club. All rights reserved.
+      </p>
+      <p className="text-center text-[11px] text-neutral-500 mt-1 z-10 relative">
+        Crafted by Zuarak
       </p>
     </div>
   );

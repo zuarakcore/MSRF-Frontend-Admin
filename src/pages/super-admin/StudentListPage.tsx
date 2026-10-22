@@ -257,6 +257,8 @@ export const StudentListPage: React.FC = () => {
     errors.phone = phoneProblem(formData.phone, 'Student phone', false);
     errors.parentPhone = phoneProblem(formData.parentPhone, 'Parent phone', true);
     errors.emergencyPhone = phoneProblem(formData.emergencyPhone, 'Emergency phone', false);
+    if (!formData.category) errors.category = 'Category is required.';
+    if (!formData.trainingCenter) errors.trainingCenter = 'Training center is required.';
     if (formData.emergencyName.trim() && formData.emergencyName.trim().length > 120) {
       errors.emergencyName = 'Emergency contact name must be at most 120 characters.';
     }
@@ -872,8 +874,10 @@ export const StudentListPage: React.FC = () => {
               />
               <Select
                 label="Category"
+                required
                 options={categoriesList.map(c => ({ label: c, value: c }))}
                 value={formData.category}
+                error={formErrors.category || undefined}
                 onChange={e => setField('category', e.target.value)}
               />
               <Select
@@ -884,8 +888,10 @@ export const StudentListPage: React.FC = () => {
               />
               <Select
                 label="Training Center"
+                required
                 options={trainingCentersList.map(tc => ({ label: tc, value: tc }))}
                 value={formData.trainingCenter}
+                error={formErrors.trainingCenter || undefined}
                 onChange={e => setField('trainingCenter', e.target.value)}
               />
               <div>

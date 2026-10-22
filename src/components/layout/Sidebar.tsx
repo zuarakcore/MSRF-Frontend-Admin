@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../utils/cn';
 import logoImg from '../../assets/logo.png';
-import { avatarFor } from '../../api/photos';
+import { DEFAULT_AVATAR } from '../../api/photos';
 import {
   Receipt,
   LayoutDashboard,
@@ -181,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         >
           <img
-            src={user?.avatar || avatarFor(user?.name || 'MSRF')}
+            src={user?.avatar || DEFAULT_AVATAR}
             alt={user?.name ?? 'User'}
             className="w-8 h-8 rounded-full object-cover shrink-0"
           />

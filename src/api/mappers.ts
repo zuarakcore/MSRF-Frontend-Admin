@@ -1,5 +1,5 @@
 /** Convert backend shapes to the admin UI's existing types (src/types) and back. */
-import { avatarFor } from './photos';
+import { avatarFor, DEFAULT_AVATAR } from './photos';
 import type * as T from './types';
 import type {
   CareerApplicationCMS,
@@ -210,7 +210,7 @@ export const toCoach = (c: T.CoachListItem | T.CoachDetail): Coach => {
     fullName: c.fullName,
     email: c.email,
     phone: c.phone,
-    photo: c.photo?.url ?? avatarFor(c.fullName),
+    photo: c.photo?.url ?? DEFAULT_AVATAR,
     bloodGroup: detail?.bloodGroup ?? undefined,
     specialization: c.categories.map(cat => cat.name).join(', '),
     experienceYears: c.experienceYears,

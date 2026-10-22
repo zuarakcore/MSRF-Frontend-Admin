@@ -1,29 +1,22 @@
-import { authApi, coachesApi } from '../../api/endpoints';
+import { coachesApi } from '../../api/endpoints';
 import { useApiAction } from '../../api/hooks';
 import { Coach } from '../../types';
 
 /**
- * Email a coach a link to set a new password. Before the coach has accepted the invite the
- * invite is re-sent; afterwards the normal forgot-password email is used. Both links open
- * /set-password in this app.
+ * Re-send the invite (a link to /set-password) to a coach who has not set a password yet.
+ * Once the invite is accepted there is no admin-triggered password email.
  */
 export function useCoachPasswordReset() {
   const { run, pending } = useApiAction();
 
   const sendLink = (coach: Coach) =>
-    coach.inviteStatus === 'Accepted'
-      ? run(() => authApi.forgotPassword(coach.email), {
-          success: { title: 'Password Reset Link Sent', message: `A link to set a new password was emailed to ${coach.email}.` },
-          errorTitle: 'Could not send reset link',
-        })
-      : run(() => coachesApi.resendInvite(coach.id), {
-          success: { title: 'Invite Sent Again', message: `A new set-password link was emailed to ${coach.email}.` },
-          errorTitle: 'Could not resend invite',
-          invalidate: [['coaches']],
-        });
+    run(() => coachesApi.resendInvite(coach.id), {
+      success: { title: 'Invite Sent Again', message: `A new set-password link was emailed to ${coach.email}.` },
+      errorTitle: 'Could not resend invite',
+      invalidate: [['coaches']],
+    });
 
-  const actionLabel = (coach: Coach) =>
-    coach.inviteStatus === 'Accepted' ? 'Email Password Reset Link' : 'Resend Invite Link';
+  const canSendLink = (coach: Coach) => coach.inviteStatus !== 'Accepted';
 
-  return { sendLink, pending, actionLabel };
+  return { sendLink, pending, canSendLink };
 }

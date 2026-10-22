@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Key, Copy, Check, Shield, Mail, Send, Info } from 'lucide-react';
+import { Key, Copy, Check, Shield, Send, Info } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Coach } from '../../types';
@@ -15,8 +15,8 @@ export interface CoachCredentialsModalProps {
 
 /**
  * Coach login details. Passwords are stored encrypted (hashed) by the backend, so nobody,
- * including the super admin, can read them. Instead the admin can email the coach a link to
- * set a new password: the invite link while the coach has not signed up yet, a reset link after.
+ * including the super admin, can read them. While the coach has not signed up yet, the admin
+ * can re-send the invite link.
  */
 export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
   isOpen,
@@ -25,7 +25,7 @@ export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const { addToast } = useNotifications();
-  const { sendLink, pending, actionLabel } = useCoachPasswordReset();
+  const { sendLink, pending, canSendLink } = useCoachPasswordReset();
 
   if (!coach) return null;
 
@@ -80,8 +80,7 @@ export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
         <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
           <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
           <p>
-            Passwords are stored encrypted, so they cannot be viewed by anyone, including the super admin. If the coach
-            forgot their password, send them a link to set a new one.
+            Passwords are stored encrypted, so they cannot be viewed by anyone, including the super admin.
           </p>
         </div>
 
@@ -99,15 +98,17 @@ export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
             >
               {copied ? 'Copied!' : 'Copy Login Details'}
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              isLoading={pending}
-              onClick={() => sendLink(coach)}
-              icon={accepted ? <Mail className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-            >
-              {actionLabel(coach)}
-            </Button>
+            {canSendLink(coach) && (
+              <Button
+                type="button"
+                size="sm"
+                isLoading={pending}
+                onClick={() => sendLink(coach)}
+                icon={<Send className="w-4 h-4" />}
+              >
+                Resend Invite Link
+              </Button>
+            )}
           </div>
         </div>
       </div>
