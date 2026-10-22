@@ -153,7 +153,7 @@ export const CoachListPage: React.FC = () => {
         experienceYears: c.experienceYears,
         joinedDate: c.joinedDate || new Date().toISOString().slice(0, 10),
         address: c.address || '',
-        // Keep the URL only for a real photo, not the initials placeholder.
+        // Keep the URL only for a real photo, not the placeholder avatar.
         photo: c.photo.startsWith('data:image/svg') ? '' : c.photo,
         contractUrl: '',
         contractFileName: '',

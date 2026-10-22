@@ -10,7 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { QueryState } from '../../components/ui/QueryState';
 import { coachPortalApi } from '../../api/endpoints';
 import { emptyToNull, toApiAttendance, todayIso, toSessionReport } from '../../api/mappers';
-import { avatarFor } from '../../api/photos';
+import { avatarFor, DEFAULT_AVATAR } from '../../api/photos';
 import { useApiAction } from '../../api/hooks';
 import { errorMessage } from '../../api/client';
 import type { SessionIn } from '../../api/types';
@@ -56,7 +56,7 @@ export const CoachAttendancePage: React.FC = () => {
   const loggedInCoach = {
     id: user?.coachId ?? '',
     fullName: coachName,
-    photo: avatarFor(coachName),
+    photo: DEFAULT_AVATAR,
     specialization: myCategories.map(c => c.name).join(', '),
   };
 
@@ -108,7 +108,7 @@ export const CoachAttendancePage: React.FC = () => {
       reportsList
         .flatMap(r => r.coachRefs ?? [])
         .filter(ref => ref.id !== loggedInCoach.id)
-        .map(ref => [ref.id, { id: ref.id, fullName: ref.name, photo: avatarFor(ref.name), specialization: 'Coach', phone: '' }])
+        .map(ref => [ref.id, { id: ref.id, fullName: ref.name, photo: DEFAULT_AVATAR, specialization: 'Coach', phone: '' }])
     ).values()
   );
   const [selectedCoachIds, setSelectedCoachIds] = useState<string[]>([]);
@@ -459,7 +459,7 @@ export const CoachAttendancePage: React.FC = () => {
       actions={
         pageView === 'list' ? (
           <Button size="sm" onClick={handleAddNewSession} icon={<Plus className="w-4 h-4" />}>
-            + Add New Attendance / Session
+            Add New Attendance / Session
           </Button>
         ) : (
           <Button variant="outline" size="sm" onClick={() => setPageView('list')} icon={<ArrowLeft className="w-4 h-4" />}>
@@ -1318,7 +1318,7 @@ export const CoachAttendancePage: React.FC = () => {
                 {(selectedReportDetail.coachRefs ?? []).map(ref => ({
                   id: ref.id,
                   fullName: ref.name,
-                  photo: avatarFor(ref.name),
+                  photo: DEFAULT_AVATAR,
                   specialization: ref.isLead ? 'Lead Coach' : 'Co-Coach',
                   phone: '',
                 })).map((coach, cIdx) => (

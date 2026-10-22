@@ -43,7 +43,7 @@ export const CoachProfilePage: React.FC = () => {
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
   const [newDocIsContract, setNewDocIsContract] = useState(false);
 
-  const { sendLink, pending: sendingLink, actionLabel } = useCoachPasswordReset();
+  const { sendLink, pending: sendingLink, canSendLink } = useCoachPasswordReset();
   const hasContract = (docsQuery.data ?? []).some(d => d.kind === 'CONTRACT');
   // Ask before deleting a document.
   const [deletingDoc, setDeletingDoc] = useState<{ id: string; title: string } | null>(null);
@@ -254,16 +254,18 @@ export const CoachProfilePage: React.FC = () => {
                     : 'Not set yet (invite pending)'}
                 </span>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full mt-1 font-sans"
-                isLoading={sendingLink}
-                onClick={() => sendLink(coach)}
-                icon={<Send className="w-3.5 h-3.5" />}
-              >
-                {actionLabel(coach)}
-              </Button>
+              {canSendLink(coach) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full mt-1 font-sans"
+                  isLoading={sendingLink}
+                  onClick={() => sendLink(coach)}
+                  icon={<Send className="w-3.5 h-3.5" />}
+                >
+                  Resend Invite Link
+                </Button>
+              )}
             </div>
           </Card>
         </div>

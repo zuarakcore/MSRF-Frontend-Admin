@@ -13,7 +13,7 @@ import { PlayerReportDetail } from '../../components/ui/PlayerReportDetail';
 import { QueryState } from '../../components/ui/QueryState';
 import { coachesApi, performanceApi, sessionsApi } from '../../api/endpoints';
 import { todayIso, toCoach, toPerformanceRecord, toPerformanceSummary, toSessionReport } from '../../api/mappers';
-import { avatarFor } from '../../api/photos';
+import { DEFAULT_AVATAR } from '../../api/photos';
 import { errorMessage } from '../../api/client';
 import { 
   FileText, 
@@ -92,7 +92,7 @@ export const ReportsCenterPage: React.FC = () => {
         fullName: ref.name,
         phone: known?.phone ?? '—',
         specialization: known?.specialization || (ref.isLead ? 'Lead Coach' : 'Co-Coach'),
-        photo: known?.photo ?? avatarFor(ref.name),
+        photo: known?.photo ?? DEFAULT_AVATAR,
       };
     });
     return { leadCoach: allCoaches[0], coCoaches: allCoaches.slice(1), allCoaches };
