@@ -1,5 +1,5 @@
 /** Convert backend shapes to the admin UI's existing types (src/types) and back. */
-import { avatarFor, DEFAULT_AVATAR } from './photos';
+import { avatarFor, COACH_AVATAR, isPlaceholderUrl, ownPhotoUrl } from './photos';
 import type * as T from './types';
 import type {
   CareerApplicationCMS,
@@ -207,10 +207,11 @@ export const toCoach = (c: T.CoachListItem | T.CoachDetail): Coach => {
   const detail = 'bio' in c ? c : null;
   return {
     id: c.id,
+    slug: c.slug,
     fullName: c.fullName,
     email: c.email,
     phone: c.phone,
-    photo: c.photo?.url ?? DEFAULT_AVATAR,
+    photo: ownPhotoUrl(c.photo) ?? COACH_AVATAR,
     bloodGroup: detail?.bloodGroup ?? undefined,
     specialization: c.categories.map(cat => cat.name).join(', '),
     experienceYears: c.experienceYears,
@@ -266,8 +267,10 @@ export const toApiFeeStatus = (s: string): T.FeeStatus | undefined =>
   s === 'Paid' ? 'PAID' : s === 'Pending' ? 'PENDING' : s === 'Overdue' ? 'OVERDUE' : undefined;
 
 /** A student's photo, or the initials placeholder. */
-export const studentPhoto = (s: { fullName: string; photo: T.FileRef | null }) => s.photo?.url ?? avatarFor(s.fullName);
-export const isPlaceholderPhoto = (url?: string) => !url || url.startsWith('data:image/svg');
+// Students keep showing the backend placeholder; ownPhotoUrl records it so forms treat it as "no photo".
+export const studentPhoto = (s: { fullName: string; photo: T.FileRef | null }) =>
+  s.photo ? (ownPhotoUrl(s.photo) ?? s.photo.url) : avatarFor(s.fullName);
+export const isPlaceholderPhoto = isPlaceholderUrl;
 
 export const toStudent = (s: T.StudentListItem | T.StudentDetail): Student => {
   const d = 'admissionNumber' in s ? s : null;
@@ -276,6 +279,7 @@ export const toStudent = (s: T.StudentListItem | T.StudentDetail): Student => {
   const outstanding = d?.totals.outstanding ?? s.outstanding ?? 0;
   return {
     id: s.id,
+    slug: s.slug,
     studentId: s.studentCode,
     fullName: s.fullName,
     photo: studentPhoto(s),
@@ -456,6 +460,7 @@ export const toCoachStudent = (s: T.CoachStudentItem | T.CoachStudentDetail): St
   return {
     ...toStudent({
       ...s,
+      slug: '', // the coach portal API sends no slug; its links use the id
       phone: null,
       programType: { id: '', name: '' },
       trainingCenter: { id: '', name: '' },

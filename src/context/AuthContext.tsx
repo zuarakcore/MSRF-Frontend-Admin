@@ -4,6 +4,7 @@ import { refreshAccessToken, takeRefreshedUser, tokenStore } from '../api/client
 import { authApi } from '../api/endpoints';
 import { queryClient } from '../api/queryClient';
 import type { ApiUser } from '../api/types';
+import { ownPhotoUrl } from '../api/photos';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -23,7 +24,7 @@ const toProfile = (u: ApiUser): UserProfile => ({
   name: u.fullName,
   email: u.email,
   role: u.role === 'ADMIN' ? 'SUPER_ADMIN' : 'COACH',
-  avatar: '',
+  avatar: ownPhotoUrl(u.photo) ?? '',
   status: u.isActive ? 'Active' : 'Inactive',
   lastLogin: u.lastLoginAt ?? '',
   createdAt: '',

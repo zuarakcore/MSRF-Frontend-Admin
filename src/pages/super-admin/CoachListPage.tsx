@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { LayoutShell } from '../../components/layout/LayoutShell';
 import { FilterBar } from '../../components/ui/FilterBar';
@@ -7,6 +7,7 @@ import { Card } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { MultiSelect } from '../../components/ui/MultiSelect';
 import { Pagination } from '../../components/ui/Pagination';
 import { ImageLightboxModal } from '../../components/ui/ImageLightboxModal';
 import { DeleteConfirmationModal } from '../../components/ui/DeleteConfirmationModal';
@@ -18,7 +19,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { QueryState } from '../../components/ui/QueryState';
 import { coachesApi, openCoachContract, referenceApi } from '../../api/endpoints';
 import { emptyToNull, toApiGender, toApiStatus, toCoach } from '../../api/mappers';
-import { dataUrlToFile, photoField } from '../../api/photos';
+import { dataUrlToFile, isPlaceholderUrl, photoField } from '../../api/photos';
 import { useApiAction } from '../../api/hooks';
 import { errorMessage } from '../../api/client';
 import type { BloodGroup } from '../../api/types';
@@ -27,7 +28,7 @@ import { Eye, Pencil, Trash2, UserPlus, Key, FileText, FileDown, Phone } from 'l
 import { formatDate, formatPhoneNumber } from '../../utils/format';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useNotifications } from '../../context/NotificationContext';
 
 export const CoachListPage: React.FC = () => {
@@ -92,7 +93,8 @@ export const CoachListPage: React.FC = () => {
   // Whether each coach on this page has a contract, so the Contract button only shows when there is one.
   const docsQueries = useQueries({
     queries: paginatedCoaches.map(c => ({
-      queryKey: ['coaches', c.id, 'documents'],
+      // Keyed by slug like the profile page, so its document uploads refresh this too.
+      queryKey: ['coaches', c.slug, 'documents'],
       queryFn: () => coachesApi.documents(c.id),
     })),
   });
@@ -141,6 +143,30 @@ export const CoachListPage: React.FC = () => {
     }
   };
 
+  // The profile page's Edit button links here with ?edit=<slug>; close the form back to that profile.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [returnToProfile, setReturnToProfile] = useState<string | null>(null);
+  useEffect(() => {
+    const key = searchParams.get('edit');
+    if (!key) return;
+    setReturnToProfile(key);
+    handleOpenEdit({ id: key } as Coach);
+    setSearchParams(prev => {
+      prev.delete('edit');
+      return prev;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const closeCoachForm = (savedSlug?: string) => {
+    setAddModal(false);
+    if (returnToProfile) {
+      // A renamed coach gets a new slug, so prefer the one from the save response.
+      navigate(`/super-admin/coaches/${savedSlug ?? returnToProfile}`, { replace: true });
+      setReturnToProfile(null);
+    }
+  };
+
   const handleOpenEdit = (listCoach: Coach) =>
     withDetail(listCoach, c => {
       setEditingCoach(c);
@@ -154,7 +180,7 @@ export const CoachListPage: React.FC = () => {
         joinedDate: c.joinedDate || new Date().toISOString().slice(0, 10),
         address: c.address || '',
         // Keep the URL only for a real photo, not the placeholder avatar.
-        photo: c.photo.startsWith('data:image/svg') ? '' : c.photo,
+        photo: isPlaceholderUrl(c.photo) ? '' : c.photo,
         contractUrl: '',
         contractFileName: '',
         bio: c.bio,
@@ -200,6 +226,7 @@ export const CoachListPage: React.FC = () => {
 
   const handleSaveCoach = async (e: React.FormEvent) => {
     e.preventDefault();
+    let savedSlug: string | undefined;
     const target = editingCoach;
 
     const errors = validateCoachForm(target);
@@ -210,7 +237,7 @@ export const CoachListPage: React.FC = () => {
       return;
     }
 
-    const previousPhoto = target && !target.photo.startsWith('data:image/svg') ? target.photo : undefined;
+    const previousPhoto = target && !isPlaceholderUrl(target.photo) ? target.photo : undefined;
     const ok = await run(
       async () => {
         const photo = await photoField(formData.photo, previousPhoto, 'COACH_PHOTO');
@@ -228,6 +255,7 @@ export const CoachListPage: React.FC = () => {
           ...photo,
         };
         const saved = target ? await coachesApi.update(target.id, body) : await coachesApi.create(body);
+        savedSlug = saved.slug;
         // A newly picked contract file is stored as the coach's CONTRACT document.
         if (formData.contractUrl.startsWith('data:')) {
           const file = dataUrlToFile(formData.contractUrl, 'contract', formData.contractFileName || undefined);
@@ -242,7 +270,7 @@ export const CoachListPage: React.FC = () => {
         invalidate,
       }
     );
-    if (ok) setAddModal(false);
+    if (ok) closeCoachForm(savedSlug);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
@@ -315,7 +343,7 @@ export const CoachListPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedCoaches.map(c => (
-                  <tr key={c.id} onClick={() => navigate(`/super-admin/coaches/${c.id}`)} className="hover:bg-slate-50 cursor-pointer">
+                  <tr key={c.id} onClick={() => navigate(`/super-admin/coaches/${c.slug}`)} className="hover:bg-slate-50 cursor-pointer">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
                         <img
@@ -385,7 +413,7 @@ export const CoachListPage: React.FC = () => {
                   <div>
                     <h3
                       className="font-bold text-slate-900 hover:text-blue-600 cursor-pointer text-base"
-                      onClick={() => navigate(`/super-admin/coaches/${c.id}`)}
+                      onClick={() => navigate(`/super-admin/coaches/${c.slug}`)}
                     >
                       {c.fullName}
                     </h3>
@@ -406,7 +434,7 @@ export const CoachListPage: React.FC = () => {
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                <Button size="sm" variant="outline" onClick={() => navigate(`/super-admin/coaches/${c.id}`)} icon={<Eye className="w-3.5 h-3.5" />}>
+                <Button size="sm" variant="outline" onClick={() => navigate(`/super-admin/coaches/${c.slug}`)} icon={<Eye className="w-3.5 h-3.5" />}>
                   Profile
                 </Button>
                 {hasContract(c.id) && (
@@ -465,7 +493,7 @@ export const CoachListPage: React.FC = () => {
       />
 
       {/* Add / Edit Coach Modal (Without Status field - First always active) */}
-      <Modal isOpen={addModal} onClose={() => setAddModal(false)} title={editingCoach ? "Edit Coach Profile" : "Onboard New Head Coach"}>
+      <Modal isOpen={addModal} onClose={() => closeCoachForm()} title={editingCoach ? "Edit Coach Profile" : "Onboard New Head Coach"}>
         <form onSubmit={handleSaveCoach} className="space-y-4" noValidate>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
             <Input
@@ -557,40 +585,15 @@ export const CoachListPage: React.FC = () => {
             placeholder="Click to upload coach contract file (PDF, Word, or Image)"
           />
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Assigned Categories</label>
-            <p className="text-[11px] text-slate-500 mb-1.5">The coach sees and takes attendance for students in these categories.</p>
-            <div className="flex flex-wrap gap-2">
-              {(categoriesQuery.data ?? []).map(cat => {
-                const checked = formData.categoryIds.includes(cat.id);
-                return (
-                  <label
-                    key={cat.id}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer ${
-                      checked ? 'bg-blue-50 border-blue-400 text-blue-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() =>
-                        setFormData({
-                          ...formData,
-                          categoryIds: checked
-                            ? formData.categoryIds.filter(id => id !== cat.id)
-                            : [...formData.categoryIds, cat.id]
-                        })
-                      }
-                    />
-                    {cat.name}
-                  </label>
-                );
-              })}
-              {categoriesQuery.data?.length === 0 && (
-                <span className="text-[11px] text-slate-400">No active categories. Add them under Website → Categories.</span>
-              )}
-            </div>
-          </div>
+          <MultiSelect
+            label="Assigned Categories"
+            helperText="The coach sees and takes attendance for students in these categories."
+            placeholder="Select categories"
+            emptyText="No active categories. Add them under Website → Categories."
+            options={(categoriesQuery.data ?? []).map(cat => ({ label: cat.name, value: cat.id }))}
+            value={formData.categoryIds}
+            onChange={categoryIds => setFormData({ ...formData, categoryIds })}
+          />
 
           <ImageUpload
             label="Coach Profile Photograph"
@@ -609,7 +612,7 @@ export const CoachListPage: React.FC = () => {
             />
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <Button type="button" variant="outline" onClick={() => setAddModal(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => closeCoachForm()}>Cancel</Button>
             <Button type="submit" isLoading={pending}>{editingCoach ? "Update Coach" : "Onboard Coach & Send Credentials"}</Button>
           </div>
         </form>

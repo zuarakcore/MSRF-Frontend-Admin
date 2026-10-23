@@ -473,7 +473,7 @@ export const SuperAdminDashboard: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/super-admin/students/${st.id}`)}
+                          onClick={() => navigate(`/super-admin/students/${st.slug}`)}
                           icon={<Eye className="w-3.5 h-3.5" />}
                         >
                           View

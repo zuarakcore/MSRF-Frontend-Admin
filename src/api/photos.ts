@@ -1,4 +1,27 @@
 import { filesApi } from './endpoints';
+import type { FileRef } from './types';
+import coachAvatarImg from '../assets/coach-avatar.webp';
+
+/** AI-generated coach portrait shown for coaches without a photo of their own. */
+export const COACH_AVATAR = coachAvatarImg;
+
+// URLs of the backend's shared placeholder image, remembered as responses are mapped.
+const backendDefaultUrls = new Set<string>();
+
+/** The record's own photo URL, or undefined when it has none (null or the backend placeholder). */
+export function ownPhotoUrl(ref: FileRef | null | undefined): string | undefined {
+  if (!ref) return undefined;
+  if (ref.isDefault) {
+    backendDefaultUrls.add(ref.url);
+    return undefined;
+  }
+  return ref.url;
+}
+
+/** True when a mapped photo URL is a placeholder rather than an uploaded photo. */
+export function isPlaceholderUrl(url?: string): boolean {
+  return !url || url.startsWith('data:image/svg') || url === COACH_AVATAR || backendDefaultUrls.has(url);
+}
 
 type PhotoPurpose = 'STUDENT_PHOTO' | 'COACH_PHOTO' | 'TEAM_PHOTO';
 
@@ -29,15 +52,6 @@ export async function photoField(
   if (!value && previous) return { photoFileId: null };
   return {};
 }
-
-/** Generic person-silhouette avatar for people without a photo. */
-export const DEFAULT_AVATAR = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">` +
-    `<rect width="200" height="200" fill="#e2e8f0"/>` +
-    `<circle cx="100" cy="78" r="38" fill="#94a3b8"/>` +
-    `<path d="M30 200c0-42 31-70 70-70s70 28 70 70z" fill="#94a3b8"/>` +
-    `</svg>`
-)}`;
 
 /** Placeholder portrait (initials on a tinted square) for people without a photo. */
 export function avatarFor(name: string): string {

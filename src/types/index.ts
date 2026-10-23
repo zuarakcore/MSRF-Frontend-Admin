@@ -24,6 +24,7 @@ export type SportsCourse =
 
 export interface Student {
   id: string;
+  slug?: string; // URL key for /super-admin/students/:id, from the API (the coach portal API does not send it)
   studentId: string; // e.g. MSRF-2026-001
   fullName: string;
   photo: string;
@@ -96,6 +97,7 @@ export interface CoachDocument {
 
 export interface Coach {
   id: string;
+  slug?: string; // URL key for /super-admin/coaches/:id, from the API (mock data has none)
   fullName: string;
   email: string;
   phone: string;

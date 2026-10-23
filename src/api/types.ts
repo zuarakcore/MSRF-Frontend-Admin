@@ -52,6 +52,8 @@ export interface FileRef {
   contentType: string;
   sizeBytes: number;
   url: string;
+  /** True for the backend's shared placeholder image, sent where a record has no photo of its own. */
+  isDefault?: boolean;
 }
 
 // --- auth ------------------------------------------------------------------------------------
@@ -64,6 +66,8 @@ export interface ApiUser {
   isActive: boolean;
   coachId?: UUID | null;
   lastLoginAt: ISODateTime | null;
+  /** Coach's profile photo, once the backend includes it on login / me / refresh. */
+  photo?: FileRef | null;
 }
 
 export interface TokenOut {
@@ -101,6 +105,8 @@ export interface RefIn {
 
 export interface StudentListItem {
   id: UUID;
+  /** Readable URL key from the name; every student endpoint also accepts it. */
+  slug: string;
   studentCode: string;
   fullName: string;
   photo: FileRef | null;
@@ -199,6 +205,8 @@ export interface DocumentOut {
 
 export interface CoachListItem {
   id: UUID;
+  /** Readable URL key from the name; every coach endpoint also accepts it. */
+  slug: string;
   userId: UUID;
   fullName: string;
   email: string;

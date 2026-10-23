@@ -6,13 +6,15 @@ import { Input } from '../../components/ui/Input';
 import { Lock, Save, Key } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import { authApi } from '../../api/endpoints';
-import { errorMessage, tokenStore } from '../../api/client';
+import { useNavigate } from 'react-router-dom';
+import { errorMessage } from '../../api/client';
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, newPasswordError, passwordProblem } from '../../api/password';
 import { useAuth } from '../../context/AuthContext';
 
 export const SettingsPage: React.FC = () => {
   const { addToast } = useNotifications();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -38,9 +40,8 @@ export const SettingsPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // Other sessions are signed out; this one gets a fresh token.
-      const result = await authApi.changePassword(currentPassword, newPassword);
-      tokenStore.set(result.accessToken);
+      // The backend signs out every session, this one included, so no new token comes back.
+      await authApi.changePassword(currentPassword, newPassword);
     } catch (err) {
       const fieldMsg = newPasswordError(err);
       if (fieldMsg) {
@@ -53,15 +54,13 @@ export const SettingsPage: React.FC = () => {
       setIsLoading(false);
     }
 
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-
     addToast({
       type: 'success',
       title: 'Password Updated',
-      message: 'Your password was changed. Other devices have been signed out.'
+      message: 'Please sign in again with your new password.'
     });
+    await logout();
+    navigate('/login', { replace: true });
   };
 
   return (

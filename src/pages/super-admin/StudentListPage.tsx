@@ -203,6 +203,29 @@ export const StudentListPage: React.FC = () => {
     }
   };
 
+  // The profile page's Edit button links here with ?edit=<slug>; close the form back to that profile.
+  const [returnToProfile, setReturnToProfile] = useState<string | null>(null);
+  useEffect(() => {
+    const key = searchParams.get('edit');
+    if (!key || !optionsQuery.data) return;
+    setReturnToProfile(key);
+    handleOpenEdit({ id: key } as Student);
+    setSearchParams(prev => {
+      prev.delete('edit');
+      return prev;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, optionsQuery.data]);
+
+  const closeStudentForm = (savedSlug?: string) => {
+    setIsAddModalOpen(false);
+    if (returnToProfile) {
+      // A renamed student gets a new slug, so prefer the one from the save response.
+      navigate(`/super-admin/students/${savedSlug ?? returnToProfile}`, { replace: true });
+      setReturnToProfile(null);
+    }
+  };
+
   const handleOpenEdit = (listStudent: Student) => withDetail(listStudent, s => {
     setEditingStudent(s);
     setFormData({
@@ -296,6 +319,7 @@ export const StudentListPage: React.FC = () => {
 
   const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
+    let savedSlug: string | undefined;
 
     const errors = validateStudentForm();
     setFormErrors(errors);
@@ -348,7 +372,9 @@ export const StudentListPage: React.FC = () => {
           ...photo,
         };
         try {
-          return await (target ? studentsApi.update(target.id, body) : studentsApi.create(body));
+          const saved = await (target ? studentsApi.update(target.id, body) : studentsApi.create(body));
+          savedSlug = saved.slug;
+          return saved;
         } catch (error) {
           showServerFieldErrors(error);
           throw error;
@@ -362,7 +388,7 @@ export const StudentListPage: React.FC = () => {
         invalidate,
       }
     );
-    if (ok) setIsAddModalOpen(false);
+    if (ok) closeStudentForm(savedSlug);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Active' | 'Inactive') => {
@@ -571,7 +597,7 @@ export const StudentListPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedStudents.map(st => (
-                  <tr key={st.id} onClick={() => navigate(`/super-admin/students/${st.id}`)} className="group hover:bg-slate-50 transition-colors cursor-pointer">
+                  <tr key={st.id} onClick={() => navigate(`/super-admin/students/${st.slug}`)} className="group hover:bg-slate-50 transition-colors cursor-pointer">
                     <td className="py-3.5 px-4 min-w-[220px]">
                       <div className="flex items-center gap-3">
                         <img
@@ -581,7 +607,7 @@ export const StudentListPage: React.FC = () => {
                           className="w-9 h-9 shrink-0 rounded-full object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
                         />
                         <div className="min-w-0">
-                          <p className="font-bold text-slate-900 text-sm hover:text-blue-600 cursor-pointer" onClick={() => navigate(`/super-admin/students/${st.id}`)}>
+                          <p className="font-bold text-slate-900 text-sm hover:text-blue-600 cursor-pointer" onClick={() => navigate(`/super-admin/students/${st.slug}`)}>
                             {st.fullName}
                           </p>
                           <p className="text-[11px] font-mono text-blue-600 font-semibold mt-0.5 whitespace-nowrap">
@@ -677,7 +703,7 @@ export const StudentListPage: React.FC = () => {
               key={st.id}
               hoverEffect
               className="cursor-pointer space-y-3"
-              onClick={() => navigate(`/super-admin/students/${st.id}`)}
+              onClick={() => navigate(`/super-admin/students/${st.slug}`)}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -719,7 +745,7 @@ export const StudentListPage: React.FC = () => {
               </div>
 
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
-                <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); navigate(`/super-admin/students/${st.id}`); }}>
+                <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); navigate(`/super-admin/students/${st.slug}`); }}>
                   View Profile
                 </Button>
                 <div className="flex items-center gap-1 text-slate-400" onClick={e => e.stopPropagation()}>
@@ -763,7 +789,7 @@ export const StudentListPage: React.FC = () => {
       {/* Add / Edit Student Modal */}
       <Modal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => closeStudentForm()}
         title={editingStudent ? `Edit Student: ${editingStudent.fullName}` : "New Student Admission Registration"}
         size="lg"
       >
@@ -996,7 +1022,7 @@ export const StudentListPage: React.FC = () => {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => closeStudentForm()}>
               Cancel
             </Button>
             <Button type="submit" isLoading={pending}>{editingStudent ? "Update Student" : "Complete Admission"}</Button>

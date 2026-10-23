@@ -5,7 +5,6 @@ import { Button } from './Button';
 import { Coach } from '../../types';
 import { useNotifications } from '../../context/NotificationContext';
 import { useCoachPasswordReset } from './useCoachPasswordReset';
-import { formatDate } from '../../utils/format';
 
 export interface CoachCredentialsModalProps {
   isOpen: boolean;
@@ -14,9 +13,8 @@ export interface CoachCredentialsModalProps {
 }
 
 /**
- * Coach login details. Passwords are stored encrypted (hashed) by the backend, so nobody,
- * including the super admin, can read them. While the coach has not signed up yet, the admin
- * can re-send the invite link.
+ * Coach login details, including the current sign-in password the API returns for admins.
+ * Coaches added before passwords were stored have none until the admin re-sends the invite.
  */
 export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
   isOpen,
@@ -30,12 +28,12 @@ export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
   if (!coach) return null;
 
   const loginUrl = `${window.location.origin}/login`;
-  const accepted = coach.inviteStatus === 'Accepted';
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`MSRF COACH PORTAL LOGIN:\nLogin URL: ${loginUrl}\nUsername / Email: ${coach.email}`);
+    const password = coach.tempPassword ? `\nPassword: ${coach.tempPassword}` : '';
+    navigator.clipboard.writeText(`MSRF COACH PORTAL LOGIN:\nLogin URL: ${loginUrl}\nUsername / Email: ${coach.email}${password}`);
     setCopied(true);
-    addToast({ type: 'success', title: 'Login Details Copied', message: `Login URL and username for ${coach.fullName} copied.` });
+    addToast({ type: 'success', title: 'Login Details Copied', message: `Login details for ${coach.fullName} copied.` });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -62,17 +60,12 @@ export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
 
           <div className="space-y-1 pt-2 border-t border-slate-800">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">
-              Account Status
+              Password
             </span>
-            <p className="text-sm font-bold text-amber-400 font-sans">
-              {accepted
-                ? 'Password set by coach'
-                : coach.inviteStatus === 'Expired'
-                ? 'Invite link expired. Send a new one.'
-                : 'Invite sent, waiting for coach to set a password'}
-            </p>
-            {coach.lastLoginAt && (
-              <p className="text-[11px] text-slate-400 font-sans">Last sign-in: {formatDate(coach.lastLoginAt)}</p>
+            {coach.tempPassword ? (
+              <p className="text-sm font-bold text-emerald-400 select-all break-all">{coach.tempPassword}</p>
+            ) : (
+              <p className="text-sm text-slate-300 font-sans">Not available — use Resend Invite to issue one</p>
             )}
           </div>
         </div>
@@ -80,7 +73,7 @@ export const CoachCredentialsModal: React.FC<CoachCredentialsModalProps> = ({
         <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
           <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
           <p>
-            Passwords are stored encrypted, so they cannot be viewed by anyone, including the super admin.
+            Keep this password private. Share it only with the coach.
           </p>
         </div>
 
