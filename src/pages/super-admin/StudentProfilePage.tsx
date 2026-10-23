@@ -10,7 +10,7 @@ import { Modal } from '../../components/ui/Modal';
 import { DEFAULT_15_CATEGORIES } from '../../mock-data/msrf-data';
 import { PerformanceRecord, Invoice } from '../../types';
 import { QueryState } from '../../components/ui/QueryState';
-import { filesApi, performanceApi, studentsApi } from '../../api/endpoints';
+import { performanceApi, studentsApi } from '../../api/endpoints';
 import { DeleteConfirmationModal } from '../../components/ui/DeleteConfirmationModal';
 import {
   FEE_STATUS,
@@ -45,7 +45,6 @@ import {
   Printer,
   Trophy,
   Star,
-  Camera,
   Pencil
 } from 'lucide-react';
 import { PrintPortal } from '../../components/ui/PrintPortal';
@@ -112,33 +111,6 @@ export const StudentProfilePage: React.FC = () => {
 
   // Ask before deleting a document.
   const [deletingDoc, setDeletingDoc] = useState<{ id: string; title: string } | null>(null);
-  const photoInputRef = React.useRef<HTMLInputElement>(null);
-
-  // Change (or remove) the profile photo straight from the header.
-  const handlePhotoPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      addToast({ type: 'warning', title: 'Not an image', message: 'Choose a JPG, PNG or WEBP photo.' });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      addToast({ type: 'warning', title: 'Photo too large', message: 'Choose a photo smaller than 5 MB.' });
-      return;
-    }
-    await run(
-      async () => {
-        const uploaded = await filesApi.upload(file, 'STUDENT_PHOTO');
-        await studentsApi.update(id!, { photoFileId: uploaded.id });
-      },
-      {
-        success: { title: 'Photo Updated', message: 'The student profile photo was changed.' },
-        errorTitle: 'Could not change photo',
-        invalidate: [['students'], ['dashboard']],
-      }
-    );
-  };
 
   const handleDeleteDoc = (docId: string, title: string) => {
     run(() => studentsApi.removeDocument(id!, docId), {
@@ -217,22 +189,11 @@ export const StudentProfilePage: React.FC = () => {
       <Card className="p-6 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 text-white border-0 shadow-lg">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-5">
-            <div className="shrink-0 flex flex-col items-center gap-1">
-              <button
-                type="button"
-                onClick={() => photoInputRef.current?.click()}
-                disabled={pending}
-                title="Change profile photo"
-                className="group relative w-20 h-20 rounded-2xl overflow-hidden border-2 border-white/20 shadow-md focus:outline-none focus:ring-2 focus:ring-white/60"
-              >
-                <img src={student.photo} alt={student.fullName} className="w-full h-full object-cover" />
-                <span className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity flex flex-col items-center justify-center text-[10px] font-bold text-white gap-0.5">
-                  <Camera className="w-4 h-4" />
-                  Change
-                </span>
-              </button>
-              <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handlePhotoPicked} />
-            </div>
+            <img
+              src={student.photo}
+              alt={student.fullName}
+              className="shrink-0 w-20 h-20 rounded-2xl object-cover border-2 border-white/20 shadow-md"
+            />
             <div>
               <div className="flex items-center gap-3">
                 <h2 className="text-2xl font-black text-white tracking-tight">{student.fullName}</h2>
