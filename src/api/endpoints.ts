@@ -27,7 +27,8 @@ export const authApi = {
   resetPassword: (token: string, newPassword: string) =>
     request<void>('POST', '/auth/reset-password', { json: { token, newPassword }, auth: false }),
   changePassword: (currentPassword: string, newPassword: string) =>
-    http.post<T.TokenOut>('/auth/change-password', { currentPassword, newPassword }),
+    // Signs out every session (this one too) and returns only a message.
+    http.post<{ detail: string }>('/auth/change-password', { currentPassword, newPassword }),
 };
 
 export const filesApi = {

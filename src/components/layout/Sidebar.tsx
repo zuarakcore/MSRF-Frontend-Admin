@@ -3,7 +3,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../utils/cn';
 import logoImg from '../../assets/logo.png';
-import { DEFAULT_AVATAR } from '../../api/photos';
+import { COACH_AVATAR } from '../../api/photos';
+import adminAvatar from '../../assets/admin-avatar.webp';
 import {
   Receipt,
   LayoutDashboard,
@@ -181,7 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         >
           <img
-            src={user?.avatar || DEFAULT_AVATAR}
+            src={user?.avatar || (role === 'SUPER_ADMIN' ? adminAvatar : COACH_AVATAR)}
             alt={user?.name ?? 'User'}
             className="w-8 h-8 rounded-full object-cover shrink-0"
           />

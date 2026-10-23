@@ -10,13 +10,12 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { CoachCredentialsModal } from '../../components/ui/CoachCredentialsModal';
 import { DeleteConfirmationModal } from '../../components/ui/DeleteConfirmationModal';
-import { useCoachPasswordReset } from '../../components/ui/useCoachPasswordReset';
 import { QueryState } from '../../components/ui/QueryState';
 import { coachesApi, openCoachContract } from '../../api/endpoints';
 import { toCoach, toDocument } from '../../api/mappers';
 import { useApiAction } from '../../api/hooks';
 import { errorMessage } from '../../api/client';
-import { ArrowLeft, Mail, Phone, Calendar, Award, Key, Copy, Check, FileText, Download, Plus, UserCheck, Trash2, FileDown, Printer, Send } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Calendar, Award, Key, Copy, Check, FileText, Download, Plus, UserCheck, Trash2, FileDown, Printer, Pencil } from 'lucide-react';
 import { formatDate } from '../../utils/format';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
@@ -43,7 +42,6 @@ export const CoachProfilePage: React.FC = () => {
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
   const [newDocIsContract, setNewDocIsContract] = useState(false);
 
-  const { sendLink, pending: sendingLink, canSendLink } = useCoachPasswordReset();
   const hasContract = (docsQuery.data ?? []).some(d => d.kind === 'CONTRACT');
   // Ask before deleting a document.
   const [deletingDoc, setDeletingDoc] = useState<{ id: string; title: string } | null>(null);
@@ -94,7 +92,8 @@ export const CoachProfilePage: React.FC = () => {
 
   const handleCopyCredentials = () => {
     if (!coach) return;
-    const textToCopy = `MSRF COACH PORTAL LOGIN:\nLogin URL: ${window.location.origin}/login\nUsername / Email: ${coach.email}`;
+    const password = coach.tempPassword ? `\nPassword: ${coach.tempPassword}` : '';
+    const textToCopy = `MSRF COACH PORTAL LOGIN:\nLogin URL: ${window.location.origin}/login\nUsername / Email: ${coach.email}${password}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     addToast({
@@ -150,6 +149,14 @@ export const CoachProfilePage: React.FC = () => {
             className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
           >
             Download PDF Profile
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/super-admin/coaches?edit=${id}`, { replace: true })}
+            icon={<Pencil className="w-4 h-4 text-blue-600" />}
+          >
+            Edit
           </Button>
           <Button variant="outline" size="sm" onClick={() => setCredentialsModal(true)} icon={<Key className="w-4 h-4 text-amber-500" />}>
             Login Credentials
@@ -246,26 +253,13 @@ export const CoachProfilePage: React.FC = () => {
               </div>
               <div>
                 <span className="text-slate-400 text-[10px] block uppercase font-sans font-semibold">Password</span>
-                <span className="font-sans text-slate-600">
-                  {coach.inviteStatus === 'Accepted'
-                    ? 'Set by the coach (stored encrypted, cannot be viewed)'
-                    : coach.inviteStatus === 'Expired'
-                    ? 'Invite link expired, not set yet'
-                    : 'Not set yet (invite pending)'}
-                </span>
+                {coach.tempPassword ? (
+                  <span className="font-bold text-slate-900 select-all break-all">{coach.tempPassword}</span>
+                ) : (
+                  // Coaches added before passwords were stored; Resend Invite issues one.
+                  <span className="font-sans text-slate-600">Not available — resend the invite from the coach list to issue one</span>
+                )}
               </div>
-              {canSendLink(coach) && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full mt-1 font-sans"
-                  isLoading={sendingLink}
-                  onClick={() => sendLink(coach)}
-                  icon={<Send className="w-3.5 h-3.5" />}
-                >
-                  Resend Invite Link
-                </Button>
-              )}
             </div>
           </Card>
         </div>

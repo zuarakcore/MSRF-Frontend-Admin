@@ -20,7 +20,6 @@ import {
   toPerformanceSummary,
   toReceiptInvoice,
   toStudent,
-  isPlaceholderPhoto,
 } from '../../api/mappers';
 import { useApiAction } from '../../api/hooks';
 import { errorMessage } from '../../api/client';
@@ -30,7 +29,6 @@ import { formatCurrency, formatDate } from '../../utils/format';
 import { 
   ArrowLeft, 
   Mail, 
-  Phone, 
   MapPin, 
   Calendar, 
   UserCheck, 
@@ -47,7 +45,8 @@ import {
   Printer,
   Trophy,
   Star,
-  Camera
+  Camera,
+  Pencil
 } from 'lucide-react';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
@@ -141,13 +140,6 @@ export const StudentProfilePage: React.FC = () => {
     );
   };
 
-  const handleRemovePhoto = () =>
-    run(() => studentsApi.update(id!, { photoFileId: null }), {
-      success: { type: 'info', title: 'Photo Removed', message: 'The student now shows the initials placeholder.' },
-      errorTitle: 'Could not remove photo',
-      invalidate: [['students'], ['dashboard']],
-    });
-
   const handleDeleteDoc = (docId: string, title: string) => {
     run(() => studentsApi.removeDocument(id!, docId), {
       success: { type: 'info', title: 'Document Removed', message: `"${title}" has been deleted.` },
@@ -205,6 +197,14 @@ export const StudentProfilePage: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => navigate(`/super-admin/students?edit=${id}`, { replace: true })}
+            icon={<Pencil className="w-4 h-4 text-blue-600" />}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => navigate('/super-admin/students')}
             icon={<ArrowLeft className="w-4 h-4" />}
           >
@@ -231,11 +231,6 @@ export const StudentProfilePage: React.FC = () => {
                   Change
                 </span>
               </button>
-              {!isPlaceholderPhoto(student.photo) && (
-                <button type="button" onClick={handleRemovePhoto} disabled={pending} className="text-[10px] text-slate-300 hover:text-white hover:underline">
-                  Remove photo
-                </button>
-              )}
               <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handlePhotoPicked} />
             </div>
             <div>
@@ -259,9 +254,6 @@ export const StudentProfilePage: React.FC = () => {
                 </span>
                 <span className="flex items-center gap-1 font-semibold text-emerald-300">
                   Center: {student.trainingCenter || '—'}
-                </span>
-                <span className="flex items-center gap-1 text-slate-300">
-                  <Phone className="w-4 h-4 text-slate-400" /> {student.phone}
                 </span>
               </div>
             </div>
