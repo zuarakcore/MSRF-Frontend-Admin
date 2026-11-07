@@ -19,7 +19,7 @@ import { toApiStatus, toTeamMember } from '../../../api/mappers';
 import { photoField } from '../../../api/photos';
 import { useApiAction } from '../../../api/hooks';
 import { TeamCMS } from '../../../types';
-import { Plus, Trash2, Pencil } from 'lucide-react';
+import { Plus, Trash2, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
 
 export const TeamCMSPage: React.FC = () => {
   const query = useQuery({ queryKey: ['team-members'], queryFn: () => cmsApi.team() });
@@ -66,7 +66,8 @@ export const TeamCMSPage: React.FC = () => {
     name: '',
     designation: 'DIRECTOR',
     biography: '',
-    photo: ''
+    photo: '',
+    position: '' // "Position on website"; empty on Add puts the member last
   });
 
 
@@ -86,7 +87,7 @@ export const TeamCMSPage: React.FC = () => {
     setEditingMember(null);
     setIsCustomDesignation(false);
     setCustomDesignationText('');
-    setForm({ name: '', designation: designationsList[0] || 'DIRECTOR', biography: '', photo: '' });
+    setForm({ name: '', designation: designationsList[0] || 'DIRECTOR', biography: '', photo: '', position: '' });
     setModalOpen(true);
   };
 
@@ -102,7 +103,8 @@ export const TeamCMSPage: React.FC = () => {
       name: t.name,
       designation: t.designation,
       biography: t.biography,
-      photo: t.photo || ''
+      photo: t.photo || '',
+      position: String(t.sortOrder)
     });
     setModalOpen(true);
   };
@@ -126,11 +128,14 @@ export const TeamCMSPage: React.FC = () => {
     const ok = await run(
       async () => {
         const photo = await photoField(form.photo, target?.photo, 'TEAM_PHOTO');
+        // Send a position only when the admin typed one (Add) or changed it (Edit); the API renumbers the rest.
+        const position = parseInt(form.position, 10);
         const body = {
           name: form.name.trim(),
           designation: finalDesignation,
           biography: form.biography.trim() || null,
           ...photo,
+          ...(position >= 1 && (!target || position !== target.sortOrder) ? { sortOrder: position } : {}),
         };
         return target ? cmsApi.updateMember(target.id, body) : cmsApi.createMember(body);
       },
@@ -148,6 +153,20 @@ export const TeamCMSPage: React.FC = () => {
       invalidate,
     });
   };
+
+  // Move one place up or down on the website; the API shifts the others and returns the new numbering.
+  const move = (t: TeamCMS, delta: -1 | 1) =>
+    run(() => cmsApi.updateMember(t.id, { sortOrder: Math.max(1, t.sortOrder + delta) }), {
+      success: { title: 'Order Updated', message: t.name },
+      invalidate,
+    });
+
+  const moveButtons = (t: TeamCMS) => (
+    <>
+      <Button size="sm" variant="ghost" title="Move up" disabled={pending || t.sortOrder <= 1} icon={<ArrowUp className="w-3.5 h-3.5 text-slate-600" />} onClick={() => move(t, -1)} />
+      <Button size="sm" variant="ghost" title="Move down" disabled={pending || t.sortOrder >= team.length} icon={<ArrowDown className="w-3.5 h-3.5 text-slate-600" />} onClick={() => move(t, 1)} />
+    </>
+  );
 
   const handleDeleteConfirm = async () => {
     if (!deletingMember) return;
@@ -201,6 +220,7 @@ export const TeamCMSPage: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase">
+                  <th className="py-3 px-4">#</th>
                   <th className="py-3 px-4">Photo / Avatar</th>
                   <th className="py-3 px-4">Full Name</th>
                   <th className="py-3 px-4">Designation</th>
@@ -212,6 +232,7 @@ export const TeamCMSPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedData.map(t => (
                   <tr key={t.id} onClick={() => setDetailMember(t)} className="hover:bg-slate-50 cursor-pointer">
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-500">{t.sortOrder}</td>
                     <td className="py-3.5 px-4">
                       {t.photo ? (
                         <img
@@ -237,6 +258,7 @@ export const TeamCMSPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
+                        {moveButtons(t)}
                         <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(t)} />
                         <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingMember(t)} />
                       </div>
@@ -250,7 +272,10 @@ export const TeamCMSPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {paginatedData.map(t => (
-            <Card key={t.id} onClick={() => setDetailMember(t)} hoverEffect className="space-y-4 bg-white border border-slate-200 text-slate-900 cursor-pointer">
+            <Card key={t.id} onClick={() => setDetailMember(t)} hoverEffect className="relative space-y-4 bg-white border border-slate-200 text-slate-900 cursor-pointer">
+              <span className="absolute top-3 left-3 px-2 py-0.5 rounded-md bg-slate-900 text-white font-mono font-bold text-[10px]">
+                #{t.sortOrder}
+              </span>
               {t.photo ? (
                 <img
                   src={t.photo}
@@ -277,6 +302,7 @@ export const TeamCMSPage: React.FC = () => {
                 <p className="text-xs text-slate-500 line-clamp-2">{t.biography}</p>
               </div>
               <div className="pt-2 border-t border-slate-100 flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                {moveButtons(t)}
                 <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(t)} />
                 <Button size="sm" variant="ghost" className="text-rose-500 hover:text-rose-700 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingMember(t)} />
               </div>
@@ -353,6 +379,17 @@ export const TeamCMSPage: React.FC = () => {
               />
             )}
           </div>
+
+          <Input
+            label="Position on website"
+            type="number"
+            min={1}
+            step={1}
+            value={form.position}
+            onChange={e => setForm({ ...form, position: e.target.value })}
+            placeholder={editingMember ? undefined : 'Leave empty to add at the end'}
+            helperText="1 shows first on the website. Others move to make room."
+          />
 
           <ImageUpload
             label="Member Photo Image"

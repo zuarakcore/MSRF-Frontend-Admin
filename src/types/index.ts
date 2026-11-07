@@ -359,6 +359,7 @@ export interface TeamCMS {
   photo?: string;
   biography: string; // e.g. "Former Chief Secretary to the Government of Goa"
   status: 'Active' | 'Inactive';
+  sortOrder: number; // position on the website, 1 = first
 }
 
 export interface PartnerCMS {
@@ -462,4 +463,5 @@ export interface GalleryItemCMS {
   uploadedDate: string;
   caption: string;
   status: 'Active' | 'Inactive';
+  sortOrder: number; // position in the website gallery, 1 = first
 }
