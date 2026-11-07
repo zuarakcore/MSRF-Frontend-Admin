@@ -205,15 +205,19 @@ export const cmsApi = {
   galleryAll: (query: { category?: string; status?: T.RecordStatus; search?: string } = {}) =>
     fetchAllPages<T.GalleryItemOut>('/gallery-items', query),
   galleryCategories: () => http.get<string[]>('/gallery-items/categories'),
-  createGalleryItem: (data: { title: string; category: string; caption?: string; isWide?: boolean; image: File }) => {
+  createGalleryItem: (data: {
+    title: string; category: string; caption?: string; isWide?: boolean; image: File; sortOrder?: number;
+  }) => {
     const form = new FormData();
     form.append('title', data.title);
     form.append('category', data.category);
     if (data.caption) form.append('caption', data.caption);
     form.append('isWide', String(Boolean(data.isWide)));
+    if (data.sortOrder) form.append('sortOrder', String(data.sortOrder));
     form.append('image', data.image);
     return http.postForm<T.GalleryItemOut>('/gallery-items', form);
   },
+  orderGallery: (ids: string[]) => http.put<void>('/gallery-items/order', { ids }),
   updateGalleryItem: (id: string, body: T.GalleryPatch) => http.patch<T.GalleryItemOut>(`/gallery-items/${id}`, body),
   replaceGalleryImage: (id: string, image: File) => {
     const form = new FormData();

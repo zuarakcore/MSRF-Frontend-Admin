@@ -89,6 +89,7 @@ export const toTeamMember = (m: T.TeamMemberOut): TeamCMS => ({
   photo: m.photo?.url,
   biography: m.biography ?? '',
   status: toUiStatus(m.status),
+  sortOrder: m.sortOrder,
 });
 
 export const toGalleryItem = (g: T.GalleryItemOut): GalleryItemCMS => ({
@@ -100,6 +101,7 @@ export const toGalleryItem = (g: T.GalleryItemOut): GalleryItemCMS => ({
   uploadedDate: dateOnly(g.createdAt),
   caption: g.caption ?? '',
   status: toUiStatus(g.status),
+  sortOrder: g.sortOrder,
 });
 
 /** "2026-10-31" -> "OCT 31, 2026", the style the careers screens use. */

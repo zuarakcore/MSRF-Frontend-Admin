@@ -65,7 +65,8 @@ export const WebsiteCMSPage: React.FC = () => {
       designation: teamForm.designation,
       initials: teamForm.name[0],
       biography: teamForm.biography,
-      status: 'Active'
+      status: 'Active',
+      sortOrder: team.length + 1
     };
     setTeam([...team, newTeam]);
     setTeamForm({ name: '', designation: 'DIRECTOR', biography: '' });

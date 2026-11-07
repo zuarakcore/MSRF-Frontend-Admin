@@ -826,7 +826,8 @@ export const INITIAL_TEAM_CMS: TeamCMS[] = [
     designation: 'CHAIRMAN',
     initials: 'J',
     biography: 'Former Chief Secretary to the Government of Goa',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 1
   },
   {
     id: 'team-2',
@@ -834,7 +835,8 @@ export const INITIAL_TEAM_CMS: TeamCMS[] = [
     designation: 'DIRECTOR',
     initials: 'M',
     biography: 'Former Additional Chief Secretary to the Government of Tamil Nadu',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 2
   },
   {
     id: 'team-3',
@@ -842,7 +844,8 @@ export const INITIAL_TEAM_CMS: TeamCMS[] = [
     designation: 'DIRECTOR',
     initials: 'R',
     biography: 'Former Chief Secretary to the Government of Kerala; currently Chairman, KSIDC',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 3
   },
   {
     id: 'team-4',
@@ -850,7 +853,8 @@ export const INITIAL_TEAM_CMS: TeamCMS[] = [
     designation: 'MANAGING DIRECTOR & CEO',
     initials: 'W',
     biography: 'Former Superintendent of Police, National Sports Administrator',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 4
   },
   {
     id: 'team-5',
@@ -858,7 +862,8 @@ export const INITIAL_TEAM_CMS: TeamCMS[] = [
     designation: 'DIRECTOR',
     initials: 'J',
     biography: 'Former Commissioner of Income Tax',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 5
   },
   {
     id: 'team-6',
@@ -866,7 +871,8 @@ export const INITIAL_TEAM_CMS: TeamCMS[] = [
     designation: 'DIRECTOR',
     initials: 'P',
     biography: 'Padma Shri & Arjuna awardee; former India football captain',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 6
   }
 ];
 
@@ -925,7 +931,8 @@ export const INITIAL_GALLERY: GalleryItemCMS[] = [
     imageUrl: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&q=80&w=800',
     uploadedDate: '2026-08-10',
     caption: 'Official delegation visit and tactical exchange.',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 1
   },
   {
     id: 'gal-2',
@@ -934,7 +941,8 @@ export const INITIAL_GALLERY: GalleryItemCMS[] = [
     imageUrl: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=800',
     uploadedDate: '2026-08-12',
     caption: 'Junior trainees learning South American ball mastery.',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 2
   },
   {
     id: 'gal-3',
@@ -943,7 +951,8 @@ export const INITIAL_GALLERY: GalleryItemCMS[] = [
     imageUrl: 'https://images.unsplash.com/photo-1517649763962-0c623266010b?auto=format&fit=crop&q=80&w=800',
     uploadedDate: '2026-09-02',
     caption: 'MSRF U-15 team winning the gold medal match.',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 3
   },
   {
     id: 'gal-4',
@@ -952,7 +961,8 @@ export const INITIAL_GALLERY: GalleryItemCMS[] = [
     imageUrl: 'https://images.unsplash.com/photo-1526232761682-d26e03ac148e?auto=format&fit=crop&q=80&w=800',
     uploadedDate: '2026-07-15',
     caption: 'High-intensity agility and passing drills.',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 4
   },
   {
     id: 'gal-5',
@@ -961,7 +971,8 @@ export const INITIAL_GALLERY: GalleryItemCMS[] = [
     imageUrl: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&q=80&w=800',
     uploadedDate: '2026-06-20',
     caption: 'Felicitating national medal winners and parents.',
-    status: 'Active'
+    status: 'Active',
+    sortOrder: 5
   }
 ];
 

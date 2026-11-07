@@ -21,7 +21,7 @@ import { dataUrlToFile } from '../../api/photos';
 import { useApiAction } from '../../api/hooks';
 import { useNotifications } from '../../context/NotificationContext';
 import { GalleryItemCMS } from '../../types';
-import { Plus, Trash2, Pencil, Eye } from 'lucide-react';
+import { Plus, Trash2, Pencil, Eye, ArrowUp, ArrowDown } from 'lucide-react';
 
 export const GalleryManagementPage: React.FC = () => {
   const query = useQuery({ queryKey: ['gallery-items'], queryFn: () => cmsApi.galleryAll() });
@@ -62,7 +62,8 @@ export const GalleryManagementPage: React.FC = () => {
     title: '',
     category: 'Argentina',
     imageUrl: '',
-    caption: ''
+    caption: '',
+    position: '' // "Position in gallery"; empty on Upload shows the new photo first
   });
 
 
@@ -83,7 +84,7 @@ export const GalleryManagementPage: React.FC = () => {
     setEditingItem(null);
     setIsCustomCategory(false);
     setCustomCategoryText('');
-    setForm({ title: '', category: categoriesList[0] || 'Argentina', imageUrl: '', caption: '' });
+    setForm({ title: '', category: categoriesList[0] || 'Argentina', imageUrl: '', caption: '', position: '' });
     setUploadModal(true);
   };
 
@@ -98,7 +99,8 @@ export const GalleryManagementPage: React.FC = () => {
       title: item.title,
       category: item.category,
       imageUrl: item.imageUrl,
-      caption: item.caption
+      caption: item.caption,
+      position: String(item.sortOrder)
     });
     setUploadModal(true);
   };
@@ -124,12 +126,20 @@ export const GalleryManagementPage: React.FC = () => {
       return;
     }
     const caption = form.caption.trim() || form.title.trim();
+    // Send a position only when the admin typed one (Upload) or changed it (Edit); the API renumbers the rest.
+    const position = parseInt(form.position, 10);
+    const sortOrder = position >= 1 && (!target || position !== target.sortOrder) ? position : undefined;
     const ok = await run(
       async () => {
         if (!target) {
-          return cmsApi.createGalleryItem({ title: form.title.trim(), category: finalCategory, caption, image: newImage! });
+          return cmsApi.createGalleryItem({ title: form.title.trim(), category: finalCategory, caption, image: newImage!, sortOrder });
         }
-        await cmsApi.updateGalleryItem(target.id, { title: form.title.trim(), category: finalCategory, caption });
+        await cmsApi.updateGalleryItem(target.id, {
+          title: form.title.trim(),
+          category: finalCategory,
+          caption,
+          ...(sortOrder ? { sortOrder } : {}),
+        });
         if (newImage) await cmsApi.replaceGalleryImage(target.id, newImage);
       },
       {
@@ -146,6 +156,20 @@ export const GalleryManagementPage: React.FC = () => {
       invalidate,
     });
   };
+
+  // Move one place up or down in the website gallery; the API shifts the others and returns the new numbering.
+  const move = (item: GalleryItemCMS, delta: -1 | 1) =>
+    run(() => cmsApi.updateGalleryItem(item.id, { sortOrder: Math.max(1, item.sortOrder + delta) }), {
+      success: { title: 'Order Updated', message: item.title },
+      invalidate,
+    });
+
+  const moveButtons = (item: GalleryItemCMS) => (
+    <>
+      <Button size="sm" variant="ghost" title="Move up" disabled={pending || item.sortOrder <= 1} icon={<ArrowUp className="w-3.5 h-3.5 text-slate-600" />} onClick={() => move(item, -1)} />
+      <Button size="sm" variant="ghost" title="Move down" disabled={pending || item.sortOrder >= items.length} icon={<ArrowDown className="w-3.5 h-3.5 text-slate-600" />} onClick={() => move(item, 1)} />
+    </>
+  );
 
   const handleDeleteConfirm = async () => {
     if (!deletingItem) return;
@@ -213,6 +237,7 @@ export const GalleryManagementPage: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase">
+                  <th className="py-3 px-4">#</th>
                   <th className="py-3 px-4">Photo Preview</th>
                   <th className="py-3 px-4">Title & Caption</th>
                   <th className="py-3 px-4">Category</th>
@@ -224,6 +249,7 @@ export const GalleryManagementPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {paginatedData.map(img => (
                   <tr key={img.id} onClick={() => setLightboxImg({ url: img.imageUrl, title: img.title, caption: img.caption })} className="hover:bg-slate-50 cursor-pointer">
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-500">{img.sortOrder}</td>
                     <td className="py-3.5 px-4">
                       <img
                         src={img.imageUrl}
@@ -247,6 +273,7 @@ export const GalleryManagementPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
+                        {moveButtons(img)}
                         <Button size="sm" variant="ghost" icon={<Pencil className="w-3.5 h-3.5 text-blue-600" />} onClick={() => handleOpenEdit(img)} />
                         <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingItem(img)} />
                       </div>
@@ -269,6 +296,9 @@ export const GalleryManagementPage: React.FC = () => {
                   className="w-full h-52 object-cover cursor-pointer hover:opacity-90 transition-opacity"
                 />
                 <div className="absolute top-3 left-3 flex gap-2">
+                  <span className="px-2 py-1 text-[10px] font-mono font-bold bg-slate-900 text-white rounded-md shadow-xs">
+                    #{img.sortOrder}
+                  </span>
                   <span className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-widest bg-emerald-600 text-white rounded-md shadow-xs">
                     {img.category}
                   </span>
@@ -286,6 +316,7 @@ export const GalleryManagementPage: React.FC = () => {
                 <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
                   <span className="text-[11px] text-slate-400">Uploaded: {img.uploadedDate}</span>
                   <div className="flex gap-1">
+                    {moveButtons(img)}
                     <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleOpenEdit(img)} />
                     <Button size="sm" variant="ghost" className="text-rose-500 hover:text-rose-700 hover:bg-rose-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setDeletingItem(img)} />
                   </div>
@@ -366,6 +397,17 @@ export const GalleryManagementPage: React.FC = () => {
               />
             )}
           </div>
+
+          <Input
+            label="Position in gallery"
+            type="number"
+            min={1}
+            step={1}
+            value={form.position}
+            onChange={e => setForm({ ...form, position: e.target.value })}
+            placeholder={editingItem ? undefined : 'Leave empty to show it first'}
+            helperText="1 shows first on the website. Others move to make room."
+          />
 
           <ImageUpload
             label="Gallery Photo Image"
