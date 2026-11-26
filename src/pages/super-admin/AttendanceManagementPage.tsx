@@ -16,6 +16,11 @@ import { useApiAction } from '../../api/hooks';
 import type { AttendanceStatus } from '../../api/types';
 import { CalendarCheck, Download, UserCheck, Tag, FileDown, Printer, Users, Calendar, Layers, CheckCircle2 } from 'lucide-react';
 import { formatDate, formatPhoneNumber } from '../../utils/format';
+import { sessionScope, timeRange } from '../../api/mappers';
+
+/** "26 Nov 2026 · 4:30 PM – 6:00 PM", or just the date when the session has no time. */
+const dateTime = (log: { date: string; time?: string }): string =>
+  log.time ? `${formatDate(log.date)} · ${log.time}` : formatDate(log.date);
 
 interface AttendanceEntry {
   id: string;
@@ -26,6 +31,7 @@ interface AttendanceEntry {
   markedByCoach: string;
   markedAtTime: string;
   date: string;
+  time?: string;
 }
 
 interface CoachAttendanceEntry {
@@ -39,6 +45,7 @@ interface CoachAttendanceEntry {
   markedBy: string;
   remarks: string;
   date: string;
+  time?: string;
 }
 
 interface StudentMonthlySummary {
@@ -184,6 +191,7 @@ export const AttendanceManagementPage: React.FC = () => {
         markedByCoach: item.markedBy.name,
         markedAtTime: item.remarks ?? '—',
         date: item.date,
+        time: timeRange(item.startTime, item.endTime),
       })),
     [traineeQuery.data]
   );
@@ -195,12 +203,14 @@ export const AttendanceManagementPage: React.FC = () => {
         coachId: item.coach.id,
         coachName: item.coach.name,
         phone: item.phone,
-        category: item.categories.join(', '),
+        // Programme types for sessions logged by programme type, categories for older ones.
+        category: sessionScope(item).join(', '),
         trainingCenter: item.venue,
         status: STATUS_LABEL[item.status],
         markedBy: item.role === 'CREATOR' ? 'Lead coach (logged the session)' : 'Co-coach',
         remarks: item.remarks ?? '',
         date: item.date,
+        time: timeRange(item.startTime, item.endTime),
       })),
     [coachQuery.data]
   );
@@ -621,7 +631,7 @@ export const AttendanceManagementPage: React.FC = () => {
                     <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-3.5 px-3 font-semibold text-slate-900 whitespace-nowrap">
                         <span className="bg-slate-100 text-slate-800 px-2 py-1 rounded-md text-[11px] font-mono font-bold border border-slate-200">
-                          {formatDate(log.date)}
+                          {dateTime(log)}
                         </span>
                       </td>
                       <td className="py-3.5 px-3">
@@ -680,7 +690,7 @@ export const AttendanceManagementPage: React.FC = () => {
                   <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3.5 px-3 font-semibold text-slate-900 whitespace-nowrap">
                       <span className="bg-slate-100 text-slate-800 px-2 py-1 rounded-md text-[11px] font-mono font-bold border border-slate-200">
-                        {formatDate(log.date)}
+                        {dateTime(log)}
                       </span>
                     </td>
                     <td className="py-3.5 px-3">
@@ -788,7 +798,7 @@ export const AttendanceManagementPage: React.FC = () => {
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {filteredTraineeLogs.slice(0, 50).map(log => (
                       <tr key={log.id}>
-                        <td className="py-2.5 px-3 font-mono">{formatDate(log.date)}</td>
+                        <td className="py-2.5 px-3 font-mono">{dateTime(log)}</td>
                         <td className="py-2.5 px-3 font-bold text-slate-900">{log.studentName}</td>
                         <td className="py-2.5 px-3 text-blue-600 font-semibold">{log.category}</td>
                         <td className="py-2.5 px-3 font-bold">{log.status}</td>
@@ -833,7 +843,7 @@ export const AttendanceManagementPage: React.FC = () => {
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {filteredCoachLogs.slice(0, 50).map(log => (
                       <tr key={log.id}>
-                        <td className="py-2.5 px-3 font-mono">{formatDate(log.date)}</td>
+                        <td className="py-2.5 px-3 font-mono">{dateTime(log)}</td>
                         <td className="py-2.5 px-3 font-bold text-slate-900">{log.coachName}</td>
                         <td className="py-2.5 px-3 font-mono text-blue-600 font-bold">{formatPhoneNumber(log.phone)}</td>
                         <td className="py-2.5 px-3 text-slate-700 font-semibold">{log.trainingCenter}</td>
@@ -878,7 +888,7 @@ export const AttendanceManagementPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-200 font-medium">
                   {filteredTraineeLogs.slice(0, 80).map(log => (
                     <tr key={log.id}>
-                      <td className="py-2 px-3 font-mono">{formatDate(log.date)}</td>
+                      <td className="py-2 px-3 font-mono">{dateTime(log)}</td>
                       <td className="py-2 px-3 font-bold">{log.studentName}</td>
                       <td className="py-2 px-3">{log.category}</td>
                       <td className="py-2 px-3 font-bold">{log.status}</td>
@@ -904,7 +914,7 @@ export const AttendanceManagementPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-200 font-medium">
                   {filteredCoachLogs.slice(0, 80).map(log => (
                     <tr key={log.id}>
-                      <td className="py-2 px-3 font-mono">{formatDate(log.date)}</td>
+                      <td className="py-2 px-3 font-mono">{dateTime(log)}</td>
                       <td className="py-2 px-3 font-bold">{log.coachName}</td>
                       <td className="py-2 px-3 font-mono">{formatPhoneNumber(log.phone)}</td>
                       <td className="py-2 px-3">{log.trainingCenter}</td>

@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { QueryState } from '../../components/ui/QueryState';
 import { coachPortalApi } from '../../api/endpoints';
-import { ATTENDANCE_LABEL, todayIso } from '../../api/mappers';
+import { ATTENDANCE_LABEL, sessionScope, timeRange, todayIso } from '../../api/mappers';
 import { Users, CalendarCheck, UserCheck, Award, Plus, ArrowRight, FileText, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../utils/format';
@@ -39,7 +39,8 @@ export const CoachDashboard: React.FC = () => {
     const me = s.coaches.find(c => c.coach.id === user?.coachId);
     return {
       date: s.sessionDate,
-      session: `${s.dailyTopic} • ${s.categories.map(c => c.name).join(', ')}`,
+      time: timeRange(s.startTime, s.endTime),
+      session: `${s.dailyTopic} • ${sessionScope(s).join(', ')}`,
       status: me ? ATTENDANCE_LABEL[me.status] : 'Present',
       markedTime: s.createdBy.id === user?.coachId ? 'Logged by you' : `Logged by ${s.createdBy.name}`,
     };
@@ -140,7 +141,10 @@ export const CoachDashboard: React.FC = () => {
               {coachAttendanceLogs.map((log, idx) => (
                 <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
                   <div>
-                    <p className="font-bold text-slate-900">{formatDate(log.date)}</p>
+                    <p className="font-bold text-slate-900">
+                      {formatDate(log.date)}
+                      {log.time && <span className="ml-1.5 text-[11px] font-semibold text-slate-500">{log.time}</span>}
+                    </p>
                     <p className="text-[11px] text-slate-500">{log.session}</p>
                   </div>
                   <div className="text-right">

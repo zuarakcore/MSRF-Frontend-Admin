@@ -12,7 +12,7 @@ import { PlayerDevelopmentReportPDF } from '../../components/ui/PlayerDevelopmen
 import { PlayerReportDetail } from '../../components/ui/PlayerReportDetail';
 import { QueryState } from '../../components/ui/QueryState';
 import { coachesApi, performanceApi, sessionsApi } from '../../api/endpoints';
-import { todayIso, toCoach, toPerformanceRecord, toPerformanceSummary, toSessionReport } from '../../api/mappers';
+import { sessionScope, todayIso, toCoach, toPerformanceRecord, toPerformanceSummary, toSessionReport } from '../../api/mappers';
 import { COACH_AVATAR } from '../../api/photos';
 import { errorMessage } from '../../api/client';
 import { 
@@ -201,7 +201,7 @@ export const ReportsCenterPage: React.FC = () => {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-extrabold uppercase tracking-wider">
                     <th className="py-3.5 px-4">Session Date</th>
-                    <th className="py-3.5 px-4">Categories</th>
+                    <th className="py-3.5 px-4">Programme Types</th>
                     <th className="py-3.5 px-4">Marked Coach</th>
                     <th className="py-3.5 px-4">Venue Location</th>
                     <th className="py-3.5 px-4">Daily Topic</th>
@@ -217,11 +217,11 @@ export const ReportsCenterPage: React.FC = () => {
                     >
                       <td className="py-3.5 px-4 font-bold text-slate-900">
                         {formatDate(rep.date)}
-
+                        {rep.time && <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{rep.time}</p>}
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="flex flex-wrap gap-1">
-                          {rep.categories.map((c, i) => (
+                          {sessionScope(rep).map((c, i) => (
                             <span key={i} className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
                               {c}
                             </span>
@@ -387,7 +387,10 @@ export const ReportsCenterPage: React.FC = () => {
         >
           <div className="space-y-6">
             {/* Header Matching ReportHeader Format */}
-            <ReportHeader title="DAILY TRAINING SESSION REPORT" date={formatDate(selectedReport.date)} />
+            <ReportHeader
+              title="DAILY TRAINING SESSION REPORT"
+              date={`${formatDate(selectedReport.date)}${selectedReport.time ? ` • ${selectedReport.time}` : ''}`}
+            />
 
             {/* Top Grid Info */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
@@ -400,8 +403,10 @@ export const ReportsCenterPage: React.FC = () => {
                 <p className="font-extrabold text-slate-900 mt-0.5">{selectedReport.attendanceCount} Trainees Enrolled</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] font-black uppercase text-slate-400">VENUE LOCATION</p>
+                <p className="text-[10px] font-black uppercase text-slate-400">VENUE & TIME</p>
                 <p className="font-extrabold text-slate-900 mt-0.5">{selectedReport.venue}</p>
+                {selectedReport.time && <p className="font-bold text-slate-500 mt-0.5">{selectedReport.time}</p>}
+                <p className="text-[10px] font-bold text-slate-500 mt-1">{sessionScope(selectedReport).join(', ')}</p>
               </div>
             </div>
 
@@ -502,7 +507,7 @@ export const ReportsCenterPage: React.FC = () => {
                         <th className="py-2.5 px-3 border-b border-slate-200">#</th>
                         <th className="py-2.5 px-3 border-b border-slate-200">Player Name</th>
                         <th className="py-2.5 px-3 border-b border-slate-200">ID</th>
-                        <th className="py-2.5 px-3 border-b border-slate-200">Category</th>
+                        <th className="py-2.5 px-3 border-b border-slate-200">Programme</th>
                         <th className="py-2.5 px-3 border-b border-slate-200 text-center">Status</th>
                         <th className="py-2.5 px-3 border-b border-slate-200">Remarks</th>
                       </tr>
@@ -513,7 +518,7 @@ export const ReportsCenterPage: React.FC = () => {
                           <td className="py-2.5 px-3 font-bold text-slate-400">{i + 1}</td>
                           <td className="py-2.5 px-3 font-bold text-slate-900">{st.studentName}</td>
                           <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px]">{st.studentCode}</td>
-                          <td className="py-2.5 px-3 text-slate-600">{selectedReport.categories.join(', ')}</td>
+                          <td className="py-2.5 px-3 text-slate-600">{sessionScope(selectedReport).join(', ')}</td>
                           <td className="py-2.5 px-3 text-center">
                             <span
                               className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -553,7 +558,7 @@ export const ReportsCenterPage: React.FC = () => {
             {/* Header Matching Image 2 */}
             <ReportHeader
               title="DAILY TRAINING SESSION REPORT"
-              date={formatDate(selectedReport.date)}
+              date={`${formatDate(selectedReport.date)}${selectedReport.time ? ` • ${selectedReport.time}` : ''}`}
             />
 
             {/* Top Info Header Grid */}
@@ -567,8 +572,10 @@ export const ReportsCenterPage: React.FC = () => {
                 <p className="text-sm font-black text-slate-900 mt-1">{selectedReport.attendanceCount} Trainees</p>
               </div>
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
-                <p className="text-[10px] text-slate-500 font-black uppercase">VENUE LOCATION</p>
+                <p className="text-[10px] text-slate-500 font-black uppercase">VENUE & TIME</p>
                 <p className="text-xs font-black text-slate-900 mt-1">{selectedReport.venue}</p>
+                {selectedReport.time && <p className="text-[11px] font-bold text-slate-600 mt-0.5">{selectedReport.time}</p>}
+                <p className="text-[10px] font-bold text-slate-500 mt-1">{sessionScope(selectedReport).join(', ')}</p>
               </div>
             </div>
 
@@ -646,7 +653,7 @@ export const ReportsCenterPage: React.FC = () => {
                       <th className="py-2 px-3 border-b border-slate-200">#</th>
                       <th className="py-2 px-3 border-b border-slate-200">Player Name</th>
                       <th className="py-2 px-3 border-b border-slate-200">ID</th>
-                      <th className="py-2 px-3 border-b border-slate-200">Category</th>
+                      <th className="py-2 px-3 border-b border-slate-200">Programme</th>
                       <th className="py-2 px-3 border-b border-slate-200 text-center">Status</th>
                       <th className="py-2 px-3 border-b border-slate-200">Remarks</th>
                     </tr>
@@ -659,7 +666,7 @@ export const ReportsCenterPage: React.FC = () => {
                           <td className="py-2 px-3 font-bold text-slate-500">{i + 1}</td>
                           <td className="py-2 px-3 font-extrabold text-slate-900">{st.studentName}</td>
                           <td className="py-2 px-3 font-mono text-slate-500 text-[10px]">{st.studentCode}</td>
-                          <td className="py-2 px-3 text-slate-600 font-semibold">{selectedReport.categories.join(', ')}</td>
+                          <td className="py-2 px-3 text-slate-600 font-semibold">{sessionScope(selectedReport).join(', ')}</td>
                           <td className="py-2 px-3 text-center">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-block ${
                               status === 'Present' 

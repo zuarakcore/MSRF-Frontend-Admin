@@ -414,6 +414,24 @@ export const toApiAttendance = (s: string): T.AttendanceStatus =>
 
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : '');
 
+/** "16:30:00" -> "4:30 PM". */
+const clock = (t: string) => {
+  const [h, m] = t.split(':').map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+};
+
+/** "4:30 PM – 6:00 PM", "4:30 PM", or "" when the session has no time. */
+export const timeRange = (start: string | null | undefined, end: string | null | undefined) =>
+  start ? `${clock(start)}${end ? ` – ${clock(end)}` : ''}` : '';
+
+/** What a session covered: its programme types, or the categories of sessions logged before them. */
+export const sessionScope = (s: { programTypes?: { name: string }[] | string[]; categories: { name: string }[] | string[] }) => {
+  const names = (list: { name: string }[] | string[] | undefined) =>
+    (list ?? []).map(x => (typeof x === 'string' ? x : x.name));
+  const programmes = names(s.programTypes);
+  return programmes.length > 0 ? programmes : names(s.categories);
+};
+
 /** A session list item or full detail in the UI's daily-report shape. */
 export const toSessionReport = (s: T.SessionListItem | T.SessionDetail): DailyTrainingSessionReport => {
   const d = 'attendance' in s ? s : null;
@@ -426,12 +444,16 @@ export const toSessionReport = (s: T.SessionListItem | T.SessionDetail): DailyTr
   return {
     id: s.id,
     date: s.sessionDate,
+    programTypes: (s.programTypes ?? []).map(p => p.name),
+    programTypeIds: (s.programTypes ?? []).map(p => p.id),
     categories: s.categories.map(c => c.name),
     loggedByCoachName: lead.name,
     assignedCoaches: coCoaches.map(c => c.name),
     attendanceCount: s.counts.total ?? 0,
     venue: s.venue,
-    time: s.startTime ? `${hhmm(s.startTime)}${s.endTime ? ` - ${hhmm(s.endTime)}` : ''}` : '',
+    time: timeRange(s.startTime, s.endTime),
+    startTime: hhmm(s.startTime),
+    endTime: hhmm(s.endTime),
     weeklyTopic: d?.weeklyTopic ?? '',
     dailyTopic: s.dailyTopic,
     explanation: d?.explanation ?? '',

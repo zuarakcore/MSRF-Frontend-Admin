@@ -136,12 +136,19 @@ export interface SessionSplit {
 export interface DailyTrainingSessionReport {
   id: string;
   date: string;
+  programTypes: string[];
+  programTypeIds: string[];
+  /** Only on sessions logged before programme types. */
   categories: string[];
   loggedByCoachName: string;
   assignedCoaches: string[];
   attendanceCount: number;
   venue: string;
+  /** "4:30 PM – 6:00 PM" for display, or "". */
   time: string;
+  /** "16:30" for the form inputs, or "". */
+  startTime: string;
+  endTime: string;
   weeklyTopic: string;
   dailyTopic: string;
   explanation: string;

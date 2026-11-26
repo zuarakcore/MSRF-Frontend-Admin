@@ -12,7 +12,7 @@ import { CoachCredentialsModal } from '../../components/ui/CoachCredentialsModal
 import { DeleteConfirmationModal } from '../../components/ui/DeleteConfirmationModal';
 import { QueryState } from '../../components/ui/QueryState';
 import { coachesApi, openCoachContract } from '../../api/endpoints';
-import { toCoach, toDocument } from '../../api/mappers';
+import { timeRange, toCoach, toDocument } from '../../api/mappers';
 import { useApiAction } from '../../api/hooks';
 import { errorMessage } from '../../api/client';
 import { ArrowLeft, Mail, Phone, Calendar, Award, Key, Copy, Check, FileText, Download, Plus, UserCheck, Trash2, FileDown, Printer, Pencil } from 'lucide-react';
@@ -77,6 +77,7 @@ export const CoachProfilePage: React.FC = () => {
   const coachAttendanceLogs = (attendanceQuery.data?.items ?? [])
     .map(item => ({
       date: item.date,
+      time: timeRange(item.startTime, item.endTime),
       monthYear: monthYear(item.date),
       session: `${item.venue} — ${item.dailyTopic}`,
       role: item.role,
@@ -309,7 +310,10 @@ export const CoachProfilePage: React.FC = () => {
                   ) : (
                     filteredAttendanceLogs.map((log, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-bold text-slate-900">{formatDate(log.date)}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900">
+                          {formatDate(log.date)}
+                          {log.time && <span className="block text-[10px] font-semibold text-slate-500">{log.time}</span>}
+                        </td>
                         <td className="py-2.5 px-3 text-slate-600">{log.session}</td>
                         <td className="py-2.5 px-3 font-mono text-slate-500 capitalize">{log.role === 'CREATOR' ? 'Lead coach' : 'Co-coach'}</td>
                         <td className="py-2.5 px-3">

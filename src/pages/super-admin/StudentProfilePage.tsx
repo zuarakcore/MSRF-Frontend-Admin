@@ -20,6 +20,8 @@ import {
   toPerformanceSummary,
   toReceiptInvoice,
   toStudent,
+  sessionScope,
+  timeRange,
 } from '../../api/mappers';
 import { useApiAction } from '../../api/hooks';
 import { errorMessage } from '../../api/client';
@@ -373,9 +375,12 @@ export const StudentProfilePage: React.FC = () => {
               {attendanceItems.slice(0, 50).map(rec => (
                 <div key={rec.sessionId} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
                   <div>
-                    <span className="font-bold text-slate-900">{formatDate(rec.date)}</span>
+                    <span className="font-bold text-slate-900">
+                      {formatDate(rec.date)}
+                      {rec.startTime && <span className="ml-1.5 font-semibold text-slate-500">{timeRange(rec.startTime, rec.endTime)}</span>}
+                    </span>
                     <p className="text-slate-500 mt-0.5">
-                      {rec.categories.join(', ')} • Coach {rec.coachName}
+                      {sessionScope(rec).join(', ')} • {rec.venue} • Coach {rec.coachName}
                       {rec.remarks ? ` • ${rec.remarks}` : ''}
                     </p>
                   </div>

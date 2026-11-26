@@ -263,7 +263,11 @@ export const coachPortalApi = {
     fetchAllPages<T.CoachStudentItem>('/coach/students', query),
   student: (id: string) => http.get<T.CoachStudentDetail>(`/coach/students/${id}`),
   studentReports: (id: string) => http.get<T.PerformanceReportSummary[]>(`/coach/students/${id}/performance-reports`),
-  roster: (categoryIds: string[]) => http.get<{ students: T.RosterStudent[] }>('/coach/session-roster', { categoryIds }),
+  /** Active students of the chosen programme types, in any category. */
+  roster: (programTypeIds: string[]) =>
+    http.get<{ students: T.RosterStudent[] }>('/coach/session-roster', { programTypeIds }),
+  /** Other active coaches, to pick co-coaches (coaches cannot read /coaches). */
+  colleagues: () => http.get<T.RefItem[]>('/coach/coaches'),
   sessionsAll: (query: { search?: string; categoryId?: string; year?: number; month?: number; date?: string } = {}) =>
     fetchAllPages<T.SessionListItem>('/coach/sessions', query),
   session: (id: string) => http.get<T.SessionDetail>(`/coach/sessions/${id}`),
@@ -279,6 +283,8 @@ export const coachPortalApi = {
   deleteReport: (id: string) => http.delete(`/coach/performance-reports/${id}`),
   /** Reference lists any signed-in user may read. */
   categories: () => http.get<T.RefOut[]>('/categories', { status: 'ACTIVE' }),
+  programTypes: () => http.get<T.RefOut[]>('/program-types', { status: 'ACTIVE' }),
+  trainingCenters: () => http.get<T.RefOut[]>('/training-centers', { status: 'ACTIVE' }),
 };
 
 /** For plain <a href> links to files the backend already signed (FileRef.url). */

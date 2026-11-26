@@ -9,7 +9,7 @@ import { Modal } from '../../components/ui/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { QueryState } from '../../components/ui/QueryState';
 import { coachPortalApi } from '../../api/endpoints';
-import { emptyToNull, toApiAttendance, todayIso, toSessionReport } from '../../api/mappers';
+import { emptyToNull, sessionScope, toApiAttendance, todayIso, toSessionReport } from '../../api/mappers';
 import { avatarFor, COACH_AVATAR } from '../../api/photos';
 import { useApiAction } from '../../api/hooks';
 import { errorMessage } from '../../api/client';
@@ -49,6 +49,12 @@ export const CoachAttendancePage: React.FC = () => {
   const sessionsQuery = useQuery({ queryKey: ['coach', 'sessions'], queryFn: () => coachPortalApi.sessionsAll() });
   const { run, pending } = useApiAction();
   const invalidate = [['coach', 'sessions'], ['coach', 'dashboard'], ['attendance'], ['sessions']];
+  // Sessions are planned by programme type; venues are picked from training centres or typed in.
+  const programTypesQuery = useQuery({ queryKey: ['coach', 'program-types'], queryFn: coachPortalApi.programTypes });
+  const trainingCentersQuery = useQuery({ queryKey: ['coach', 'training-centers'], queryFn: coachPortalApi.trainingCenters });
+  const colleaguesQuery = useQuery({ queryKey: ['coach', 'colleagues'], queryFn: coachPortalApi.colleagues });
+  const programTypes = programTypesQuery.data ?? [];
+  const venueOptions = (trainingCentersQuery.data ?? []).map(t => t.name);
 
   // The categories assigned to this coach by the admin; sessions can only use these.
   const myCategories = dashboardQuery.data?.categories ?? [];
@@ -90,7 +96,7 @@ export const CoachAttendancePage: React.FC = () => {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [programmeFilter, setProgrammeFilter] = useState('ALL');
   const [yearFilter, setYearFilter] = useState('ALL');
   const [monthFilter, setMonthFilter] = useState('ALL');
   const [dateFilter, setDateFilter] = useState('');
@@ -99,27 +105,22 @@ export const CoachAttendancePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'setup' | 'session-form' | 'mark-attendance'>('setup');
 
   // FORM STATE: Step 1 Setup
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedProgramTypeIds, setSelectedProgramTypeIds] = useState<string[]>([]);
+  const selectedProgramTypeNames = programTypes.filter(p => selectedProgramTypeIds.includes(p.id)).map(p => p.name);
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
-  // Coaches cannot list all coaches (admin-only endpoint), so offer the ones they have
-  // already shared sessions with. The backend validates any co-coach sent.
-  const availableCoaches = Array.from(
-    new Map(
-      reportsList
-        .flatMap(r => r.coachRefs ?? [])
-        .filter(ref => ref.id !== loggedInCoach.id)
-        .map(ref => [ref.id, { id: ref.id, fullName: ref.name, photo: COACH_AVATAR, specialization: 'Coach', phone: '' }])
-    ).values()
-  );
+  // Every other active coach (GET /coach/coaches); any number can be picked as co-coaches.
+  const availableCoaches = (colleaguesQuery.data ?? []).map(c => ({
+    id: c.id, fullName: c.name, photo: COACH_AVATAR, specialization: 'Coach', phone: '',
+  }));
   const [selectedCoachIds, setSelectedCoachIds] = useState<string[]>([]);
-  const selectedCategoryIds = myCategories.filter(c => selectedCategories.includes(c.name)).map(c => c.id);
 
   // Check if session date already exists for logged-in coach (Only 1 attendance permitted per day)
   const isDuplicateDate = reportsList.some(r => r.date === selectedDate && r.id !== editingReportId && (r.loggedByCoachName === loggedInCoach.fullName || r.assignedCoaches?.includes(loggedInCoach.fullName)));
 
   // FORM STATE: Step 2 Daily Training Session Form
   const [venue, setVenue] = useState<string>('');
-  const [sessionTime, setSessionTime] = useState<string>('');
+  const [startTime, setStartTime] = useState<string>('');
+  const [endTime, setEndTime] = useState<string>('');
   const [dailyTopic, setDailyTopic] = useState<string>('');
   const [explanation, setExplanation] = useState<string>('');
 
@@ -130,17 +131,18 @@ export const CoachAttendancePage: React.FC = () => {
 
   const [fullSessionOverview, setFullSessionOverview] = useState<string>('');
 
-  // Active trainees in the selected categories (backend: GET /coach/session-roster)
+  // Every active student of the selected programme types, in any category (GET /coach/session-roster)
   const rosterQuery = useQuery({
-    queryKey: ['coach', 'roster', selectedCategoryIds],
-    queryFn: () => coachPortalApi.roster(selectedCategoryIds),
-    enabled: selectedCategoryIds.length > 0,
+    queryKey: ['coach', 'roster', selectedProgramTypeIds],
+    queryFn: () => coachPortalApi.roster(selectedProgramTypeIds),
+    enabled: selectedProgramTypeIds.length > 0,
   });
   const filteredStudents = (rosterQuery.data?.students ?? []).map(s => ({
     id: s.id,
     fullName: s.fullName,
     studentId: s.studentCode,
     photo: s.photo?.url ?? avatarFor(s.fullName),
+    programType: s.programType.name,
     category: s.category.name,
   }));
 
@@ -167,8 +169,12 @@ export const CoachAttendancePage: React.FC = () => {
 
   // STEP VALIDATION LOGIC
   const validateStep1 = (): boolean => {
-    if (selectedCategoryIds.length === 0) {
-      addToast({ type: 'error', title: 'Category Required', message: 'Please select at least 1 Category to proceed.' });
+    if (selectedProgramTypeIds.length === 0) {
+      addToast({ type: 'error', title: 'Programme Type Required', message: 'Please select at least 1 programme type to proceed.' });
+      return false;
+    }
+    if (startTime && endTime && endTime <= startTime) {
+      addToast({ type: 'error', title: 'Check the Time', message: 'End time must be after the start time.' });
       return false;
     }
     if (!selectedDate) {
@@ -247,16 +253,13 @@ export const CoachAttendancePage: React.FC = () => {
 
   // Reset Form for New Session
   const handleAddNewSession = () => {
-    if (myCategories.length === 0) {
-      addToast({ type: 'warning', title: 'No categories assigned', message: 'Ask the admin to assign categories to you before logging sessions.' });
-      return;
-    }
     setEditingReportId(null);
-    setSelectedCategories([myCategories[0].name]);
+    setSelectedProgramTypeIds([]);
     setSelectedDate(todayStr);
     setSelectedCoachIds([]);
     setVenue('');
-    setSessionTime('');
+    setStartTime('');
+    setEndTime('');
     setDailyTopic('');
     setExplanation('');
     setSplits([{ id: 'sp-1', heading: '', timeDoneMins: '15', explanation: '' }]);
@@ -289,11 +292,13 @@ export const CoachAttendancePage: React.FC = () => {
 
     withSession(summary, report => {
       setEditingReportId(report.id);
-      setSelectedCategories(report.categories);
+      // Sessions logged by category before programme types: the coach picks programme types again.
+      setSelectedProgramTypeIds(report.programTypeIds);
       setSelectedDate(report.date);
       setSelectedCoachIds((report.coachRefs ?? []).filter(c => !c.isLead).map(c => c.id));
       setVenue(report.venue);
-      setSessionTime(report.time);
+      setStartTime(report.startTime);
+      setEndTime(report.endTime);
       setDailyTopic(report.dailyTopic);
       setExplanation(report.explanation);
       setSplits(report.splits.length > 0 ? report.splits : [{ id: 'sp-1', heading: '', timeDoneMins: '15', explanation: '' }]);
@@ -324,15 +329,9 @@ export const CoachAttendancePage: React.FC = () => {
     });
   };
 
-  // Toggle category choice
-  const toggleCategory = (catTitle: string) => {
-    if (selectedCategories.includes(catTitle)) {
-      if (selectedCategories.length > 1) {
-        setSelectedCategories(selectedCategories.filter(c => c !== catTitle));
-      }
-    } else {
-      setSelectedCategories([...selectedCategories, catTitle]);
-    }
+  // Toggle programme type choice
+  const toggleProgramType = (id: string) => {
+    setSelectedProgramTypeIds(prev => (prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]));
   };
 
   // Toggle coach choice
@@ -409,9 +408,11 @@ export const CoachAttendancePage: React.FC = () => {
 
     const body: SessionIn = {
       sessionDate: selectedDate,
-      categoryIds: selectedCategoryIds,
+      programTypeIds: selectedProgramTypeIds,
       coCoachIds: selectedCoachIds,
       venue: venue.trim(),
+      startTime: startTime || null,
+      endTime: endTime || null,
       weeklyTopic: null,
       dailyTopic: dailyTopic.trim(),
       explanation: explanation.trim(),
@@ -445,7 +446,7 @@ export const CoachAttendancePage: React.FC = () => {
     const matchesSearch = 
       r.dailyTopic.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.venue.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === 'ALL' || r.categories.includes(categoryFilter);
+    const matchesCategory = programmeFilter === 'ALL' || sessionScope(r).includes(programmeFilter);
     const matchesYear = yearFilter === 'ALL' || r.date.startsWith(yearFilter);
     const matchesMonth = monthFilter === 'ALL' || ALL_MONTHS[parseInt(r.date.slice(5, 7), 10) - 1] === monthFilter;
     const matchesDate = !dateFilter || r.date === dateFilter;
@@ -539,12 +540,12 @@ export const CoachAttendancePage: React.FC = () => {
 
                 <div>
                   <Select
-                    label="Category Filter"
-                    value={categoryFilter}
-                    onChange={e => setCategoryFilter(e.target.value)}
+                    label="Programme Filter"
+                    value={programmeFilter}
+                    onChange={e => setProgrammeFilter(e.target.value)}
                     options={[
-                      { label: 'All Categories', value: 'ALL' },
-                      ...Array.from(new Set([...myCategories.map(c => c.name), ...reportsList.flatMap(r => r.categories)])).map(name => ({ label: name, value: name }))
+                      { label: 'All Programmes', value: 'ALL' },
+                      ...Array.from(new Set([...programTypes.map(p => p.name), ...reportsList.flatMap(r => sessionScope(r))])).map(name => ({ label: name, value: name }))
                     ]}
                     className="bg-slate-50 border-slate-300 rounded-xl h-10 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand"
                   />
@@ -603,7 +604,7 @@ export const CoachAttendancePage: React.FC = () => {
                     <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-extrabold uppercase tracking-wider">
                       <th className="py-3.5 px-4">Session Date</th>
                       <th className="py-3.5 px-4">Coaches Present</th>
-                      <th className="py-3.5 px-4">Categories</th>
+                      <th className="py-3.5 px-4">Programme Types</th>
                       <th className="py-3.5 px-4">Daily Topic</th>
                       <th className="py-3.5 px-4">Venue Location</th>
                       <th className="py-3.5 px-4 text-center">Actions</th>
@@ -612,9 +613,7 @@ export const CoachAttendancePage: React.FC = () => {
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                     {filteredReportsList.map(rep => {
                       const canEdit = rep.canEdit ?? isEditableWithin7Days(rep.date);
-                      const coachesList = rep.assignedCoaches && rep.assignedCoaches.length > 0
-                        ? rep.assignedCoaches
-                        : [rep.loggedByCoachName];
+                      const coachesList = [rep.loggedByCoachName, ...(rep.assignedCoaches ?? [])];
                       return (
                         <tr
                           key={rep.id}
@@ -624,7 +623,7 @@ export const CoachAttendancePage: React.FC = () => {
                         >
                           <td className="py-3.5 px-4 font-bold text-slate-900">
                             {formatDate(rep.date)}
-
+                            {rep.time && <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{rep.time}</p>}
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="flex flex-wrap gap-1">
@@ -637,7 +636,7 @@ export const CoachAttendancePage: React.FC = () => {
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="flex flex-wrap gap-1">
-                              {rep.categories.map((c, i) => (
+                              {sessionScope(rep).map((c, i) => (
                                 <span key={i} className="text-[10px] font-bold bg-brand-soft text-brand px-2 py-0.5 rounded-full border border-emerald-200">
                                   {c}
                                 </span>
@@ -722,7 +721,7 @@ export const CoachAttendancePage: React.FC = () => {
                 }`}
               >
                 <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px]">1</span>
-                <span className="truncate">Category & Coach Setup *</span>
+                <span className="truncate">Programme & Coach Setup *</span>
               </button>
 
               <button
@@ -759,26 +758,27 @@ export const CoachAttendancePage: React.FC = () => {
                       <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
                         <CalendarCheck className="w-5 h-5 text-brand" /> Step 1: Session Details & Staffing
                       </h3>
-                      <p className="text-xs text-slate-500">Select categories, attendance date, and participating coaches</p>
+                      <p className="text-xs text-slate-500">Select programme types, date, time, venue and participating coaches</p>
                     </div>
                     <Badge variant="blue">Logged-in Coach: {loggedInCoach.fullName}</Badge>
                   </div>
                 }
               >
                 <div className="space-y-6">
-                  {/* 1. Category Selection (Multi-select) */}
+                  {/* 1. Programme Type Selection (Multi-select) */}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                      Select Categories <span className="text-rose-500">*</span>
+                      Select Programme Types <span className="text-rose-500">*</span>
                     </label>
+                    {programTypesQuery.isLoading && <p className="text-xs text-slate-500">Loading programme types…</p>}
                     <div className="flex flex-wrap gap-2.5">
-                      {myCategories.map(cat => {
-                        const isSelected = selectedCategories.includes(cat.name);
+                      {programTypes.map(cat => {
+                        const isSelected = selectedProgramTypeIds.includes(cat.id);
                         return (
                           <button
                             key={cat.id}
                             type="button"
-                            onClick={() => toggleCategory(cat.name)}
+                            onClick={() => toggleProgramType(cat.id)}
                             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
                               isSelected
                                 ? 'bg-brand text-white border-brand shadow-sm'
@@ -791,8 +791,12 @@ export const CoachAttendancePage: React.FC = () => {
                         );
                       })}
                     </div>
-                    {selectedCategories.length === 0 && (
-                      <p className="text-xs text-rose-500 font-bold mt-1.5">* At least 1 category is required.</p>
+                    {selectedProgramTypeIds.length === 0 ? (
+                      <p className="text-xs text-rose-500 font-bold mt-1.5">* At least 1 programme type is required.</p>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 mt-1.5">
+                        All active trainees of the selected programme types are listed for attendance.
+                      </p>
                     )}
                   </div>
 
@@ -827,9 +831,37 @@ export const CoachAttendancePage: React.FC = () => {
                       <input
                         type="text"
                         required
+                        list="session-venue-options"
                         value={venue}
                         onChange={e => setVenue(e.target.value)}
-                        placeholder="e.g. Main Stadium Ground Pitch A"
+                        placeholder="Choose a training centre or type a new venue"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand"
+                      />
+                      <datalist id="session-venue-options">
+                        {venueOptions.map(v => <option key={v} value={v} />)}
+                      </datalist>
+                      <p className="text-[11px] text-slate-400 mt-1 font-medium">Pick a training centre, or type any other venue.</p>
+                    </div>
+                  </div>
+
+                  {/* Session time */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Start Time</label>
+                      <input
+                        type="time"
+                        value={startTime}
+                        onChange={e => setStartTime(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">End Time</label>
+                      <input
+                        type="time"
+                        value={endTime}
+                        min={startTime || undefined}
+                        onChange={e => setEndTime(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand"
                       />
                     </div>
@@ -849,7 +881,7 @@ export const CoachAttendancePage: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {availableCoaches.length === 0 && (
                         <p className="text-[11px] text-slate-500 col-span-full">
-                          Coaches you have shared sessions with appear here. Ask the admin if another coach needs to be added to this session.
+                          {colleaguesQuery.isLoading ? 'Loading coaches…' : 'No other active coaches yet.'}
                         </p>
                       )}
                       {availableCoaches.map(c => {
@@ -980,6 +1012,7 @@ export const CoachAttendancePage: React.FC = () => {
                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">VENUE LOCATION</p>
                             <input
                               type="text"
+                              list="session-venue-options"
                               value={venue}
                               onChange={e => setVenue(e.target.value)}
                               className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-900 mt-0.5"
@@ -1144,7 +1177,7 @@ export const CoachAttendancePage: React.FC = () => {
                           <UserCheck className="w-5 h-5 text-emerald-600" /> Trainee Attendance List
                         </h3>
                         <p className="text-xs text-slate-500">
-                          Category: {selectedCategories.join(', ')} ({filteredStudents.length} Trainees)
+                          Programme: {selectedProgramTypeNames.join(', ')} ({filteredStudents.length} Trainees)
                         </p>
                       </div>
                       <div className="flex items-center gap-2.5">
@@ -1169,7 +1202,7 @@ export const CoachAttendancePage: React.FC = () => {
                         <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-extrabold uppercase tracking-wider">
                           <th className="py-3 px-3">Trainee Name</th>
                           <th className="py-3 px-3">Student ID</th>
-                          <th className="py-3 px-3">Category</th>
+                          <th className="py-3 px-3">Programme / Category</th>
                           <th className="py-3 px-3">Attendance Toggle</th>
                           <th className="py-3 px-3">Remarks</th>
                         </tr>
@@ -1186,7 +1219,10 @@ export const CoachAttendancePage: React.FC = () => {
                                 </div>
                               </td>
                               <td className="py-3 px-3 font-mono text-slate-500">{st.studentId}</td>
-                              <td className="py-3 px-3 text-slate-600 font-semibold">{st.category || 'Academy'}</td>
+                              <td className="py-3 px-3 text-slate-600 font-semibold">
+                                {st.programType}
+                                <span className="block text-[10px] font-medium text-slate-400">{st.category}</span>
+                              </td>
                               <td className="py-3 px-3">
                                 <div className="flex items-center gap-1.5">
                                   <button
@@ -1262,7 +1298,11 @@ export const CoachAttendancePage: React.FC = () => {
                 <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
                   <FileText className="w-5 h-5 text-brand" /> Session Detail — {formatDate(selectedReportDetail.date)}
                 </h3>
-                <p className="text-xs text-slate-500">Logged by {selectedReportDetail.loggedByCoachName}</p>
+                <p className="text-xs text-slate-500">
+                  Logged by {selectedReportDetail.loggedByCoachName}
+                  {selectedReportDetail.time && ` • ${selectedReportDetail.time}`}
+                  {sessionScope(selectedReportDetail).length > 0 && ` • ${sessionScope(selectedReportDetail).join(', ')}`}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 {(selectedReportDetail.canEdit ?? isEditableWithin7Days(selectedReportDetail.date)) ? (
@@ -1288,9 +1328,7 @@ export const CoachAttendancePage: React.FC = () => {
               <Card className="bg-slate-50">
                 <p className="text-[10px] text-slate-400 font-black uppercase">COACHES PRESENT</p>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {(selectedReportDetail.assignedCoaches && selectedReportDetail.assignedCoaches.length > 0
-                    ? selectedReportDetail.assignedCoaches
-                    : [selectedReportDetail.loggedByCoachName]
+                  {([selectedReportDetail.loggedByCoachName, ...(selectedReportDetail.assignedCoaches ?? [])]
                   ).map((c, i) => (
                     <span key={i} className="text-xs font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
                       <UserCheck className="w-3 h-3 text-emerald-600" /> {c}
@@ -1303,8 +1341,9 @@ export const CoachAttendancePage: React.FC = () => {
                 <p className="text-sm font-black text-slate-900 mt-1">{selectedReportDetail.attendanceCount} Trainees</p>
               </Card>
               <Card className="bg-slate-50">
-                <p className="text-[10px] text-slate-400 font-black uppercase">VENUE LOCATION</p>
+                <p className="text-[10px] text-slate-400 font-black uppercase">VENUE & TIME</p>
                 <p className="text-sm font-black text-slate-900 mt-1">{selectedReportDetail.venue}</p>
+                {selectedReportDetail.time && <p className="text-xs font-bold text-slate-500 mt-0.5">{selectedReportDetail.time}</p>}
               </Card>
             </div>
 
@@ -1425,7 +1464,7 @@ export const CoachAttendancePage: React.FC = () => {
             {/* Header Matching Image 2 */}
             <ReportHeader
               title="DAILY TRAINING SESSION & ATTENDANCE REPORT"
-              date={formatDate(selectedReportForPrint.date)}
+              date={`${formatDate(selectedReportForPrint.date)}${selectedReportForPrint.time ? ` • ${selectedReportForPrint.time}` : ''}`}
             />
 
             {/* Top Info Header Grid */}
@@ -1433,9 +1472,7 @@ export const CoachAttendancePage: React.FC = () => {
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
                 <p className="text-[10px] text-slate-500 font-black uppercase">COACHES PRESENT</p>
                 <p className="text-xs font-black text-emerald-800 mt-1">
-                  {selectedReportForPrint.assignedCoaches && selectedReportForPrint.assignedCoaches.length > 0
-                    ? selectedReportForPrint.assignedCoaches.join(', ')
-                    : selectedReportForPrint.loggedByCoachName}
+                  {[selectedReportForPrint.loggedByCoachName, ...(selectedReportForPrint.assignedCoaches ?? [])].join(', ')}
                 </p>
               </div>
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
@@ -1443,12 +1480,13 @@ export const CoachAttendancePage: React.FC = () => {
                 <p className="text-xs font-black text-slate-900 mt-1">{selectedReportForPrint.attendanceCount} Trainees</p>
               </div>
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
-                <p className="text-[10px] text-slate-500 font-black uppercase">CATEGORIES</p>
-                <p className="text-xs font-black text-brand mt-1">{selectedReportForPrint.categories.join(', ')}</p>
+                <p className="text-[10px] text-slate-500 font-black uppercase">PROGRAMME TYPES</p>
+                <p className="text-xs font-black text-brand mt-1">{sessionScope(selectedReportForPrint).join(', ')}</p>
               </div>
               <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50">
-                <p className="text-[10px] text-slate-500 font-black uppercase">VENUE LOCATION</p>
+                <p className="text-[10px] text-slate-500 font-black uppercase">VENUE & TIME</p>
                 <p className="text-xs font-black text-slate-900 mt-1">{selectedReportForPrint.venue}</p>
+                {selectedReportForPrint.time && <p className="text-[11px] font-bold text-slate-600 mt-0.5">{selectedReportForPrint.time}</p>}
               </div>
             </div>
 
@@ -1501,7 +1539,7 @@ export const CoachAttendancePage: React.FC = () => {
                   <tr className="bg-slate-100 text-slate-700 font-black uppercase text-[10px] border-b border-slate-200">
                     <th className="py-2 px-3">Trainee Name</th>
                     <th className="py-2 px-3">Student ID</th>
-                    <th className="py-2 px-3">Category</th>
+                    <th className="py-2 px-3">Programme</th>
                     <th className="py-2 px-3 text-center">Status</th>
                     <th className="py-2 px-3">Remarks</th>
                   </tr>
@@ -1513,7 +1551,7 @@ export const CoachAttendancePage: React.FC = () => {
                       <tr key={st.studentId}>
                         <td className="py-1.5 px-3 font-bold">{st.studentName}</td>
                         <td className="py-1.5 px-3 font-mono text-slate-500">{st.studentCode}</td>
-                        <td className="py-1.5 px-3 text-slate-600">{selectedReportForPrint.categories.join(', ')}</td>
+                        <td className="py-1.5 px-3 text-slate-600">{sessionScope(selectedReportForPrint).join(', ')}</td>
                         <td className="py-1.5 px-3 text-center font-bold">
                           <span className={`px-2 py-0.5 rounded text-[10px] ${
                             stRec.status === 'Present' ? 'bg-emerald-100 text-emerald-800' :

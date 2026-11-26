@@ -266,6 +266,8 @@ export interface CoachAttendanceOut {
   items: {
     sessionId: UUID;
     date: ISODate;
+    startTime: string | null;
+    endTime: string | null;
     venue: string;
     dailyTopic: string;
     role: string;
@@ -297,6 +299,8 @@ export interface SessionListItem {
   startTime: string | null;
   endTime: string | null;
   dailyTopic: string;
+  /** What the session covered. Sessions logged before programme types only have `categories`. */
+  programTypes: RefItem[];
   categories: RefItem[];
   createdBy: RefItem;
   coaches: SessionCoachOut[];
@@ -323,7 +327,8 @@ export interface SessionDetail extends SessionListItem {
 
 export interface SessionIn {
   sessionDate: ISODate;
-  categoryIds: UUID[];
+  /** The attendance list is every active student of these programme types, in any category. */
+  programTypeIds: UUID[];
   coCoachIds?: UUID[];
   venue: string;
   startTime?: string | null;
@@ -339,6 +344,8 @@ export interface SessionIn {
 export interface AttendanceStreamItem {
   id: UUID;
   date: ISODate;
+  startTime: string | null;
+  endTime: string | null;
   sessionId: UUID;
   student: AttendanceStudent;
   category: RefItem;
@@ -360,10 +367,13 @@ export interface AttendanceSummaryItem {
 
 export interface CoachAttendanceStreamItem {
   date: ISODate;
+  startTime: string | null;
+  endTime: string | null;
   sessionId: UUID;
   coach: RefItem;
   phone: string;
   venue: string;
+  programTypes: string[];
   categories: string[];
   role: string;
   status: AttendanceStatus;
@@ -374,8 +384,12 @@ export interface StudentAttendanceOut {
   items: {
     sessionId: UUID;
     date: ISODate;
+    startTime: string | null;
+    endTime: string | null;
+    venue: string;
     status: AttendanceStatus;
     remarks: string | null;
+    programTypes: string[];
     categories: string[];
     coachName: string;
   }[];
@@ -388,6 +402,7 @@ export interface RosterStudent {
   fullName: string;
   photo: FileRef | null;
   category: RefItem;
+  programType: RefItem;
   batch: string;
 }
 
