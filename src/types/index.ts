@@ -354,6 +354,7 @@ export interface ProgrammeCMS {
   title: string; // e.g. "Grassroots Kids Football"
   description: string;
   registrationUrl?: string; // https:// link or site path
+  date?: string; // event date YYYY-MM-DD; upcoming ones show on the website home page
   status: 'Active' | 'Inactive';
   enquiriesCount: number;
 }

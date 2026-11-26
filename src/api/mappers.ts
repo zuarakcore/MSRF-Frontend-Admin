@@ -77,6 +77,7 @@ export const toProgramme = (p: T.ProgrammeOut): ProgrammeCMS => ({
   title: p.title,
   description: p.description,
   registrationUrl: p.registrationUrl ?? '',
+  date: p.date ?? '',
   status: toUiStatus(p.status),
   enquiriesCount: p.enquiriesCount ?? 0,
 });

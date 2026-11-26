@@ -16,6 +16,7 @@ import { cmsApi } from '../../../api/endpoints';
 import { toApiStatus, toProgramme } from '../../../api/mappers';
 import { useApiAction } from '../../../api/hooks';
 import { ProgrammeCMS } from '../../../types';
+import { formatDate } from '../../../utils/format';
 import { Plus, Trash2, Pencil } from 'lucide-react';
 
 export const ProgrammesCMSPage: React.FC = () => {
@@ -41,10 +42,15 @@ export const ProgrammesCMSPage: React.FC = () => {
     ageGroup: '6 - 10 YEARS',
     title: '',
     description: '',
-    registrationUrl: ''
+    registrationUrl: '',
+    date: ''
   });
   const [urlError, setUrlError] = useState('');
 
+
+  const today = new Date().toLocaleDateString('en-CA');
+  /** Dated today or later: listed under "Upcoming" on the website home page. */
+  const isUpcoming = (p: ProgrammeCMS) => !!p.date && p.date >= today;
 
   const filtered = programmes.filter(p => {
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
@@ -60,14 +66,14 @@ export const ProgrammesCMSPage: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingProg(null);
-    setForm({ ageGroup: '6 - 10 YEARS', title: '', description: '', registrationUrl: '' });
+    setForm({ ageGroup: '6 - 10 YEARS', title: '', description: '', registrationUrl: '', date: '' });
     setUrlError('');
     setModalOpen(true);
   };
 
   const handleOpenEdit = (p: ProgrammeCMS) => {
     setEditingProg(p);
-    setForm({ ageGroup: p.ageGroup, title: p.title, description: p.description, registrationUrl: p.registrationUrl ?? '' });
+    setForm({ ageGroup: p.ageGroup, title: p.title, description: p.description, registrationUrl: p.registrationUrl ?? '', date: p.date ?? '' });
     setUrlError('');
     setModalOpen(true);
   };
@@ -83,6 +89,7 @@ export const ProgrammesCMSPage: React.FC = () => {
     }
     const body = {
       registrationUrl: url || null,
+      date: form.date || null,
       ageGroup: form.ageGroup.trim(),
       title: form.title.trim(),
       description: form.description.trim() || 'Professional sports training program.',
@@ -161,6 +168,7 @@ export const ProgrammesCMSPage: React.FC = () => {
                   <th className="py-3 px-4">Age Group</th>
                   <th className="py-3 px-4">Programme Title</th>
                   <th className="py-3 px-4">Description</th>
+                  <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Enquiries</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -172,6 +180,16 @@ export const ProgrammesCMSPage: React.FC = () => {
                     <td className="py-3.5 px-4 font-bold text-emerald-600 font-mono">{p.ageGroup}</td>
                     <td className="py-3.5 px-4 font-extrabold text-slate-900 hover:text-blue-600">{p.title}</td>
                     <td className="py-3.5 px-4 text-slate-600 max-w-md truncate">{p.description}</td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      {p.date ? (
+                        <>
+                          <span className="font-bold text-slate-800">{formatDate(p.date)}</span>
+                          {isUpcoming(p) && <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase">Upcoming</span>}
+                        </>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
                     <td className="py-3.5 px-4 font-bold text-blue-600">{p.enquiriesCount} Enquiries</td>
                     <td className="py-3.5 px-4" onClick={e => e.stopPropagation()}>
                       <StatusToggle
@@ -208,6 +226,12 @@ export const ProgrammesCMSPage: React.FC = () => {
               </div>
               <h3 className="text-lg font-black text-slate-900 hover:text-blue-600">{p.title}</h3>
               <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed">{p.description}</p>
+              {p.date && (
+                <p className="text-xs font-bold text-slate-700">
+                  {formatDate(p.date)}
+                  {isUpcoming(p) && <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase">Upcoming</span>}
+                </p>
+              )}
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                 <span className="text-blue-600 font-bold">{p.enquiriesCount} Enquiries</span>
                 <div className="flex gap-1" onClick={e => e.stopPropagation()}>
@@ -251,6 +275,11 @@ export const ProgrammesCMSPage: React.FC = () => {
                 AGE GROUP: {detailProg.ageGroup}
               </span>
               <h3 className="text-xl font-black text-slate-900">{detailProg.title}</h3>
+              {detailProg.date && (
+                <p className="text-xs text-emerald-800 font-semibold">
+                  Date: <b>{formatDate(detailProg.date)}</b>{isUpcoming(detailProg) ? ' · shown as Upcoming on the website home page' : ''}
+                </p>
+              )}
               <p className="text-xs text-emerald-800 font-semibold">Total Student Enquiries Received: <b>{detailProg.enquiriesCount}</b></p>
             </div>
 
@@ -291,6 +320,13 @@ export const ProgrammesCMSPage: React.FC = () => {
               placeholder="A fun-first program introducing ball mastery..."
             />
           </div>
+          <Input
+            label="Date"
+            type="date"
+            value={form.date}
+            onChange={e => setForm({ ...form, date: e.target.value })}
+            helperText="Optional. Until this date passes, the programme shows under Upcoming on the website home page."
+          />
           <Input
             label="Registration Link"
             value={form.registrationUrl}

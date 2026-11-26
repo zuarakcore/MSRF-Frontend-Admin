@@ -613,6 +613,8 @@ export interface ProgrammeOut {
   trainingDays: string | null;
   coachLabel: string | null;
   benefits: string[];
+  /** Event date "YYYY-MM-DD". From today on, the programme shows in the website's home page "Upcoming" list. */
+  date: ISODate | null;
   registrationUrl: string | null;
   status: RecordStatus;
   sortOrder: number;
@@ -629,6 +631,8 @@ export interface ProgrammeIn {
   trainingDays?: string | null;
   coachLabel?: string | null;
   benefits?: string[];
+  /** Event date "YYYY-MM-DD"; null clears it. */
+  date?: ISODate | null;
   /** https:// link or a site path such as /contact, max 500 characters. */
   registrationUrl?: string | null;
   status?: RecordStatus;
