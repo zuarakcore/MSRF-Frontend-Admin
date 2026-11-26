@@ -42,10 +42,18 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
     setActive(0);
   };
 
+  // Close on any press outside the field and its list (mouse, pen or touch), when focus moves to
+  // another control (Tab), or on Escape. Listeners run in the capture phase so a handler elsewhere
+  // on the page that stops propagation cannot keep the list open.
   useEffect(() => {
     if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) close();
+    const outside = (target: EventTarget | null) =>
+      target instanceof Node && !rootRef.current?.contains(target);
+    const onPress = (e: Event) => {
+      if (outside(e.target)) close();
+    };
+    const onFocusIn = (e: FocusEvent) => {
+      if (outside(e.target)) close();
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -53,10 +61,16 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
         close();
       }
     };
-    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('pointerdown', onPress, true);
+    document.addEventListener('mousedown', onPress, true);
+    document.addEventListener('touchstart', onPress, true);
+    document.addEventListener('focusin', onFocusIn, true);
     document.addEventListener('keydown', onKeyDown, true);
     return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('pointerdown', onPress, true);
+      document.removeEventListener('mousedown', onPress, true);
+      document.removeEventListener('touchstart', onPress, true);
+      document.removeEventListener('focusin', onFocusIn, true);
       document.removeEventListener('keydown', onKeyDown, true);
     };
   }, [open]);

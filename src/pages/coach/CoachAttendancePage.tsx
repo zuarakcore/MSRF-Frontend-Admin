@@ -26,20 +26,17 @@ import {
   Clock, 
   MapPin, 
   FileText, 
-  Check, 
   Edit, 
   Search, 
   Filter, 
-  Lock, 
   Printer,
   FileDown
 } from 'lucide-react';
-import { formatDate, formatPhoneNumber } from '../../utils/format';
+import { formatDate } from '../../utils/format';
 import { useNotifications } from '../../context/NotificationContext';
 import { SessionSplit, DailyTrainingSessionReport } from '../../types';
 import { PrintPortal } from '../../components/ui/PrintPortal';
 import { ReportHeader } from '../../components/ui/ReportHeader';
-import logoImg from '../../assets/logo.png';
 
 export const CoachAttendancePage: React.FC = () => {
   const { user } = useAuth();
@@ -330,10 +327,6 @@ export const CoachAttendancePage: React.FC = () => {
     });
   };
 
-  // Toggle programme type choice
-  const toggleProgramType = (id: string) => {
-    setSelectedProgramTypeIds(prev => (prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]));
-  };
 
 
   const handleConfirmDeleteSession = async () => {
@@ -758,36 +751,23 @@ export const CoachAttendancePage: React.FC = () => {
                 }
               >
                 <div className="space-y-6">
-                  {/* 1. Programme Type Selection (Multi-select) */}
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                      Select Programme Types <span className="text-rose-500">*</span>
-                    </label>
-                    {programTypesQuery.isLoading && <p className="text-xs text-slate-500">Loading programme types…</p>}
-                    <div className="flex flex-wrap gap-2.5">
-                      {programTypes.map(cat => {
-                        const isSelected = selectedProgramTypeIds.includes(cat.id);
-                        return (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => toggleProgramType(cat.id)}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
-                              isSelected
-                                ? 'bg-brand text-white border-brand shadow-sm'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
-                            {cat.name}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  {/* 1. Programme types: multi-select dropdown */}
+                  <div className="space-y-1.5">
+                    <MultiSelect
+                      label="Programme Types"
+                      required
+                      searchable={programTypes.length > 6}
+                      searchPlaceholder="Search programme types…"
+                      placeholder={programTypesQuery.isLoading ? 'Loading programme types…' : 'Choose programme types'}
+                      emptyText="No active programme types. Ask the admin to add them."
+                      options={programTypes.map(p => ({ label: p.name, value: p.id }))}
+                      value={selectedProgramTypeIds}
+                      onChange={setSelectedProgramTypeIds}
+                    />
                     {selectedProgramTypeIds.length === 0 ? (
-                      <p className="text-xs text-rose-500 font-bold mt-1.5">* At least 1 programme type is required.</p>
+                      <p className="text-xs text-rose-500 font-bold">* At least 1 programme type is required.</p>
                     ) : (
-                      <p className="text-[11px] text-slate-500 mt-1.5">
+                      <p className="text-[11px] text-slate-500">
                         All active trainees of the selected programme types are listed for attendance.
                       </p>
                     )}
