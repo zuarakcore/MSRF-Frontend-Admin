@@ -275,17 +275,24 @@ export const ProgrammesCMSPage: React.FC = () => {
                 AGE GROUP: {detailProg.ageGroup}
               </span>
               <h3 className="text-xl font-black text-slate-900">{detailProg.title}</h3>
-              {detailProg.date && (
-                <p className="text-xs text-emerald-800 font-semibold">
-                  Date: <b>{formatDate(detailProg.date)}</b>{isUpcoming(detailProg) ? ' · shown as Upcoming on the website home page' : ''}
-                </p>
-              )}
               <p className="text-xs text-emerald-800 font-semibold">Total Student Enquiries Received: <b>{detailProg.enquiriesCount}</b></p>
             </div>
 
             <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Programme Overview & Description</p>
               <p className="text-xs text-slate-700 leading-relaxed font-medium">{detailProg.description}</p>
+            </div>
+
+            <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</p>
+              {detailProg.date ? (
+                <p className="text-sm font-bold text-slate-900">
+                  {formatDate(detailProg.date)}
+                  {isUpcoming(detailProg) && <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase">Upcoming</span>}
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500 font-medium">Not set. Add a date to show this programme under Upcoming on the website home page.</p>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
