@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Check, ChevronDown, X } from 'lucide-react';
+import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 export interface MultiSelectProps {
@@ -12,6 +12,9 @@ export interface MultiSelectProps {
   onChange: (value: string[]) => void;
   placeholder?: string;
   emptyText?: string;
+  /** Show a search box at the top of the list (for long lists). Arrow keys + Enter pick options. */
+  searchable?: boolean;
+  searchPlaceholder?: string;
 }
 
 /** Dropdown with checkboxes; the chosen options show as removable chips in the field. */
@@ -25,20 +28,29 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
   onChange,
   placeholder = 'Select…',
   emptyText = 'No options available.',
+  searchable = false,
+  searchPlaceholder = 'Search…',
 }) => {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
+  const close = () => {
+    setOpen(false);
+    setQuery('');
+    setActive(0);
+  };
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(e.target as Node)) close();
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        setOpen(false);
+        close();
       }
     };
     document.addEventListener('pointerdown', onPointerDown);
@@ -51,6 +63,20 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
 
   const toggle = (v: string) => onChange(value.includes(v) ? value.filter(x => x !== v) : [...value, v]);
   const selected = options.filter(o => value.includes(o.value));
+  const needle = query.trim().toLowerCase();
+  const visible = needle ? options.filter(o => o.label.toLowerCase().includes(needle)) : options;
+  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActive(i => Math.min(i + 1, visible.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (visible[active]) toggle(visible[active].value);
+    }
+  };
 
   return (
     <div ref={rootRef} className="w-full space-y-1.5">
@@ -66,7 +92,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
           tabIndex={0}
           aria-expanded={open}
           aria-controls={listId}
-          onClick={() => setOpen(o => !o)}
+          onClick={() => (open ? close() : setOpen(true))}
           onKeyDown={e => {
             if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
               e.preventDefault();
@@ -111,14 +137,37 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
         </div>
 
         {open && (
+          <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
+          {searchable && (
+            <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                autoFocus
+                value={query}
+                onChange={e => {
+                  setQuery(e.target.value);
+                  setActive(0);
+                }}
+                onKeyDown={onSearchKey}
+                placeholder={searchPlaceholder}
+                aria-controls={listId}
+                className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+              />
+              {selected.length > 0 && (
+                <span className="text-[11px] font-semibold text-slate-400 whitespace-nowrap">{selected.length} selected</span>
+              )}
+            </div>
+          )}
           <ul
             id={listId}
             role="listbox"
             aria-multiselectable
-            className="absolute z-20 mt-1 w-full max-h-60 overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+            className="max-h-60 overflow-auto py-1"
           >
-            {options.length === 0 && <li className="px-3 py-2 text-xs text-slate-400">{emptyText}</li>}
-            {options.map(o => {
+            {visible.length === 0 && (
+              <li className="px-3 py-2 text-xs text-slate-400">{needle ? `No match for "${query.trim()}".` : emptyText}</li>
+            )}
+            {visible.map((o, i) => {
               const checked = value.includes(o.value);
               return (
                 <li
@@ -126,8 +175,10 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
                   role="option"
                   aria-selected={checked}
                   onClick={() => toggle(o.value)}
+                  onMouseEnter={() => setActive(i)}
                   className={cn(
                     'flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50',
+                    searchable && i === active && 'bg-slate-50',
                     checked ? 'text-blue-700 font-semibold' : 'text-slate-700'
                   )}
                 >
@@ -144,6 +195,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
               );
             })}
           </ul>
+          </div>
         )}
       </div>
       {error && <p className="text-xs text-rose-600 font-medium">{error}</p>}

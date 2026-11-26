@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Select } from '../../components/ui/Select';
+import { MultiSelect } from '../../components/ui/MultiSelect';
 import { Modal } from '../../components/ui/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { QueryState } from '../../components/ui/QueryState';
@@ -334,14 +335,6 @@ export const CoachAttendancePage: React.FC = () => {
     setSelectedProgramTypeIds(prev => (prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]));
   };
 
-  // Toggle coach choice
-  const toggleCoach = (coachId: string) => {
-    if (selectedCoachIds.includes(coachId)) {
-      setSelectedCoachIds(selectedCoachIds.filter(id => id !== coachId));
-    } else {
-      setSelectedCoachIds([...selectedCoachIds, coachId]);
-    }
-  };
 
   const handleConfirmDeleteSession = async () => {
     if (!deleteSessionConfirm) return;
@@ -867,76 +860,26 @@ export const CoachAttendancePage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 3. Coaches Selection (Multi-select, EXCLUDES logged-in coach name) */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        Choose Other Coaches Present ({assignedCoachesList.length} Total Selected):
-                      </label>
-                      <span className="text-[11px] font-bold text-brand bg-brand-soft px-2.5 py-0.5 rounded-full border border-emerald-200">
-                        Click cards to select / unselect
+                  {/* 3. Co-coaches: searchable multi-select, scales to any number of coaches */}
+                  <div className="space-y-2">
+                    <MultiSelect
+                      label="Other Coaches Present"
+                      searchable
+                      searchPlaceholder="Search coaches by name…"
+                      placeholder={colleaguesQuery.isLoading ? 'Loading coaches…' : 'Choose co-coaches (optional)'}
+                      emptyText="No other active coaches yet."
+                      options={availableCoaches.map(c => ({ label: c.fullName, value: c.id }))}
+                      value={selectedCoachIds}
+                      onChange={setSelectedCoachIds}
+                    />
+                    <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                      <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>
+                        <b className="text-slate-700">{loggedInCoach.fullName}</b> (lead)
+                        {selectedCoachIds.length > 0 && ` + ${selectedCoachIds.length} co-coach${selectedCoachIds.length > 1 ? 'es' : ''}`}
+                        {' '}for {formatDate(selectedDate)}
                       </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {availableCoaches.length === 0 && (
-                        <p className="text-[11px] text-slate-500 col-span-full">
-                          {colleaguesQuery.isLoading ? 'Loading coaches…' : 'No other active coaches yet.'}
-                        </p>
-                      )}
-                      {availableCoaches.map(c => {
-                        const isChecked = selectedCoachIds.includes(c.id);
-                        return (
-                          <div
-                            key={c.id}
-                            onClick={() => toggleCoach(c.id)}
-                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 relative ${
-                              isChecked
-                                ? 'bg-brand-soft/80 border-emerald-400 text-emerald-950 shadow-sm ring-2 ring-brand/20'
-                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100/80'
-                            }`}
-                          >
-                            <img src={c.photo} alt={c.fullName} className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-xs shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-1">
-                                <p className="font-extrabold text-xs text-slate-900 truncate">{c.fullName}</p>
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {}}
-                                  className="w-4 h-4 text-brand rounded border-slate-300 focus:ring-brand pointer-events-none shrink-0"
-                                />
-                              </div>
-                              <p className="text-[11px] text-brand font-semibold truncate mt-0.5">{c.specialization || 'Sports Coach'}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Selected Session Coaches Details Breakdown Box */}
-                    <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 mt-4 border border-slate-800">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                        <span className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                          <UserCheck className="w-4 h-4 text-emerald-400" /> All Assigned Session Coaches ({assignedCoachesList.length})
-                        </span>
-                        <span className="text-[10px] font-bold text-slate-400">Selected for {formatDate(selectedDate)}</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        {assignedCoachesList.map((c, idx) => (
-                          <div key={c.id} className="p-2.5 bg-slate-800/90 rounded-xl border border-slate-700/80 flex items-center gap-3">
-                            <img src={c.photo} alt={c.fullName} className="w-9 h-9 rounded-full object-cover border border-slate-600 shrink-0" />
-                            <div className="flex-1 min-w-0 text-xs">
-                              <p className="font-extrabold text-white truncate flex items-center gap-1">
-                                {c.fullName}
-                                {idx === 0 && <span className="text-[9px] bg-brand text-white font-black px-1.5 py-0.2 rounded shrink-0">LEAD</span>}
-                              </p>
-                              <p className="text-[10px] text-slate-300 truncate">{c.specialization || 'Sports Coach'}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    </p>
                   </div>
 
                   <div className="pt-4 border-t border-slate-200 flex justify-end">
